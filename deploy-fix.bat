@@ -1,6 +1,6 @@
 @echo off
 echo === Nuki Smart Lock Update Script ===
-echo This script will prepare the fixes for dark mode and API errors
+echo This script will prepare the fixes for dark mode and route issues
 echo.
 
 REM Create a timestamp for the backup
@@ -34,7 +34,7 @@ set /p PUSH_TO_GIT=
 if /i "%PUSH_TO_GIT%"=="y" (
     echo Pushing changes to GitHub...
     git add .
-    git commit -m "Fix dark mode and API errors"
+    git commit -m "Fix dark mode and route issues"
     git push
     echo Changes pushed to GitHub.
 ) else (
@@ -46,7 +46,8 @@ echo === Update Preparation Complete ===
 echo.
 echo To deploy to your Raspberry Pi:
 echo 1. Go to your Pi and run: git pull
-echo 2. Then run: ./deploy-fix.sh
+echo 2. Then run: chmod +x deploy-fix.sh
+echo 3. Finally run: ./deploy-fix.sh
 echo.
 echo Backup of your previous configuration is at: %BACKUP_DIR%
 

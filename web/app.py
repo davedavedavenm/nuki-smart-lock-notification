@@ -135,6 +135,104 @@ def update_theme():
         logger.error(f"Error updating theme: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/users/manage')
+@admin_required
+def users_manage():
+    """User management page"""
+    return render_template('users_manage.html')
+
+@app.route('/api/users/manage', methods=['GET'])
+@admin_required
+def get_users_manage():
+    """API endpoint to get all users for management"""
+    try:
+        users = user_db.get_all_users()
+        return jsonify(users)
+    except Exception as e:
+        logger.error(f"Error getting users: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/users/manage', methods=['POST'])
+@admin_required
+def add_user():
+    """API endpoint to add a new user"""
+    try:
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
+        role = data.get('role', 'user')
+        active = data.get('active', True)
+        
+        if not username or not password:
+            return jsonify({"error": "Username and password are required"}), 400
+        
+        if user_db.user_exists(username):
+            return jsonify({"error": "User already exists"}), 409
+        
+        success = user_db.add_user(username, password, role, active)
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Failed to add user"}), 500
+    except Exception as e:
+        logger.error(f"Error adding user: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/users/manage/<username>', methods=['PUT'])
+@admin_required
+def update_user(username):
+    """API endpoint to update a user"""
+    try:
+        data = request.json
+        password = data.get('password')
+        role = data.get('role')
+        active = data.get('active')
+        theme = data.get('theme')
+        
+        if not user_db.user_exists(username):
+            return jsonify({"error": "User not found"}), 404
+        
+        # Update password if provided
+        if password:
+            user_db.update_password(username, password)
+        
+        # Update role if provided
+        if role:
+            user_db.update_role(username, role)
+        
+        # Update active status if provided
+        if active is not None:
+            user_db.update_active(username, active)
+        
+        # Update theme if provided
+        if theme:
+            user_db.update_theme(username, theme)
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error updating user: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/users/manage/<username>', methods=['DELETE'])
+@admin_required
+def delete_user(username):
+    """API endpoint to delete a user"""
+    try:
+        if username == 'admin' or username == session.get('username'):
+            return jsonify({"error": "Cannot delete admin user or currently logged in user"}), 400
+        
+        if not user_db.user_exists(username):
+            return jsonify({"error": "User not found"}), 404
+        
+        success = user_db.delete_user(username)
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Failed to delete user"}), 500
+    except Exception as e:
+        logger.error(f"Error deleting user: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/activity')
 @login_required
 def activity():
@@ -291,6 +389,90 @@ def get_status():
         return jsonify(lock_status)
     except Exception as e:
         logger.error(f"Error getting status: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/notifications')
+@login_required
+def notifications():
+    """Notification settings page"""
+    return render_template('notifications.html')
+
+@app.route('/api/notifications/settings', methods=['GET'])
+@login_required
+def get_notification_settings():
+    """API endpoint to get notification settings"""
+    try:
+        # Get notification settings
+        settings = {
+            'type': config.notification_type,
+            'digest_mode': config.digest_mode,
+            'notify_auto_lock': config.notify_auto_lock,
+            'notify_system_events': config.notify_system_events,
+            'excluded_users': config.excluded_users,
+            'excluded_actions': config.excluded_actions,
+            'excluded_triggers': config.excluded_triggers
+        }
+        
+        return jsonify(settings)
+    except Exception as e:
+        logger.error(f"Error getting notification settings: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/notifications/settings', methods=['POST'])
+@admin_required
+def update_notification_settings():
+    """API endpoint to update notification settings"""
+    try:
+        # Get data from request
+        data = request.json
+        
+        # Get current config file path
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        config_path = os.path.join(base_dir, "config", "config.ini")
+        
+        # Import the configuration utility functions
+        sys.path.insert(0, os.path.join(parent_dir, "scripts"))
+        from configure import update_config as update_config_func
+        
+        # Update notification type
+        if 'type' in data:
+            update_config_func(config_path, 'General', 'notification_type', data['type'])
+        
+        # Update digest mode
+        if 'digest_mode' in data:
+            update_config_func(config_path, 'Notification', 'digest_mode', str(data['digest_mode']).lower())
+        
+        # Update auto lock notifications
+        if 'notify_auto_lock' in data:
+            update_config_func(config_path, 'Notification', 'notify_auto_lock', str(data['notify_auto_lock']).lower())
+        
+        # Update system events notifications
+        if 'notify_system_events' in data:
+            update_config_func(config_path, 'Notification', 'notify_system_events', str(data['notify_system_events']).lower())
+        
+        # Update excluded users
+        if 'excluded_users' in data:
+            excluded_users = ','.join(data['excluded_users'])
+            update_config_func(config_path, 'Filter', 'excluded_users', excluded_users)
+        
+        # Update excluded actions
+        if 'excluded_actions' in data:
+            excluded_actions = ','.join(data['excluded_actions'])
+            update_config_func(config_path, 'Filter', 'excluded_actions', excluded_actions)
+        
+        # Update excluded triggers
+        if 'excluded_triggers' in data:
+            excluded_triggers = ','.join(data['excluded_triggers'])
+            update_config_func(config_path, 'Filter', 'excluded_triggers', excluded_triggers)
+        
+        # Reload configuration
+        global config, api
+        config = ConfigManager(parent_dir)
+        api = NukiAPI(config)
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error updating notification settings: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/config')
@@ -524,12 +706,6 @@ def get_users():
     except Exception as e:
         logger.error(f"Error getting users: {e}")
         return jsonify({"error": str(e)}), 500
-
-@app.route('/notifications')
-@login_required
-def notifications():
-    """Notification settings page"""
-    return render_template('notifications.html')
 
 @app.route('/health')
 def health_check():
