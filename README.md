@@ -37,7 +37,7 @@ A comprehensive notification system for Nuki Smart Lock 4th Generation using a R
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/nuki-smart-lock-notification.git
+   git clone https://github.com/davedavedavenm/nuki-smart-lock-notification.git
    cd nuki-smart-lock-notification
    ```
 
@@ -61,7 +61,7 @@ A comprehensive notification system for Nuki Smart Lock 4th Generation using a R
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/nuki-smart-lock-notification.git
+   git clone https://github.com/davedavedavenm/nuki-smart-lock-notification.git
    cd nuki-smart-lock-notification
    ```
 
@@ -208,6 +208,10 @@ Common issues and solutions:
   ```bash
   rm ~/nukiweb/logs/user_cache.json
   ```
+
+## Repository
+
+This project is hosted on GitHub at: [https://github.com/davedavedavenm/nuki-smart-lock-notification](https://github.com/davedavedavenm/nuki-smart-lock-notification)
 
 ## Contributing
 

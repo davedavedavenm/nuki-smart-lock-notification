@@ -3,22 +3,20 @@ name: Docker Build
 on:
   push:
     branches: [ main ]
-    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
+      uses: docker/setup-buildx-action@v2
     
-    - name: Build Monitor Docker image
-      uses: docker/build-push-action@v2
+    - name: Build monitor image
+      uses: docker/build-push-action@v4
       with:
         context: .
         file: ./Dockerfile.monitor
@@ -27,8 +25,8 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
-    - name: Build Web Docker image
-      uses: docker/build-push-action@v2
+    - name: Build web image
+      uses: docker/build-push-action@v4
       with:
         context: .
         file: ./Dockerfile.web
