@@ -3,64 +3,111 @@
 # Transition script to move from systemd services to Docker containers
 # This preserves your existing configuration
 
-echo "Nuki Smart Lock - Transition to Docker"
-echo "====================================="
-echo ""
-echo "This script will help transition your current systemd setup to Docker"
-echo "while preserving all your configurations and data."
+# Define colors for better readability
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}=======================================${NC}"
+echo -e "${BLUE}   Nuki Project - Transition to Docker   ${NC}"
+echo -e "${BLUE}=======================================${NC}"
 echo ""
 
-# Check if Docker is installed
-if ! command -v docker &> /dev/null; then
-    echo "Docker is not installed. Installing Docker..."
-    curl -sSL https://get.docker.com | sh
-    sudo usermod -aG docker $USER
-    echo "Docker installed. Please log out and log back in, then run this script again."
+# Check if running as root
+if [ "$EUID" -ne 0 ]; then
+  echo -e "${RED}Please run as root (sudo)${NC}"
+  exit 1
+fi
+
+# First, run the backup script
+echo -e "${YELLOW}Step 1: Creating a backup using the existing backup script...${NC}"
+if [ -f "./nuki_backup_restore.sh" ]; then
+  chmod +x ./nuki_backup_restore.sh
+  
+  # Create an automatic backup
+  TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+  BACKUP_DIR="/root/nukiweb/backups"
+  mkdir -p "$BACKUP_DIR"
+  BACKUP_FILE="$BACKUP_DIR/nukiweb_pre_docker_${TIMESTAMP}.tar.gz"
+  
+  echo -e "${YELLOW}Stopping Nuki services for consistent backup...${NC}"
+  systemctl stop nuki-web.service
+  systemctl stop nuki-monitor.service
+  
+  echo -e "${YELLOW}Creating backup at: ${NC}${BACKUP_FILE}"
+  # Create tar excluding the backups directory and venv directory to save space
+  tar --exclude="./backups" --exclude="./venv" -czf "$BACKUP_FILE" -C /root nukiweb
+  
+  # Check if backup was successful
+  if [ -f "$BACKUP_FILE" ]; then
+    size=$(du -h "$BACKUP_FILE" | cut -f1)
+    echo -e "${GREEN}Backup completed successfully!${NC}"
+    echo -e "Backup file: $BACKUP_FILE"
+    echo -e "Size: $size"
+  else
+    echo -e "${RED}Backup failed! Aborting transition.${NC}"
+    
+    # Restart services since we stopped them
+    systemctl start nuki-monitor.service
+    systemctl start nuki-web.service
+    exit 1
+  fi
+else
+  echo -e "${RED}Backup script not found. Would you like to continue without a backup? (y/n)${NC}"
+  read -p "Continue without backup? " confirm
+  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+    echo -e "${YELLOW}Transition canceled.${NC}"
     exit 0
+  fi
+fi
+
+# Check if Docker is installed
+echo -e "${YELLOW}Step 2: Checking if Docker is installed...${NC}"
+if ! command -v docker &> /dev/null; then
+    echo -e "${YELLOW}Docker is not installed. Installing Docker...${NC}"
+    curl -sSL https://get.docker.com | sh
+    usermod -aG docker $USER
+    echo -e "${GREEN}Docker installed.${NC}"
 fi
 
 # Check if docker compose is available
 if ! docker compose version &> /dev/null; then
-    echo "Docker Compose plugin not found. Please install the Docker Compose plugin:"
-    echo "sudo apt-get install docker-compose-plugin"
+    echo -e "${YELLOW}Docker Compose plugin not found. Installing...${NC}"
+    apt-get update
+    apt-get install -y docker-compose-plugin
+    echo -e "${GREEN}Docker Compose plugin installed.${NC}"
+fi
+
+# Disable systemd services if they're already stopped
+echo -e "${YELLOW}Step 3: Disabling systemd services...${NC}"
+systemctl disable nuki-monitor.service 2>/dev/null || echo "nuki-monitor service not enabled or not found."
+systemctl disable nuki-web.service 2>/dev/null || echo "nuki-web service not enabled or not found."
+
+# Create directories needed for Docker volumes
+echo -e "${YELLOW}Step 4: Preparing Docker environment...${NC}"
+mkdir -p config
+mkdir -p logs
+
+# Ensure configuration files exist
+if [ ! -d "/root/nukiweb/config" ]; then
+    echo -e "${RED}Configuration directory not found. Cannot proceed.${NC}"
     exit 1
 fi
 
-# Backup current configuration
-echo "Step 1: Backing up current configuration..."
-BACKUP_DIR="nuki_backup_$(date +%Y%m%d_%H%M%S)"
-mkdir -p $BACKUP_DIR
-cp -r config $BACKUP_DIR/
-cp -r logs $BACKUP_DIR/ 2>/dev/null || echo "No logs directory found to backup."
-echo "Configuration backed up to $BACKUP_DIR"
-
-# Stop current systemd services
-echo "Step 2: Stopping current systemd services..."
-sudo systemctl stop nuki-monitor.service 2>/dev/null || echo "nuki-monitor service not found or already stopped."
-sudo systemctl stop nuki-web.service 2>/dev/null || echo "nuki-web service not found or already stopped."
-
-# Disable systemd services
-echo "Step 3: Disabling systemd services..."
-sudo systemctl disable nuki-monitor.service 2>/dev/null || echo "nuki-monitor service not enabled or not found."
-sudo systemctl disable nuki-web.service 2>/dev/null || echo "nuki-web service not enabled or not found."
-
-# Create directories needed for Docker volumes
-echo "Step 4: Preparing Docker environment..."
-mkdir -p docker-volumes/config
-mkdir -p docker-volumes/logs
-
-# Copy current config to Docker volume location
-echo "Step 5: Copying configuration to Docker volumes..."
-cp -r config/* docker-volumes/config/
+# Copy current config to Docker volume location if not already done by backup
+echo -e "${YELLOW}Step 5: Setting up configuration for Docker...${NC}"
+cp -r /root/nukiweb/config/* ./config/
 
 # Build and start Docker containers
-echo "Step 6: Building and starting Docker containers..."
+echo -e "${YELLOW}Step 6: Building and starting Docker containers...${NC}"
 docker compose build
 docker compose up -d
 
 # Create a systemd service for Docker
-echo "Step 7: Creating systemd service for Docker deployment..."
-sudo bash -c 'cat > /etc/systemd/system/nuki-docker.service << EOF
+echo -e "${YELLOW}Step 7: Creating systemd service for Docker deployment...${NC}"
+cat > /etc/systemd/system/nuki-docker.service << EOF
 [Unit]
 Description=Nuki Smart Lock Notification Docker Service
 After=docker.service
@@ -72,27 +119,32 @@ RemainAfterExit=yes
 WorkingDirectory=$(pwd)
 ExecStart=/usr/bin/docker compose up -d
 ExecStop=/usr/bin/docker compose down
-User=$USER
+User=root
 
 [Install]
 WantedBy=multi-user.target
-EOF'
+EOF
 
 # Enable and start the Docker systemd service
-echo "Step 8: Enabling Docker systemd service..."
-sudo systemctl enable nuki-docker.service
-sudo systemctl start nuki-docker.service
+echo -e "${YELLOW}Step 8: Enabling Docker systemd service...${NC}"
+systemctl enable nuki-docker.service
+systemctl start nuki-docker.service
 
 echo ""
-echo "Transition completed successfully!"
-echo "Your Nuki Smart Lock system is now running in Docker containers."
+echo -e "${GREEN}Transition completed successfully!${NC}"
+echo -e "${GREEN}Your Nuki Smart Lock system is now running in Docker containers.${NC}"
 echo ""
-echo "You can manage the system with these commands:"
-echo "- Check status: docker compose ps"
-echo "- View logs: docker compose logs"
-echo "- Stop system: docker compose down"
-echo "- Start system: docker compose up -d"
+echo -e "${YELLOW}You can manage the system with these commands:${NC}"
+echo -e "- Check status: ${BLUE}docker compose ps${NC}"
+echo -e "- View logs: ${BLUE}docker compose logs${NC}"
+echo -e "- Follow logs: ${BLUE}docker compose logs -f${NC}"
+echo -e "- Stop system: ${BLUE}docker compose down${NC}"
+echo -e "- Start system: ${BLUE}docker compose up -d${NC}"
 echo ""
-echo "Web interface is available at: http://localhost:5000"
+echo -e "${YELLOW}Web interface is available at: ${BLUE}http://localhost:5000${NC}"
 echo ""
-echo "Note: Your original configuration was backed up to $BACKUP_DIR"
+echo -e "${YELLOW}If you need to revert back to the previous setup:${NC}"
+echo -e "1. Stop Docker containers: ${BLUE}docker compose down${NC}"
+echo -e "2. Disable Docker service: ${BLUE}systemctl disable nuki-docker.service${NC}"
+echo -e "3. Restore from backup: ${BLUE}./nuki_backup_restore.sh${NC} and select the pre-docker backup"
+echo ""

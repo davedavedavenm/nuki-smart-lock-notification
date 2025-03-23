@@ -9,9 +9,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY scripts /app/scripts
 COPY config /app/config
+COPY docker-entrypoint.sh /app/
 
 # Create necessary directories
 RUN mkdir -p /app/logs
+
+# Make the entrypoint script executable
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Set environment variables
 ENV CONFIG_DIR=/app/config
@@ -23,4 +27,5 @@ RUN chown -R nuki:nuki /app
 USER nuki
 
 # Run the monitor script
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["python", "scripts/nuki_monitor.py"]

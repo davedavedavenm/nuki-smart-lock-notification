@@ -10,7 +10,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(os.path.expanduser("~/nukiweb/logs/nuki_monitor.log")),
+        logging.FileHandler(os.path.join(os.environ.get('LOGS_DIR', '/app/logs'), 'nuki_monitor.log')),
         logging.StreamHandler()
     ]
 )
