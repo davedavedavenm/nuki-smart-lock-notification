@@ -51,7 +51,7 @@ class UserDatabase:
             return False
             
         self.users[username] = {
-            'password_hash': generate_password_hash(password),
+            'password_hash': generate_password_hash(password, method='pbkdf2:sha256'),
             'role': role,
             'active': active,
             'created_at': datetime.now().isoformat(),
@@ -87,7 +87,7 @@ class UserDatabase:
         if not username in self.users:
             return False
             
-        self.users[username]['password_hash'] = generate_password_hash(new_password)
+        self.users[username]['password_hash'] = generate_password_hash(new_password, method='pbkdf2:sha256')
         return self._save_users()
     
     def update_role(self, username, new_role):

@@ -180,6 +180,21 @@ For more details, see the [SECURITY.md](SECURITY.md) file.
 
 Common issues and solutions:
 
+### Password hashing error when using Docker
+
+If you see an error like `ValueError: unsupported hash type scrypt:32768:8:1` after logging in:
+
+- This happens because the Docker container's Python environment doesn't support the scrypt hashing algorithm
+- Run the fix script to update the password hashing method:
+  ```bash
+  # Linux/Mac
+  ./fix-password-hash.sh
+  
+  # Windows
+  fix-password-hash.bat
+  ```
+- This will reset the admin user with default credentials (admin/nukiadmin)
+
 ### No notifications are being sent
 
 - Check that your API token is valid
