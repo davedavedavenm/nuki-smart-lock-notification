@@ -10,13 +10,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <!-- Dark Mode CSS (loaded conditionally) -->
-    {% if session.get('theme') == 'dark' %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/dark-mode.css') }}">
-    {% endif %}
     {% block head %}{% endblock %}
 </head>
-<body{% if session.get('theme') == 'dark' %} class="dark-theme"{% endif %}>
+<body>
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
@@ -55,60 +51,18 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.path == url_for('notifications') %}active{% endif %}" href="{{ url_for('notifications') }}">
-                            <i class="fas fa-bell me-1"></i>Notifications
+                        <a class="nav-link {% if request.path == url_for('config_page') %}active{% endif %}" href="{{ url_for('config_page') }}">
+                            <i class="fas fa-cog me-1"></i>Configuration
                         </a>
                     </li>
-                    {% if session.get('role') == 'admin' %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-cog me-1"></i>Admin
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="adminDropdown">
-                            <li>
-                                <a class="dropdown-item {% if request.path == url_for('config_page') %}active{% endif %}" href="{{ url_for('config_page') }}">
-                                    <i class="fas fa-cogs me-1"></i>System Config
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% if request.path == url_for('users_manage') %}active{% endif %}" href="{{ url_for('users_manage') }}">
-                                    <i class="fas fa-user-cog me-1"></i>User Management
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
-                    {% endif %}
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav">
                     {% if session.get('logged_in') %}
-                    <!-- Theme Toggle -->
                     <li class="nav-item">
-                        <div class="nav-link theme-toggle" id="themeToggle" style="cursor: pointer; padding: 8px; margin: 0 15px;">
-                            {% if session.get('theme') == 'dark' %}
-                            <i class="fas fa-sun" title="Switch to Light Mode"></i>
-                            {% else %}
-                            <i class="fas fa-moon" title="Switch to Dark Mode"></i>
-                            {% endif %}
-                        </div>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-user-circle me-1"></i>{{ session.get('username', 'User') }}
+                        <a class="nav-link" href="{{ url_for('logout') }}">
+                            <i class="fas fa-sign-out-alt me-1"></i>Logout
                         </a>
-                        <ul class="dropdown-menu" aria-labelledby="userDropdown">
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('profile') }}">
-                                    <i class="fas fa-id-card me-1"></i>Profile
-                                </a>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('logout') }}">
-                                    <i class="fas fa-sign-out-alt me-1"></i>Logout
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                     {% else %}
                     <li class="nav-item">
@@ -156,40 +110,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    
-    <!-- Theme Toggle Script -->
-    <script>
-        $(document).ready(function() {
-            // Theme toggle functionality
-            $('#themeToggle').click(function() {
-                // Get current theme
-                const currentTheme = '{{ session.get("theme", "light") }}';
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                
-                console.log("Theme toggle clicked, changing from", currentTheme, "to", newTheme);
-                
-                // Update theme via AJAX
-                $.ajax({
-                    url: '/api/theme',
-                    method: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({
-                        theme: newTheme
-                    }),
-                    success: function(response) {
-                        console.log("Theme updated successfully:", response);
-                        // Reload page to apply new theme
-                        location.reload();
-                    },
-                    error: function(xhr, status, error) {
-                        console.error('Error updating theme:', error);
-                        alert('Failed to update theme preference: ' + error);
-                    }
-                });
-            });
-        });
-    </script>
-    
     {% block scripts %}{% endblock %}
 </body>
 </html>

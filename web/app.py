@@ -16,6 +16,7 @@ sys.path.insert(0, parent_dir)
 from scripts.nuki.config import ConfigManager
 from scripts.nuki.api import NukiAPI
 from scripts.nuki.utils import ActivityTracker
+from models import UserDatabase, User
 
 # Configure logging
 logging.basicConfig(
@@ -41,11 +42,7 @@ def inject_now():
 config = ConfigManager(parent_dir)
 api = NukiAPI(config)
 tracker = ActivityTracker(parent_dir)
-
-# Default admin username/password
-# (In production, use an environment variable or config file)
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "nukiadmin"  # This should be changed
+user_db = UserDatabase(parent_dir)
 
 # Login required decorator
 def login_required(f):
@@ -54,6 +51,19 @@ def login_required(f):
         if 'logged_in' not in session:
             flash('Please log in to access this page')
             return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Admin required decorator
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session:
+            flash('Please log in to access this page')
+            return redirect(url_for('login', next=request.url))
+        if session.get('role') != 'admin':
+            flash('You need administrator privileges to access this page')
+            return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -69,25 +79,61 @@ def login():
     """Login page"""
     error = None
     if request.method == 'POST':
-        if request.form['username'] != ADMIN_USERNAME:
-            error = 'Invalid username'
-        elif not check_password_hash(generate_password_hash(ADMIN_PASSWORD), request.form['password']):
-            error = 'Invalid password'
-        else:
+        username = request.form['username']
+        password = request.form['password']
+        
+        if user_db.authenticate(username, password):
+            user_data = user_db.get_user(username)
             session['logged_in'] = True
+            session['username'] = username
+            session['role'] = user_data.get('role', 'user')
+            session['theme'] = user_data.get('theme', 'light')
+            
             flash('You were successfully logged in')
             next_page = request.args.get('next')
             if next_page:
                 return redirect(next_page)
             return redirect(url_for('index'))
+        else:
+            error = 'Invalid credentials'
+            
     return render_template('login.html', error=error)
 
 @app.route('/logout')
 def logout():
     """Logout and clear session"""
     session.pop('logged_in', None)
+    session.pop('username', None)
+    session.pop('role', None)
+    session.pop('theme', None)
     flash('You were logged out')
     return redirect(url_for('login'))
+
+@app.route('/profile')
+@login_required
+def profile():
+    """User profile page"""
+    return render_template('profile.html')
+
+@app.route('/api/theme', methods=['POST'])
+@login_required
+def update_theme():
+    """API endpoint to update user theme preference"""
+    try:
+        data = request.json
+        username = session.get('username')
+        theme = data.get('theme')
+        
+        # Update theme
+        if theme and username:
+            user_db.update_theme(username, theme)
+            session['theme'] = theme
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Invalid theme or username"}), 400
+    except Exception as e:
+        logger.error(f"Error updating theme: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/activity')
 @login_required
@@ -479,10 +525,73 @@ def get_users():
         logger.error(f"Error getting users: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/notifications')
+@login_required
+def notifications():
+    """Notification settings page"""
+    return render_template('notifications.html')
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Docker healthchecks"""
+    try:
+        # Check if config files exist
+        config_dir = os.environ.get('CONFIG_DIR', os.path.join(parent_dir, 'config'))
+        config_file = os.path.join(config_dir, 'config.ini')
+        creds_file = os.path.join(config_dir, 'credentials.ini')
+        
+        config_exists = os.path.exists(config_file)
+        creds_exists = os.path.exists(creds_file)
+        
+        # Calculate uptime (simple version since we don't store start time)
+        uptime = "healthy"
+        
+        # Create status response
+        status = {
+            "status": "healthy",
+            "uptime": uptime,
+            "config_files": {
+                "config.ini": config_exists,
+                "credentials.ini": creds_exists
+            },
+            "timestamp": int(time.time())
+        }
+        
+        return jsonify(status), 200
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": int(time.time())
+        }), 500
+
+# Apply theme to all responses
+@app.after_request
+def apply_theme(response):
+    if 'logged_in' in session and session.get('theme') == 'dark':
+        # Only apply to HTML responses
+        if response.content_type and 'text/html' in response.content_type:
+            response_data = response.get_data(as_text=True)
+            # Add dark-theme class to body
+            if '<body>' in response_data and 'dark-theme' not in response_data:
+                response_data = response_data.replace('<body>', '<body class="dark-theme">')
+                response.set_data(response_data)
+            # Add dark mode CSS link if not present
+            if '<head>' in response_data and 'dark-mode.css' not in response_data:
+                css_link = '<link rel="stylesheet" href="{{ url_for(\'static\', filename=\'css/dark-mode.css\') }}">'
+                response_data = response_data.replace('</head>', f'{css_link}\n</head>')
+                response.set_data(response_data)
+    return response
+
 # Main entry point
 if __name__ == '__main__':
     # Create logger directory if it doesn't exist
     os.makedirs(os.path.join(parent_dir, "logs"), exist_ok=True)
+    
+    # Ensure the users.json file exists and has the admin user
+    if not user_db.get_user('admin'):
+        user_db.add_user('admin', 'nukiadmin', 'admin', True)
     
     # Run the app
     app.run(debug=True, host='0.0.0.0', port=5000)

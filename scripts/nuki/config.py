@@ -1,12 +1,33 @@
 import os
 import configparser
 import logging
+import sys
 
 logger = logging.getLogger('nuki_monitor')
 
 class ConfigManager:
     def __init__(self, base_dir):
         self.base_dir = base_dir
+        self.config_path = os.path.join(self.base_dir, "config", "config.ini")
+        self.credentials_path = os.path.join(self.base_dir, "config", "credentials.ini")
+        
+        # Check CONFIG_DIR environment variable
+        config_dir_env = os.environ.get('CONFIG_DIR')
+        if config_dir_env:
+            self.config_path = os.path.join(config_dir_env, "config.ini")
+            self.credentials_path = os.path.join(config_dir_env, "credentials.ini")
+            logger.info(f"Using config directory from environment: {config_dir_env}")
+        
+        # Check if config directory exists
+        config_dir = os.path.dirname(self.config_path)
+        if not os.path.exists(config_dir):
+            try:
+                os.makedirs(config_dir, exist_ok=True)
+                logger.info(f"Created config directory: {config_dir}")
+            except Exception as e:
+                logger.error(f"Failed to create config directory {config_dir}: {e}")
+                
+        # Load configuration files
         self.config = self._load_config()
         self.credentials = self._load_credentials()
         
@@ -27,6 +48,11 @@ class ConfigManager:
         # API settings
         self.api_token = self.credentials.get('Nuki', 'api_token', fallback='')
         self.base_url = "https://api.nuki.io"
+        
+        # Check if API token is set
+        if not self.api_token:
+            logger.warning("API token not set in credentials.ini! API requests will fail.")
+        
         self.headers = {
             "Authorization": f"Bearer {self.api_token}",
             "Accept": "application/json"
@@ -56,32 +82,77 @@ class ConfigManager:
         self.retry_on_failure = self.config.getboolean('Advanced', 'retry_on_failure', fallback=True)
         self.max_retries = self.config.getint('Advanced', 'max_retries', fallback=3)
         self.retry_delay = self.config.getint('Advanced', 'retry_delay', fallback=5)
+        
+        # Set debug logging if enabled
+        if self.debug_mode:
+            logger.setLevel(logging.DEBUG)
+            for handler in logger.handlers:
+                handler.setLevel(logging.DEBUG)
+            logger.debug("Debug logging enabled")
     
     def _parse_list(self, value_str):
         """Parse a comma-separated string into a list of values"""
         if not value_str:
             return []
-        return [item.strip() for item in value_str.split(',')]
+        return [item.strip() for item in value_str.split(',') if item.strip()]
     
     def _load_config(self):
+        """Load the main configuration file"""
         config = configparser.ConfigParser()
-        config_path = os.path.join(self.base_dir, "config", "config.ini")
-        if os.path.exists(config_path):
-            config.read(config_path)
-        else:
-            logger.warning(f"Config file not found at {config_path}, using defaults")
+        
+        try:
+            if os.path.exists(self.config_path):
+                config.read(self.config_path)
+                logger.info(f"Loaded configuration from {self.config_path}")
+            else:
+                logger.warning(f"Config file not found at {self.config_path}, creating default")
+                self._create_default_config(config)
+                self._save_config(config, self.config_path)
+        except Exception as e:
+            logger.error(f"Error loading config file: {e}")
             self._create_default_config(config)
+            
         return config
         
     def _load_credentials(self):
+        """Load the credentials file"""
         credentials = configparser.ConfigParser()
-        credentials_path = os.path.join(self.base_dir, "config", "credentials.ini")
-        if os.path.exists(credentials_path):
-            credentials.read(credentials_path)
-        else:
-            logger.warning(f"Credentials file not found at {credentials_path}")
+        
+        try:
+            if os.path.exists(self.credentials_path):
+                credentials.read(self.credentials_path)
+                logger.info(f"Loaded credentials from {self.credentials_path}")
+            else:
+                logger.warning(f"Credentials file not found at {self.credentials_path}, creating empty template")
+                self._create_empty_credentials(credentials)
+                self._save_config(credentials, self.credentials_path)
+                
+                # Set secure permissions for the credentials file
+                try:
+                    os.chmod(self.credentials_path, 0o600)
+                    logger.info(f"Set secure permissions for {self.credentials_path}")
+                except Exception as perm_e:
+                    logger.warning(f"Could not set permissions for credentials file: {perm_e}")
+        except Exception as e:
+            logger.error(f"Error loading credentials file: {e}")
             self._create_empty_credentials(credentials)
+            
         return credentials
+    
+    def _save_config(self, config_obj, file_path):
+        """Save a configuration object to file"""
+        try:
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
+            with open(file_path, 'w') as f:
+                config_obj.write(f)
+                
+            logger.info(f"Saved configuration to {file_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Error saving configuration to {file_path}: {e}")
+            return False
         
     def _create_default_config(self, config):
         """Create a default configuration if none exists"""
@@ -134,3 +205,15 @@ class ConfigManager:
         
         credentials.add_section('Telegram')
         credentials.set('Telegram', 'bot_token', '')
+    
+    def reload(self):
+        """Reload configuration and credentials from disk"""
+        logger.info("Reloading configuration files")
+        self.config = self._load_config()
+        self.credentials = self._load_credentials()
+        # Re-initialize settings (simplified version, you may want to re-add all settings)
+        self.api_token = self.credentials.get('Nuki', 'api_token', fallback='')
+        self.headers = {
+            "Authorization": f"Bearer {self.api_token}",
+            "Accept": "application/json"
+        }

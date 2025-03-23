@@ -2,9 +2,15 @@ FROM python:3.9-slim-bullseye
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies and system packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
 COPY requirements-web.txt .
 RUN pip install --no-cache-dir -r requirements-web.txt
+RUN pip install --no-cache-dir psutil
 
 # Copy application code
 COPY web /app/web
@@ -22,6 +28,7 @@ RUN chmod +x /app/docker-entrypoint-web.sh
 ENV CONFIG_DIR=/app/config
 ENV LOGS_DIR=/app/logs
 ENV FLASK_APP=web/app.py
+ENV PYTHONUNBUFFERED=1
 
 # Run as non-root user for security
 RUN groupadd -r nuki && useradd -r -g nuki nuki
@@ -30,6 +37,10 @@ USER nuki
 
 # Expose the web port
 EXPOSE 5000
+
+# Healthcheck
+HEALTHCHECK --interval=60s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
 
 # Run the Flask application
 ENTRYPOINT ["/app/docker-entrypoint-web.sh"]
