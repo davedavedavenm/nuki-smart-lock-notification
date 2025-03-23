@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}User Profile - Nuki Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-user-circle me-1"></i>
+                User Profile
+            </div>
+            <div class="card-body">
+                <form id="profileForm">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" value="{{ session.username }}" disabled>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="currentPassword" class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="currentPassword" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="newPassword" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirmPassword" class="form-label">Confirm New Password</label>
+                        <input type="password" class="form-control" id="confirmPassword" required>
+                        <div id="passwordMismatchError" class="text-danger d-none">
+                            Passwords do not match
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Theme</label>
+                        <div class="d-flex">
+                            <div class="form-check me-3">
+                                <input class="form-check-input" type="radio" name="theme" id="themeLight" 
+                                       value="light" {{ 'checked' if session.theme == 'light' or not session.theme else '' }}>
+                                <label class="form-check-label" for="themeLight">
+                                    Light
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="theme" id="themeDark" 
+                                       value="dark" {{ 'checked' if session.theme == 'dark' else '' }}>
+                                <label class="form-check-label" for="themeDark">
+                                    Dark
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-primary" id="saveProfile">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Validate password confirmation
+        $('#confirmPassword').on('input', function() {
+            validatePasswordMatch();
+        });
+        
+        $('#newPassword').on('input', function() {
+            validatePasswordMatch();
+        });
+        
+        // Handle form submission
+        $('#saveProfile').click(function() {
+            if (!validateForm()) {
+                return;
+            }
+            
+            updateProfile();
+        });
+    });
+    
+    function validatePasswordMatch() {
+        const newPassword = $('#newPassword').val();
+        const confirmPassword = $('#confirmPassword').val();
+        
+        if (newPassword && confirmPassword && newPassword !== confirmPassword) {
+            $('#passwordMismatchError').removeClass('d-none');
+            return false;
+        } else {
+            $('#passwordMismatchError').addClass('d-none');
+            return true;
+        }
+    }
+    
+    function validateForm() {
+        // Check if current password is provided
+        if (!$('#currentPassword').val()) {
+            alert('Please enter your current password');
+            return false;
+        }
+        
+        // Check if new password is provided
+        if (!$('#newPassword').val()) {
+            alert('Please enter a new password');
+            return false;
+        }
+        
+        // Validate password match
+        return validatePasswordMatch();
+    }
+    
+    function updateProfile() {
+        const profileData = {
+            current_password: $('#currentPassword').val(),
+            new_password: $('#newPassword').val(),
+            theme: $('input[name="theme"]:checked').val()
+        };
+        
+        $.ajax({
+            url: '/api/profile',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(profileData),
+            success: function(response) {
+                alert('Profile updated successfully!');
+                // Reload page to apply theme changes
+                location.reload();
+            },
+            error: function(xhr, status, error) {
+                console.error('Error updating profile:', error);
+                alert('Failed to update profile: ' + (xhr.responseJSON?.error || error));
+            }
+        });
+    }
+</script>
+{% endblock %}

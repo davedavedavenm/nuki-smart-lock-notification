@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}Activity Log - Nuki Smart Lock{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-history me-2"></i>Activity Log</h1>
+        <p class="lead">View lock activity history</p>
+    </div>
+</div>
+
+<!-- Filter Controls -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-filter me-2"></i>Filter Options
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="filterForm" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="dateRange" class="form-label">Date Range</label>
+                        <select class="form-select" id="dateRange">
+                            <option value="1">Last 24 hours</option>
+                            <option value="7" selected>Last 7 days</option>
+                            <option value="30">Last 30 days</option>
+                            <option value="90">Last 90 days</option>
+                            <option value="0">All time</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="actionType" class="form-label">Action Type</label>
+                        <select class="form-select" id="actionType">
+                            <option value="all" selected>All Actions</option>
+                            <option value="lock">Lock</option>
+                            <option value="unlock">Unlock</option>
+                            <option value="unlatch">Unlatch</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="userFilter" class="form-label">User</label>
+                        <select class="form-select" id="userFilter">
+                            <option value="all" selected>All Users</option>
+                            <!-- Users will be populated via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="limit" class="form-label">Results Limit</label>
+                        <select class="form-select" id="limit">
+                            <option value="25">25 entries</option>
+                            <option value="50" selected>50 entries</option>
+                            <option value="100">100 entries</option>
+                            <option value="0">All entries</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search me-2"></i>Filter
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activity Table -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-history me-2"></i>Activity Log
+                </h5>
+                <div>
+                    <button class="btn btn-light btn-sm" id="refreshBtn">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                    <button class="btn btn-light btn-sm ms-2" id="exportBtn">
+                        <i class="fas fa-download me-1"></i>Export
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="activityTable">
+                        <thead>
+                            <tr>
+                                <th>Date & Time</th>
+                                <th>Lock</th>
+                                <th>Action</th>
+                                <th>User</th>
+                                <th>Trigger</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activityTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p id="activityCount" class="mb-0">Loading activity data...</p>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <nav aria-label="Activity pagination" id="paginationContainer" style="display: none;">
+                            <ul class="pagination pagination-sm justify-content-md-end mb-0">
+                                <!-- Pagination will be added via JavaScript -->
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Variables for pagination
+    let currentPage = 1;
+    let itemsPerPage = 50;
+    let allActivityData = [];
+    let filteredData = [];
+    let users = [];
+
+    // Load activity data when page loads
+    $(document).ready(function() {
+        loadActivityData();
+        setupEventListeners();
+    });
+
+    // Set up event listeners
+    function setupEventListeners() {
+        // Filter form submit
+        $('#filterForm').on('submit', function(e) {
+            e.preventDefault();
+            applyFilters();
+        });
+
+        // Refresh button click
+        $('#refreshBtn').on('click', function() {
+            loadActivityData();
+        });
+
+        // Export button click
+        $('#exportBtn').on('click', function() {
+            exportActivityData();
+        });
+
+        // Page size change
+        $('#limit').on('change', function() {
+            itemsPerPage = parseInt($(this).val()) || 50;
+            currentPage = 1;
+            applyFilters();
+        });
+    }
+
+    // Function to load activity data
+    function loadActivityData() {
+        $('#activityTableBody').html(`
+            <tr>
+                <td colspan="5" class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </td>
+            </tr>
+        `);
+        
+        const days = $('#dateRange').val();
+        
+        $.ajax({
+            url: `/api/activity?days=${days}`,
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                allActivityData = data;
+                
+                // Extract unique users for filter dropdown
+                users = [...new Set(data.map(item => item.user))].sort();
+                populateUserFilter(users);
+                
+                // Apply filters
+                applyFilters();
+            },
+            error: function(xhr, status, error) {
+                $('#activityTableBody').html(`
+                    <tr>
+                        <td colspan="5" class="text-center text-danger">
+                            Error loading activity data: ${error}
+                        </td>
+                    </tr>
+                `);
+                $('#activityCount').text('Error loading activity data');
+            }
+        });
+    }
+
+    // Populate user filter dropdown
+    function populateUserFilter(users) {
+        const userFilter = $('#userFilter');
+        userFilter.find('option:not(:first)').remove();
+        
+        users.forEach(function(user) {
+            userFilter.append(`<option value="${user}">${user}</option>`);
+        });
+    }
+
+    // Apply filters to activity data
+    function applyFilters() {
+        const actionType = $('#actionType').val();
+        const user = $('#userFilter').val();
+        
+        // Filter data
+        filteredData = allActivityData.filter(function(activity) {
+            const actionMatch = actionType === 'all' || 
+                               (activity.action.toLowerCase().includes(actionType.toLowerCase()));
+            const userMatch = user === 'all' || activity.user === user;
+            
+            return actionMatch && userMatch;
+        });
+        
+        // Update pagination
+        updatePagination();
+        
+        // Display filtered data
+        displayActivityData();
+    }
+
+    // Update pagination controls
+    function updatePagination() {
+        const paginationContainer = $('#paginationContainer');
+        const totalPages = itemsPerPage > 0 ? Math.ceil(filteredData.length / itemsPerPage) : 1;
+        
+        // Hide pagination if not needed
+        if (totalPages <= 1 || itemsPerPage === 0) {
+            paginationContainer.hide();
+            return;
+        }
+        
+        // Build pagination HTML
+        const pagination = $('.pagination');
+        pagination.empty();
+        
+        // Previous button
+        pagination.append(`
+            <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${currentPage - 1}">Previous</a>
+            </li>
+        `);
+        
+        // Page numbers
+        const startPage = Math.max(1, currentPage - 2);
+        const endPage = Math.min(totalPages, startPage + 4);
+        
+        for (let i = startPage; i <= endPage; i++) {
+            pagination.append(`
+                <li class="page-item ${i === currentPage ? 'active' : ''}">
+                    <a class="page-link" href="#" data-page="${i}">${i}</a>
+                </li>
+            `);
+        }
+        
+        // Next button
+        pagination.append(`
+            <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${currentPage + 1}">Next</a>
+            </li>
+        `);
+        
+        // Add event listeners to pagination links
+        $('.pagination .page-link').on('click', function(e) {
+            e.preventDefault();
+            const page = parseInt($(this).data('page'));
+            
+            if (page >= 1 && page <= totalPages) {
+                currentPage = page;
+                displayActivityData();
+                updatePagination();
+            }
+        });
+        
+        // Show pagination
+        paginationContainer.show();
+    }
+
+    // Display activity data with current filters and pagination
+    function displayActivityData() {
+        const tbody = $('#activityTableBody');
+        tbody.empty();
+        
+        if (filteredData.length === 0) {
+            tbody.html(`
+                <tr>
+                    <td colspan="5" class="text-center">No activity found with the current filters</td>
+                </tr>
+            `);
+            $('#activityCount').text('No matching activities');
+            return;
+        }
+        
+        // Calculate pagination slice
+        let displayData;
+        if (itemsPerPage > 0) {
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            displayData = filteredData.slice(start, end);
+        } else {
+            displayData = filteredData;
+        }
+        
+        // Display data
+        displayData.forEach(function(activity) {
+            const actionClass = activity.action.toLowerCase().includes('lock') ? 'text-success' : 'text-danger';
+            const iconClass = activity.action.toLowerCase().includes('lock') ? 'lock' : 'lock-open';
+            
+            tbody.append(`
+                <tr>
+                    <td>${formatDateTime(activity.date)}</td>
+                    <td>${activity.lock_name}</td>
+                    <td class="${actionClass}">
+                        <i class="fas fa-${iconClass} me-1"></i>
+                        ${activity.action}
+                    </td>
+                    <td>
+                        <i class="fas fa-user me-1"></i>
+                        ${activity.user}
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary">
+                            ${activity.trigger}
+                        </span>
+                    </td>
+                </tr>
+            `);
+        });
+        
+        // Update count
+        $('#activityCount').text(`Showing ${displayData.length} of ${filteredData.length} activities`);
+    }
+
+    // Export activity data to CSV
+    function exportActivityData() {
+        if (filteredData.length === 0) {
+            alert('No data to export');
+            return;
+        }
+        
+        // Create CSV content
+        let csvContent = 'Date,Lock,Action,User,Trigger\n';
+        
+        filteredData.forEach(function(activity) {
+            const row = [
+                activity.date,
+                activity.lock_name,
+                activity.action,
+                activity.user,
+                activity.trigger
+            ].map(value => `"${value}"`).join(',');
+            
+            csvContent += row + '\n';
+        });
+        
+        // Create download link
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `nuki_activity_${formatDateForFilename(new Date())}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // Helper function to format date and time
+    function formatDateTime(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleString();
+    }
+
+    // Helper function to format date for filename
+    function formatDateForFilename(date) {
+        return date.toISOString().slice(0, 10);
+    }
+</script>
+{% endblock %}

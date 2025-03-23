@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+
+{% block title %}Lock Status - Nuki Smart Lock{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-door-open me-2"></i>Lock Status</h1>
+        <p class="lead">View current lock status and details</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <button class="btn btn-primary" id="refreshBtn">
+                    <i class="fas fa-sync-alt me-2"></i>Refresh
+                </button>
+                <span class="ms-3 text-muted" id="lastUpdated">Last update: Never</span>
+            </div>
+            <div>
+                <span class="badge bg-success" id="statusOnline">
+                    <i class="fas fa-wifi me-1"></i>Online
+                </span>
+                <span class="badge bg-danger d-none" id="statusOffline">
+                    <i class="fas fa-exclamation-triangle me-1"></i>Offline
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card shadow h-100" id="lockStatusCard">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-lock me-2"></i>Lock Status
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="spinner-border text-primary mb-3" role="status" id="lockStatusSpinner">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div id="lockStatusContent" class="d-none">
+                    <div class="display-1 mb-3" id="lockStatusIcon">
+                        <i class="fas fa-lock text-success"></i>
+                    </div>
+                    <h3 id="lockStatusText">Locked</h3>
+                    <p class="text-muted" id="lockName">Front Door</p>
+                </div>
+            </div>
+            <div class="card-footer text-center">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-success" id="lockBtn">
+                        <i class="fas fa-lock me-1"></i>Lock
+                    </button>
+                    <button type="button" class="btn btn-danger" id="unlockBtn">
+                        <i class="fas fa-lock-open me-1"></i>Unlock
+                    </button>
+                    <button type="button" class="btn btn-warning" id="unlatchBtn">
+                        <i class="fas fa-door-open me-1"></i>Unlatch
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Lock Details
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="spinner-border text-primary mb-3" role="status" id="lockDetailsSpinner">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div id="lockDetailsContent" class="d-none">
+                    <div class="mb-3">
+                        <h6><i class="fas fa-tag me-2"></i>Lock ID</h6>
+                        <p id="lockId" class="text-muted">12345678</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6><i class="fas fa-battery-three-quarters me-2"></i>Battery Status</h6>
+                        <p id="batteryStatus">
+                            <span class="badge bg-success">OK</span>
+                        </p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6><i class="fas fa-history me-2"></i>Last Activity</h6>
+                        <p id="lastActivity" class="text-muted">2023-01-01 12:00:00</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6><i class="fas fa-user me-2"></i>Last User</h6>
+                        <p id="lastUser" class="text-muted">John Doe</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>Recent Activity
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="spinner-border text-primary mb-3" role="status" id="activityChartSpinner">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div id="activityChartContent" class="d-none">
+                    <canvas id="activityChart" height="200"></canvas>
+                    <div class="text-center mt-3">
+                        <p class="text-muted">Activity in the last 7 days</p>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer text-center">
+                <a href="{{ url_for('activity') }}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-history me-1"></i>View Full Activity Log
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Action Confirmation Modal -->
+<div class="modal fade" id="actionModal" tabindex="-1" aria-labelledby="actionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="actionModalLabel">Confirm Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="actionModalBody">
+                Are you sure you want to perform this action?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmActionBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Variables
+    let lockData = null;
+    let activityChart = null;
+    let currentAction = null;
+    
+    // Load data when page loads
+    $(document).ready(function() {
+        loadLockStatus();
+        
+        // Set up event listeners
+        $('#refreshBtn').on('click', loadLockStatus);
+        
+        // Lock button
+        $('#lockBtn').on('click', function() {
+            showActionConfirmation('lock', 'Are you sure you want to lock the door?');
+        });
+        
+        // Unlock button
+        $('#unlockBtn').on('click', function() {
+            showActionConfirmation('unlock', 'Are you sure you want to unlock the door? This could be a security risk.');
+        });
+        
+        // Unlatch button
+        $('#unlatchBtn').on('click', function() {
+            showActionConfirmation('unlatch', 'Are you sure you want to unlatch the door? This will temporarily open the door.');
+        });
+        
+        // Confirm action button
+        $('#confirmActionBtn').on('click', function() {
+            performAction(currentAction);
+            $('#actionModal').modal('hide');
+        });
+    });
+    
+    // Function to show action confirmation modal
+    function showActionConfirmation(action, message) {
+        currentAction = action;
+        $('#actionModalBody').text(message);
+        
+        // Update modal title and button based on action
+        let title = 'Confirm Action';
+        let buttonClass = 'btn-primary';
+        
+        if (action === 'lock') {
+            title = 'Confirm Lock';
+            buttonClass = 'btn-success';
+        } else if (action === 'unlock') {
+            title = 'Confirm Unlock';
+            buttonClass = 'btn-danger';
+        } else if (action === 'unlatch') {
+            title = 'Confirm Unlatch';
+            buttonClass = 'btn-warning';
+        }
+        
+        $('#actionModalLabel').text(title);
+        $('#confirmActionBtn').removeClass('btn-primary btn-success btn-danger btn-warning')
+                             .addClass(buttonClass);
+        
+        // Show modal
+        $('#actionModal').modal('show');
+    }
+    
+    // Function to perform lock action
+    function performAction(action) {
+        // Placeholder for future API call
+        alert(`Action ${action} not implemented yet. This will be connected to the API in the future.`);
+        
+        // In the future, this will make an API call to perform the action
+        // $.ajax({
+        //     url: `/api/lock/${lockData.id}/${action}`,
+        //     type: 'POST',
+        //     success: function(data) {
+        //         // Update lock status after successful action
+        //         loadLockStatus();
+        //     },
+        //     error: function(xhr, status, error) {
+        //         alert(`Error performing action: ${error}`);
+        //     }
+        // });
+    }
+    
+    // Function to load lock status
+    function loadLockStatus() {
+        // Show spinners
+        $('#lockStatusSpinner, #lockDetailsSpinner, #activityChartSpinner').removeClass('d-none');
+        $('#lockStatusContent, #lockDetailsContent, #activityChartContent').addClass('d-none');
+        
+        // Update last updated timestamp
+        $('#lastUpdated').text(`Last update: ${formatDateTime(new Date())}`);
+        
+        // Get lock status
+        $.ajax({
+            url: '/api/status',
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                if (data.length > 0) {
+                    lockData = data[0]; // Use first lock for now
+                    
+                    // Update lock status
+                    updateLockStatus(lockData);
+                    
+                    // Load activity chart
+                    loadActivityChart();
+                    
+                    // Show online status
+                    $('#statusOnline').removeClass('d-none');
+                    $('#statusOffline').addClass('d-none');
+                } else {
+                    showError("No locks found");
+                }
+            },
+            error: function(xhr, status, error) {
+                showError(`Error loading lock status: ${error}`);
+                
+                // Show offline status
+                $('#statusOnline').addClass('d-none');
+                $('#statusOffline').removeClass('d-none');
+            }
+        });
+    }
+    
+    // Function to update lock status display
+    function updateLockStatus(lockData) {
+        // Hide spinner
+        $('#lockStatusSpinner, #lockDetailsSpinner').addClass('d-none');
+        $('#lockStatusContent, #lockDetailsContent').removeClass('d-none');
+        
+        // Update lock status
+        const isLocked = lockData.state.toLowerCase() === 'locked';
+        $('#lockStatusIcon').html(`
+            <i class="fas fa-${isLocked ? 'lock' : 'lock-open'} text-${isLocked ? 'success' : 'danger'}"></i>
+        `);
+        $('#lockStatusText').text(lockData.state);
+        $('#lockName').text(lockData.name);
+        
+        // Update lock details
+        $('#lockId').text(lockData.id);
+        
+        // Battery status
+        let batteryBadge = 'bg-success';
+        let batteryText = 'OK';
+        let batteryIcon = 'battery-full';
+        
+        if (lockData.battery_critical) {
+            batteryBadge = 'bg-danger';
+            batteryText = 'Critical';
+            batteryIcon = 'battery-empty';
+        } else if (lockData.battery_charging) {
+            batteryBadge = 'bg-warning';
+            batteryText = 'Charging';
+            batteryIcon = 'plug';
+        }
+        
+        $('#batteryStatus').html(`
+            <span class="badge ${batteryBadge}">
+                <i class="fas fa-${batteryIcon} me-1"></i>${batteryText}
+            </span>
+        `);
+        
+        // Last activity
+        if (lockData.last_activity) {
+            $('#lastActivity').text(formatDateTime(lockData.last_activity));
+            $('#lastUser').text(lockData.last_user || 'Unknown');
+        } else {
+            $('#lastActivity').text('No recent activity');
+            $('#lastUser').text('N/A');
+        }
+    }
+    
+    // Function to load activity chart
+    function loadActivityChart() {
+        // Get activity stats
+        $.ajax({
+            url: '/api/stats?days=7',
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                // Hide spinner
+                $('#activityChartSpinner').addClass('d-none');
+                $('#activityChartContent').removeClass('d-none');
+                
+                // Create activity chart
+                createActivityChart(data);
+            },
+            error: function(xhr, status, error) {
+                $('#activityChartSpinner').addClass('d-none');
+                $('#activityChartContent').html(`
+                    <div class="alert alert-danger">
+                        Error loading activity chart: ${error}
+                    </div>
+                `);
+            }
+        });
+    }
+    
+    // Function to create activity chart
+    function createActivityChart(data) {
+        const actionData = data.by_action;
+        const labels = actionData.map(item => item.name);
+        const values = actionData.map(item => item.count);
+        
+        // Get canvas
+        const ctx = document.getElementById('activityChart').getContext('2d');
+        
+        // Destroy existing chart if exists
+        if (activityChart) {
+            activityChart.destroy();
+        }
+        
+        // Create new chart
+        activityChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: [
+                        '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', 
+                        '#e74a3b', '#5a5c69', '#858796'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 15
+                        }
+                    }
+                },
+                cutout: '70%'
+            }
+        });
+    }
+    
+    // Function to show error
+    function showError(message) {
+        $('#lockStatusSpinner, #lockDetailsSpinner, #activityChartSpinner').addClass('d-none');
+        
+        $('#lockStatusContent').removeClass('d-none').html(`
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>${message}
+            </div>
+        `);
+        
+        $('#lockDetailsContent').removeClass('d-none').html(`
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>${message}
+            </div>
+        `);
+        
+        $('#activityChartContent').removeClass('d-none').html(`
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>${message}
+            </div>
+        `);
+    }
+    
+    // Helper function to format date and time
+    function formatDateTime(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleString();
+    }
+</script>
+{% endblock %}

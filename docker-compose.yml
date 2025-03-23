@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  nuki-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.monitor
+    container_name: nuki-monitor
+    restart: unless-stopped
+    volumes:
+      - config-volume:/app/config
+      - logs-volume:/app/logs
+    networks:
+      - nuki-network
+
+  nuki-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: nuki-web
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - config-volume:/app/config
+      - logs-volume:/app/logs
+    networks:
+      - nuki-network
+    depends_on:
+      - nuki-monitor
+
+volumes:
+  config-volume:
+  logs-volume:
+
+networks:
+  nuki-network:
+    driver: bridge

@@ -1,0 +1,159 @@
+/* Custom styles for Nuki Dashboard */
+
+/* Body and general styles */
+body {
+    background-color: #f8f9fc;
+    font-family: 'Nunito', sans-serif;
+}
+
+/* Navbar customization */
+.navbar-brand {
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+/* Card customization */
+.card {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 2rem 0 rgba(58, 59, 69, 0.2);
+}
+
+.card-header {
+    border-top-left-radius: 0.5rem !important;
+    border-top-right-radius: 0.5rem !important;
+    font-weight: bold;
+}
+
+/* Primary color customization */
+.bg-primary {
+    background-color: #4e73df !important;
+}
+
+.btn-primary {
+    background-color: #4e73df;
+    border-color: #4e73df;
+}
+
+.btn-primary:hover {
+    background-color: #2e59d9;
+    border-color: #2653d4;
+}
+
+/* Lock status indicators */
+.lock-status-locked {
+    color: #1cc88a;
+    font-size: 2rem;
+}
+
+.lock-status-unlocked {
+    color: #e74a3b;
+    font-size: 2rem;
+}
+
+.lock-status-unlatch {
+    color: #f6c23e;
+    font-size: 2rem;
+}
+
+/* Activity log styles */
+.activity-item {
+    border-left: 4px solid #4e73df;
+    padding-left: 1rem;
+    margin-bottom: 1rem;
+}
+
+.activity-item-lock {
+    border-left-color: #1cc88a;
+}
+
+.activity-item-unlock {
+    border-left-color: #e74a3b;
+}
+
+.activity-item-unlatch {
+    border-left-color: #f6c23e;
+}
+
+/* Footer styles */
+.footer {
+    background-color: #f8f9fc;
+    border-top: 1px solid #e3e6f0;
+}
+
+/* Table customizations */
+.table thead th {
+    background-color: #f8f9fc;
+    border-top: none;
+    font-weight: bold;
+}
+
+/* Badge customizations */
+.badge {
+    padding: 0.5em 0.75em;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* Custom animations */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(78, 115, 223, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(78, 115, 223, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(78, 115, 223, 0);
+    }
+}
+
+.pulse-animation {
+    animation: pulse 2s infinite;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card {
+        margin-bottom: 1rem;
+    }
+    
+    .card:hover {
+        transform: none;
+    }
+}
+
+/* Utility classes */
+.text-xs {
+    font-size: 0.7rem;
+}
+
+.text-lg {
+    font-size: 1.2rem;
+}
+
+.font-weight-bold {
+    font-weight: bold;
+}
+
+.border-left-primary {
+    border-left: 4px solid #4e73df;
+}
+
+.border-left-success {
+    border-left: 4px solid #1cc88a;
+}
+
+.border-left-danger {
+    border-left: 4px solid #e74a3b;
+}
+
+.border-left-warning {
+    border-left: 4px solid #f6c23e;
+}

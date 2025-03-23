@@ -1,0 +1,565 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration - Nuki Smart Lock{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-cog me-2"></i>Configuration</h1>
+        <p class="lead">Manage system settings</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <button class="btn btn-primary" id="refreshBtn">
+                    <i class="fas fa-sync-alt me-2"></i>Refresh
+                </button>
+            </div>
+            <div>
+                <button class="btn btn-success" id="saveBtn">
+                    <i class="fas fa-save me-2"></i>Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration Tabs -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <ul class="nav nav-tabs card-header-tabs" id="configTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active text-dark" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab" aria-controls="general" aria-selected="true">
+                            <i class="fas fa-wrench me-1"></i>General
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link text-dark" id="notification-tab" data-bs-toggle="tab" data-bs-target="#notification" type="button" role="tab" aria-controls="notification" aria-selected="false">
+                            <i class="fas fa-bell me-1"></i>Notification
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link text-dark" id="filter-tab" data-bs-toggle="tab" data-bs-target="#filter" type="button" role="tab" aria-controls="filter" aria-selected="false">
+                            <i class="fas fa-filter me-1"></i>Filters
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link text-dark" id="email-tab" data-bs-toggle="tab" data-bs-target="#email" type="button" role="tab" aria-controls="email" aria-selected="false">
+                            <i class="fas fa-envelope me-1"></i>Email
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link text-dark" id="telegram-tab" data-bs-toggle="tab" data-bs-target="#telegram" type="button" role="tab" aria-controls="telegram" aria-selected="false">
+                            <i class="fas fa-paper-plane me-1"></i>Telegram
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link text-dark" id="advanced-tab" data-bs-toggle="tab" data-bs-target="#advanced" type="button" role="tab" aria-controls="advanced" aria-selected="false">
+                            <i class="fas fa-tools me-1"></i>Advanced
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content" id="configTabContent">
+                    <!-- General Settings -->
+                    <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
+                        <h5 class="card-title">General Settings</h5>
+                        <p class="card-text">Configure basic system settings.</p>
+                        
+                        <form id="generalForm">
+                            <div class="mb-3">
+                                <label for="notificationType" class="form-label">Notification Type</label>
+                                <select class="form-select" id="notificationType" name="general.notification_type">
+                                    <option value="email">Email Only</option>
+                                    <option value="telegram">Telegram Only</option>
+                                    <option value="both">Both Email and Telegram</option>
+                                </select>
+                                <div class="form-text">Select which notification methods to use.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="pollingInterval" class="form-label">Polling Interval (seconds)</label>
+                                <input type="number" class="form-control" id="pollingInterval" name="general.polling_interval" min="10" max="3600">
+                                <div class="form-text">How often the system checks for new activity. Minimum 10 seconds.</div>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Notification Settings -->
+                    <div class="tab-pane fade" id="notification" role="tabpanel" aria-labelledby="notification-tab">
+                        <h5 class="card-title">Notification Settings</h5>
+                        <p class="card-text">Configure how notifications are delivered.</p>
+                        
+                        <form id="notificationForm">
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="digestMode" name="notification.digest_mode">
+                                <label class="form-check-label" for="digestMode">Digest Mode</label>
+                                <div class="form-text">When enabled, notifications will be grouped and sent periodically instead of immediately.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="digestInterval" class="form-label">Digest Interval (seconds)</label>
+                                <input type="number" class="form-control" id="digestInterval" name="notification.digest_interval" min="60" max="86400">
+                                <div class="form-text">How often to send digest notifications. Minimum 60 seconds.</div>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="notifyAutoLock" name="notification.notify_auto_lock">
+                                <label class="form-check-label" for="notifyAutoLock">Notify Auto Lock</label>
+                                <div class="form-text">Send notifications for automatic lock events.</div>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="notifySystemEvents" name="notification.notify_system_events">
+                                <label class="form-check-label" for="notifySystemEvents">Notify System Events</label>
+                                <div class="form-text">Send notifications for system-triggered events.</div>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Filter Settings -->
+                    <div class="tab-pane fade" id="filter" role="tabpanel" aria-labelledby="filter-tab">
+                        <h5 class="card-title">Filter Settings</h5>
+                        <p class="card-text">Configure which events to include in notifications.</p>
+                        
+                        <form id="filterForm">
+                            <div class="mb-3">
+                                <label for="excludedUsers" class="form-label">Excluded Users</label>
+                                <input type="text" class="form-control" id="excludedUsers" name="filter.excluded_users">
+                                <div class="form-text">Comma-separated list of users to exclude from notifications.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="excludedActions" class="form-label">Excluded Actions</label>
+                                <div class="form-text mb-2">Select actions to exclude from notifications:</div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-action" id="excludeAction1" value="1">
+                                    <label class="form-check-label" for="excludeAction1">Unlock</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-action" id="excludeAction2" value="2">
+                                    <label class="form-check-label" for="excludeAction2">Lock</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-action" id="excludeAction3" value="3">
+                                    <label class="form-check-label" for="excludeAction3">Unlatch</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-action" id="excludeAction4" value="4">
+                                    <label class="form-check-label" for="excludeAction4">Lock 'n' Go</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-action" id="excludeAction5" value="5">
+                                    <label class="form-check-label" for="excludeAction5">Lock 'n' Go with unlatch</label>
+                                </div>
+                                <input type="hidden" id="excludedActions" name="filter.excluded_actions">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="excludedTriggers" class="form-label">Excluded Triggers</label>
+                                <div class="form-text mb-2">Select triggers to exclude from notifications:</div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-trigger" id="excludeTrigger0" value="0">
+                                    <label class="form-check-label" for="excludeTrigger0">System</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-trigger" id="excludeTrigger1" value="1">
+                                    <label class="form-check-label" for="excludeTrigger1">Manual</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-trigger" id="excludeTrigger2" value="2">
+                                    <label class="form-check-label" for="excludeTrigger2">Button</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-trigger" id="excludeTrigger3" value="3">
+                                    <label class="form-check-label" for="excludeTrigger3">Automatic</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-trigger" id="excludeTrigger4" value="4">
+                                    <label class="form-check-label" for="excludeTrigger4">App</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-trigger" id="excludeTrigger5" value="5">
+                                    <label class="form-check-label" for="excludeTrigger5">Website</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-trigger" id="excludeTrigger6" value="6">
+                                    <label class="form-check-label" for="excludeTrigger6">Auto Lock</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input excluded-trigger" id="excludeTrigger7" value="7">
+                                    <label class="form-check-label" for="excludeTrigger7">Time Control</label>
+                                </div>
+                                <input type="hidden" id="excludedTriggers" name="filter.excluded_triggers">
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Email Settings -->
+                    <div class="tab-pane fade" id="email" role="tabpanel" aria-labelledby="email-tab">
+                        <h5 class="card-title">Email Settings</h5>
+                        <p class="card-text">Configure email notification settings.</p>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Email credentials (username and password) can only be set through the command-line configuration utility for security reasons.
+                        </div>
+                        
+                        <form id="emailForm">
+                            <div class="mb-3">
+                                <label for="smtpServer" class="form-label">SMTP Server</label>
+                                <input type="text" class="form-control" id="smtpServer" name="email.smtp_server">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="smtpPort" class="form-label">SMTP Port</label>
+                                <input type="number" class="form-control" id="smtpPort" name="email.smtp_port" min="1" max="65535">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="emailSender" class="form-label">Sender Email</label>
+                                <input type="email" class="form-control" id="emailSender" name="email.sender">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="emailRecipient" class="form-label">Recipient Email</label>
+                                <input type="email" class="form-control" id="emailRecipient" name="email.recipient">
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="useHtml" name="email.use_html">
+                                <label class="form-check-label" for="useHtml">Use HTML Formatting</label>
+                                <div class="form-text">Enable to send formatted HTML emails. Disable for plain text emails.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="subjectPrefix" class="form-label">Subject Prefix</label>
+                                <input type="text" class="form-control" id="subjectPrefix" name="email.subject_prefix">
+                                <div class="form-text">Prefix to add to email subjects.</div>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Telegram Settings -->
+                    <div class="tab-pane fade" id="telegram" role="tabpanel" aria-labelledby="telegram-tab">
+                        <h5 class="card-title">Telegram Settings</h5>
+                        <p class="card-text">Configure Telegram notification settings.</p>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Telegram bot token can only be set through the command-line configuration utility for security reasons.
+                        </div>
+                        
+                        <form id="telegramForm">
+                            <div class="mb-3">
+                                <label for="chatId" class="form-label">Chat ID</label>
+                                <input type="text" class="form-control" id="chatId" name="telegram.chat_id">
+                                <div class="form-text">The chat ID where notifications will be sent. Run the get_telegram_chat_id.py script to get this.</div>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="useEmoji" name="telegram.use_emoji">
+                                <label class="form-check-label" for="useEmoji">Use Emoji</label>
+                                <div class="form-text">Include emoji in Telegram messages.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="telegramFormat" class="form-label">Message Format</label>
+                                <select class="form-select" id="telegramFormat" name="telegram.format">
+                                    <option value="compact">Compact</option>
+                                    <option value="detailed">Detailed</option>
+                                </select>
+                                <div class="form-text">Select the message format for Telegram notifications.</div>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Advanced Settings -->
+                    <div class="tab-pane fade" id="advanced" role="tabpanel" aria-labelledby="advanced-tab">
+                        <h5 class="card-title">Advanced Settings</h5>
+                        <p class="card-text">Configure advanced system settings.</p>
+                        
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Be careful when changing these settings. Incorrect values may cause system instability.
+                        </div>
+                        
+                        <form id="advancedForm">
+                            <div class="mb-3">
+                                <label for="maxEventsPerCheck" class="form-label">Max Events Per Check</label>
+                                <input type="number" class="form-control" id="maxEventsPerCheck" name="advanced.max_events_per_check" min="1" max="100">
+                                <div class="form-text">Maximum number of events to fetch in each API check.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="maxHistoricalEvents" class="form-label">Max Historical Events</label>
+                                <input type="number" class="form-control" id="maxHistoricalEvents" name="advanced.max_historical_events" min="5" max="100">
+                                <div class="form-text">Maximum number of historical events to fetch on startup.</div>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="debugMode" name="advanced.debug_mode">
+                                <label class="form-check-label" for="debugMode">Debug Mode</label>
+                                <div class="form-text">Enable detailed debug logging.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="userCacheTimeout" class="form-label">User Cache Timeout (seconds)</label>
+                                <input type="number" class="form-control" id="userCacheTimeout" name="advanced.user_cache_timeout" min="60" max="86400">
+                                <div class="form-text">How long to cache user data before refreshing from the API.</div>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="retryOnFailure" name="advanced.retry_on_failure">
+                                <label class="form-check-label" for="retryOnFailure">Retry on API Failure</label>
+                                <div class="form-text">Attempt to retry API calls when they fail.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="maxRetries" class="form-label">Max Retries</label>
+                                <input type="number" class="form-control" id="maxRetries" name="advanced.max_retries" min="1" max="10">
+                                <div class="form-text">Maximum number of retry attempts for failed API calls.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="retryDelay" class="form-label">Retry Delay (seconds)</label>
+                                <input type="number" class="form-control" id="retryDelay" name="advanced.retry_delay" min="1" max="60">
+                                <div class="form-text">Delay between retry attempts.</div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span id="lastSaved" class="text-muted">Last saved: Never</span>
+                    <button class="btn btn-success" id="saveFooterBtn">
+                        <i class="fas fa-save me-2"></i>Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="saveModal" tabindex="-1" aria-labelledby="saveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="saveModalLabel">Save Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to save these configuration changes?</p>
+                <p>The system will apply the new settings immediately.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmSaveBtn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Global configuration object
+    let configData = {};
+
+    // Document ready function
+    $(document).ready(function() {
+        // Load initial configuration
+        loadConfiguration();
+        
+        // Set up event listeners
+        setupEventListeners();
+    });
+    
+    // Set up event listeners
+    function setupEventListeners() {
+        // Refresh button click
+        $('#refreshBtn').on('click', loadConfiguration);
+        
+        // Save buttons click
+        $('#saveBtn, #saveFooterBtn').on('click', function() {
+            $('#saveModal').modal('show');
+        });
+        
+        // Confirm save button click
+        $('#confirmSaveBtn').on('click', function() {
+            saveConfiguration();
+            $('#saveModal').modal('hide');
+        });
+        
+        // Checkbox changes for excluded actions
+        $('.excluded-action').on('change', updateExcludedActions);
+        
+        // Checkbox changes for excluded triggers
+        $('.excluded-trigger').on('change', updateExcludedTriggers);
+    }
+    
+    // Load configuration from API
+    function loadConfiguration() {
+        $.ajax({
+            url: '/api/config',
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                configData = data;
+                populateConfigForms(data);
+            },
+            error: function(xhr, status, error) {
+                alert(`Error loading configuration: ${error}`);
+            }
+        });
+    }
+    
+    // Populate configuration forms with loaded data
+    function populateConfigForms(data) {
+        // General settings
+        $('#notificationType').val(data.general.notification_type);
+        $('#pollingInterval').val(data.general.polling_interval);
+        
+        // Notification settings
+        $('#digestMode').prop('checked', data.notification.digest_mode);
+        $('#digestInterval').val(data.notification.digest_interval);
+        $('#notifyAutoLock').prop('checked', data.notification.notify_auto_lock);
+        $('#notifySystemEvents').prop('checked', data.notification.notify_system_events);
+        
+        // Filter settings
+        $('#excludedUsers').val(data.filter.excluded_users.join(','));
+        
+        // Set excluded actions checkboxes
+        $('.excluded-action').prop('checked', false);
+        data.filter.excluded_actions.forEach(function(action) {
+            $(`#excludeAction${action}`).prop('checked', true);
+        });
+        updateExcludedActions();
+        
+        // Set excluded triggers checkboxes
+        $('.excluded-trigger').prop('checked', false);
+        data.filter.excluded_triggers.forEach(function(trigger) {
+            $(`#excludeTrigger${trigger}`).prop('checked', true);
+        });
+        updateExcludedTriggers();
+        
+        // Email settings
+        $('#smtpServer').val(data.email.smtp_server);
+        $('#smtpPort').val(data.email.smtp_port);
+        $('#emailSender').val(data.email.sender);
+        $('#emailRecipient').val(data.email.recipient);
+        $('#useHtml').prop('checked', data.email.use_html);
+        $('#subjectPrefix').val(data.email.subject_prefix);
+        
+        // Telegram settings
+        $('#chatId').val(data.telegram.chat_id);
+        $('#useEmoji').prop('checked', data.telegram.use_emoji);
+        $('#telegramFormat').val(data.telegram.format);
+        
+        // Advanced settings
+        $('#maxEventsPerCheck').val(data.advanced.max_events_per_check);
+        $('#maxHistoricalEvents').val(data.advanced.max_historical_events);
+        $('#debugMode').prop('checked', data.advanced.debug_mode);
+        $('#userCacheTimeout').val(data.advanced.user_cache_timeout);
+        $('#retryOnFailure').prop('checked', data.advanced.retry_on_failure);
+        $('#maxRetries').val(data.advanced.max_retries);
+        $('#retryDelay').val(data.advanced.retry_delay);
+    }
+    
+    // Update hidden excluded actions field from checkboxes
+    function updateExcludedActions() {
+        const excludedActions = [];
+        $('.excluded-action:checked').each(function() {
+            excludedActions.push($(this).val());
+        });
+        $('#excludedActions').val(excludedActions.join(','));
+    }
+    
+    // Update hidden excluded triggers field from checkboxes
+    function updateExcludedTriggers() {
+        const excludedTriggers = [];
+        $('.excluded-trigger:checked').each(function() {
+            excludedTriggers.push($(this).val());
+        });
+        $('#excludedTriggers').val(excludedTriggers.join(','));
+    }
+    
+    // Save configuration to API
+    function saveConfiguration() {
+        // Collect form data
+        const configToSave = {
+            general: {
+                notification_type: $('#notificationType').val(),
+                polling_interval: $('#pollingInterval').val()
+            },
+            notification: {
+                digest_mode: $('#digestMode').is(':checked'),
+                digest_interval: $('#digestInterval').val(),
+                notify_auto_lock: $('#notifyAutoLock').is(':checked'),
+                notify_system_events: $('#notifySystemEvents').is(':checked')
+            },
+            filter: {
+                excluded_users: $('#excludedUsers').val(),
+                excluded_actions: $('#excludedActions').val(),
+                excluded_triggers: $('#excludedTriggers').val()
+            },
+            email: {
+                smtp_server: $('#smtpServer').val(),
+                smtp_port: $('#smtpPort').val(),
+                sender: $('#emailSender').val(),
+                recipient: $('#emailRecipient').val(),
+                use_html: $('#useHtml').is(':checked'),
+                subject_prefix: $('#subjectPrefix').val()
+            },
+            telegram: {
+                chat_id: $('#chatId').val(),
+                use_emoji: $('#useEmoji').is(':checked'),
+                format: $('#telegramFormat').val()
+            },
+            advanced: {
+                max_events_per_check: $('#maxEventsPerCheck').val(),
+                max_historical_events: $('#maxHistoricalEvents').val(),
+                debug_mode: $('#debugMode').is(':checked'),
+                user_cache_timeout: $('#userCacheTimeout').val(),
+                retry_on_failure: $('#retryOnFailure').is(':checked'),
+                max_retries: $('#maxRetries').val(),
+                retry_delay: $('#retryDelay').val()
+            }
+        };
+        
+        // Send config to API
+        $.ajax({
+            url: '/api/config',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(configToSave),
+            success: function() {
+                // Update last saved timestamp
+                $('#lastSaved').text(`Last saved: ${formatDateTime(new Date())}`);
+                
+                // Show success message
+                alert('Configuration saved successfully');
+                
+                // Reload configuration
+                loadConfiguration();
+            },
+            error: function(xhr, status, error) {
+                alert(`Error saving configuration: ${error}`);
+            }
+        });
+    }
+    
+    // Helper function to format date and time
+    function formatDateTime(date) {
+        return date.toLocaleString();
+    }
+</script>
+{% endblock %}

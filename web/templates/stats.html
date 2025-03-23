@@ -1,0 +1,539 @@
+{% extends "base.html" %}
+
+{% block title %}Statistics - Nuki Smart Lock{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-chart-bar me-2"></i>Statistics</h1>
+        <p class="lead">Visualize lock usage patterns and trends</p>
+    </div>
+</div>
+
+<!-- Date Range Selector -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-calendar-alt me-2"></i>Date Range
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-primary date-range-btn active" data-days="7">Last 7 Days</button>
+                            <button type="button" class="btn btn-outline-primary date-range-btn" data-days="30">Last 30 Days</button>
+                            <button type="button" class="btn btn-outline-primary date-range-btn" data-days="90">Last 90 Days</button>
+                            <button type="button" class="btn btn-outline-primary date-range-btn" data-days="365">Last Year</button>
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <button id="refreshBtn" class="btn btn-primary">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-4">
+        <div class="card shadow border-left-primary h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Total Events
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="totalEvents">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-calendar fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-4">
+        <div class="card shadow border-left-success h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Lock Events
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="lockEvents">
+                            <div class="spinner-border spinner-border-sm text-success" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-lock fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-4">
+        <div class="card shadow border-left-danger h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                            Unlock Events
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="unlockEvents">
+                            <div class="spinner-border spinner-border-sm text-danger" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-lock-open fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-4">
+        <div class="card shadow border-left-warning h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Auto Lock Events
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="autoLockEvents">
+                            <div class="spinner-border spinner-border-sm text-warning" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-robot fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="row">
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-users me-2"></i>Activity by User
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="userChartContainer" style="height: 300px;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>Activity by Action
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="actionChartContainer" style="height: 300px;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-clock me-2"></i>Activity by Hour
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="hourChartContainer" style="height: 300px;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-calendar-day me-2"></i>Activity by Day
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="dayChartContainer" style="height: 300px;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Global variables
+    let currentDays = 7;
+    let userChart, actionChart, hourChart, dayChart;
+    
+    // Document ready function
+    $(document).ready(function() {
+        // Set up event listeners
+        setupEventListeners();
+        
+        // Load initial data
+        loadStatisticsData(currentDays);
+    });
+    
+    // Set up event listeners
+    function setupEventListeners() {
+        // Date range buttons
+        $('.date-range-btn').on('click', function() {
+            // Update active button
+            $('.date-range-btn').removeClass('active');
+            $(this).addClass('active');
+            
+            // Get selected days
+            currentDays = $(this).data('days');
+            
+            // Load data for selected range
+            loadStatisticsData(currentDays);
+        });
+        
+        // Refresh button
+        $('#refreshBtn').on('click', function() {
+            loadStatisticsData(currentDays);
+        });
+    }
+    
+    // Load statistics data
+    function loadStatisticsData(days) {
+        // Show loading spinners
+        showLoading();
+        
+        // Get data from API
+        $.ajax({
+            url: `/api/stats?days=${days}`,
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                // Update summary statistics
+                updateSummaryStatistics(data);
+                
+                // Create charts
+                createUserChart(data.by_user);
+                createActionChart(data.by_action);
+                createHourChart(data.by_hour);
+                createDayChart(data.by_day);
+            },
+            error: function(xhr, status, error) {
+                showError(error);
+            }
+        });
+    }
+    
+    // Show loading spinners
+    function showLoading() {
+        // Summary statistics
+        $('#totalEvents, #lockEvents, #unlockEvents, #autoLockEvents').html(`
+            <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        `);
+        
+        // Charts
+        $('#userChartContainer, #actionChartContainer, #hourChartContainer, #dayChartContainer').html(`
+            <div class="d-flex justify-content-center align-items-center h-100">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        `);
+    }
+    
+    // Show error message
+    function showError(message) {
+        // Summary statistics
+        $('#totalEvents, #lockEvents, #unlockEvents, #autoLockEvents').text('Error');
+        
+        // Charts
+        const errorHtml = `
+            <div class="d-flex justify-content-center align-items-center h-100">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Error loading data: ${message}
+                </div>
+            </div>
+        `;
+        
+        $('#userChartContainer, #actionChartContainer, #hourChartContainer, #dayChartContainer').html(errorHtml);
+    }
+    
+    // Update summary statistics
+    function updateSummaryStatistics(data) {
+        // Total events
+        $('#totalEvents').text(data.total_events);
+        
+        // Lock events
+        const lockEvents = data.by_action.find(item => item.name.toLowerCase().includes('lock') && !item.name.toLowerCase().includes('unlock'));
+        $('#lockEvents').text(lockEvents ? lockEvents.count : 0);
+        
+        // Unlock events
+        const unlockEvents = data.by_action.find(item => item.name.toLowerCase().includes('unlock'));
+        $('#unlockEvents').text(unlockEvents ? unlockEvents.count : 0);
+        
+        // Auto lock events
+        const autoLockEvents = data.by_user.find(item => item.name === 'Auto Lock');
+        $('#autoLockEvents').text(autoLockEvents ? autoLockEvents.count : 0);
+    }
+    
+    // Create user chart
+    function createUserChart(userData) {
+        $('#userChartContainer').empty();
+        
+        if (!userData || userData.length === 0) {
+            $('#userChartContainer').html('<div class="text-center p-3">No data available</div>');
+            return;
+        }
+        
+        // Sort data by count (descending)
+        userData.sort((a, b) => b.count - a.count);
+        
+        // Canvas for chart
+        $('#userChartContainer').html('<canvas id="userChart"></canvas>');
+        
+        // Create chart
+        const ctx = document.getElementById('userChart').getContext('2d');
+        userChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: userData.map(item => item.name),
+                datasets: [{
+                    label: 'Activities',
+                    data: userData.map(item => item.count),
+                    backgroundColor: '#4e73df',
+                    borderColor: '#4e73df',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Create action chart
+    function createActionChart(actionData) {
+        $('#actionChartContainer').empty();
+        
+        if (!actionData || actionData.length === 0) {
+            $('#actionChartContainer').html('<div class="text-center p-3">No data available</div>');
+            return;
+        }
+        
+        // Sort data by count (descending)
+        actionData.sort((a, b) => b.count - a.count);
+        
+        // Canvas for chart
+        $('#actionChartContainer').html('<canvas id="actionChart"></canvas>');
+        
+        // Colors based on action type
+        const colors = actionData.map(item => {
+            if (item.name.toLowerCase().includes('lock') && !item.name.toLowerCase().includes('unlock')) {
+                return '#1cc88a'; // Green for lock
+            } else if (item.name.toLowerCase().includes('unlock')) {
+                return '#e74a3b'; // Red for unlock
+            } else if (item.name.toLowerCase().includes('unlatch')) {
+                return '#f6c23e'; // Yellow for unlatch
+            } else {
+                return '#4e73df'; // Blue for others
+            }
+        });
+        
+        // Create chart
+        const ctx = document.getElementById('actionChart').getContext('2d');
+        actionChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: actionData.map(item => item.name),
+                datasets: [{
+                    data: actionData.map(item => item.count),
+                    backgroundColor: colors,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    }
+                }
+            }
+        });
+    }
+    
+    // Create hour chart
+    function createHourChart(hourData) {
+        $('#hourChartContainer').empty();
+        
+        if (!hourData || hourData.length === 0) {
+            $('#hourChartContainer').html('<div class="text-center p-3">No data available</div>');
+            return;
+        }
+        
+        // Canvas for chart
+        $('#hourChartContainer').html('<canvas id="hourChart"></canvas>');
+        
+        // Create labels for all 24 hours
+        const labels = Array.from({ length: 24 }, (_, i) => {
+            let hour = i;
+            let ampm = 'AM';
+            
+            if (hour === 0) {
+                hour = 12;
+            } else if (hour === 12) {
+                ampm = 'PM';
+            } else if (hour > 12) {
+                hour -= 12;
+                ampm = 'PM';
+            }
+            
+            return `${hour} ${ampm}`;
+        });
+        
+        // Create chart
+        const ctx = document.getElementById('hourChart').getContext('2d');
+        hourChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Activities',
+                    data: hourData,
+                    backgroundColor: 'rgba(78, 115, 223, 0.05)',
+                    borderColor: '#4e73df',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#4e73df',
+                    pointBorderColor: '#4e73df',
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: '#4e73df',
+                    pointHoverBorderColor: '#4e73df',
+                    pointHitRadius: 10,
+                    pointBorderWidth: 2,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Create day chart
+    function createDayChart(dayData) {
+        $('#dayChartContainer').empty();
+        
+        if (!dayData || dayData.length === 0) {
+            $('#dayChartContainer').html('<div class="text-center p-3">No data available</div>');
+            return;
+        }
+        
+        // Canvas for chart
+        $('#dayChartContainer').html('<canvas id="dayChart"></canvas>');
+        
+        // Create labels for all 7 days
+        const labels = [
+            'Sunday',
+            'Monday',
+            'Tuesday',
+            'Wednesday',
+            'Thursday',
+            'Friday',
+            'Saturday'
+        ];
+        
+        // Create chart
+        const ctx = document.getElementById('dayChart').getContext('2d');
+        dayChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Activities',
+                    data: dayData,
+                    backgroundColor: '#36b9cc',
+                    borderColor: '#36b9cc',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

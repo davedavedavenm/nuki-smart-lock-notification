@@ -1,0 +1,405 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Nuki Smart Lock{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-tachometer-alt me-2"></i>Nuki Smart Lock Dashboard</h1>
+        <p class="lead">Monitor and manage your Nuki Smart Lock system</p>
+    </div>
+</div>
+
+<!-- Status Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card h-100 shadow" id="lockStatusCard">
+            <div class="card-body text-center">
+                <h5 class="card-title"><i class="fas fa-door-closed me-2"></i>Lock Status</h5>
+                <div class="spinner-border text-primary my-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="card-text" id="lockStatusText">Loading...</p>
+            </div>
+            <div class="card-footer text-center">
+                <a href="{{ url_for('status') }}" class="btn btn-sm btn-outline-primary">Details</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card h-100 shadow" id="batteryStatusCard">
+            <div class="card-body text-center">
+                <h5 class="card-title"><i class="fas fa-battery-three-quarters me-2"></i>Battery</h5>
+                <div class="spinner-border text-primary my-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="card-text" id="batteryStatusText">Loading...</p>
+            </div>
+            <div class="card-footer text-center">
+                <a href="{{ url_for('status') }}" class="btn btn-sm btn-outline-primary">Details</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card h-100 shadow">
+            <div class="card-body text-center">
+                <h5 class="card-title"><i class="fas fa-clock me-2"></i>Last Activity</h5>
+                <div class="spinner-border text-primary my-3" role="status" id="lastActivitySpinner">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="card-text" id="lastActivityText">Loading...</p>
+                <p class="card-text" id="lastActivityUser">Loading...</p>
+            </div>
+            <div class="card-footer text-center">
+                <a href="{{ url_for('activity') }}" class="btn btn-sm btn-outline-primary">Activity Log</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card h-100 shadow">
+            <div class="card-body text-center">
+                <h5 class="card-title"><i class="fas fa-chart-line me-2"></i>Total Events</h5>
+                <div class="spinner-border text-primary my-3" role="status" id="totalEventsSpinner">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h3 class="card-text" id="totalEventsText">Loading...</h3>
+            </div>
+            <div class="card-footer text-center">
+                <a href="{{ url_for('stats') }}" class="btn btn-sm btn-outline-primary">Statistics</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-history me-2"></i>Recent Activity
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Lock</th>
+                                <th>Action</th>
+                                <th>User</th>
+                                <th>Trigger</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentActivityTable">
+                            <tr>
+                                <td colspan="5" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer text-center">
+                <a href="{{ url_for('activity') }}" class="btn btn-sm btn-primary">View All Activity</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-users me-2"></i>Active Users
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="userActivityChart" height="250"></canvas>
+            </div>
+            <div class="card-footer text-center">
+                <a href="{{ url_for('users') }}" class="btn btn-sm btn-primary">Manage Users</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- System Status -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-server me-2"></i>System Status
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <h6><i class="fas fa-envelope me-2"></i>Email Notifications</h6>
+                            <p id="emailStatusText">Loading...</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <h6><i class="fas fa-paper-plane me-2"></i>Telegram Notifications</h6>
+                            <p id="telegramStatusText">Loading...</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <h6><i class="fas fa-sync me-2"></i>Polling Interval</h6>
+                            <p id="pollingIntervalText">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer text-center">
+                <a href="{{ url_for('config_page') }}" class="btn btn-sm btn-primary">View Configuration</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load dashboard data when page loads
+    $(document).ready(function() {
+        loadDashboardData();
+        loadRecentActivity();
+        loadUserActivityChart();
+        loadSystemStatus();
+    });
+
+    // Function to load main dashboard data
+    function loadDashboardData() {
+        $.ajax({
+            url: '/api/status',
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                if (data.length > 0) {
+                    const lock = data[0]; // Use first lock for now
+                    
+                    // Update lock status
+                    $('#lockStatusCard .spinner-border').hide();
+                    $('#lockStatusText').html(`
+                        <span class="fs-4 ${lock.state === 'locked' ? 'text-success' : 'text-danger'}">
+                            <i class="fas fa-${lock.state === 'locked' ? 'lock' : 'lock-open'} me-2"></i>
+                            ${lock.state}
+                        </span>
+                    `);
+                    
+                    // Update battery status
+                    $('#batteryStatusCard .spinner-border').hide();
+                    if (lock.battery_critical) {
+                        $('#batteryStatusText').html(`
+                            <span class="fs-4 text-danger">
+                                <i class="fas fa-battery-empty me-2"></i>
+                                Critical
+                            </span>
+                        `);
+                    } else if (lock.battery_charging) {
+                        $('#batteryStatusText').html(`
+                            <span class="fs-4 text-warning">
+                                <i class="fas fa-plug me-2"></i>
+                                Charging
+                            </span>
+                        `);
+                    } else {
+                        $('#batteryStatusText').html(`
+                            <span class="fs-4 text-success">
+                                <i class="fas fa-battery-full me-2"></i>
+                                OK
+                            </span>
+                        `);
+                    }
+                    
+                    // Update last activity
+                    $('#lastActivitySpinner').hide();
+                    if (lock.last_activity) {
+                        const actionClass = lock.last_action.toLowerCase().includes('lock') ? 'text-success' : 'text-danger';
+                        $('#lastActivityText').html(`
+                            <span class="${actionClass}">
+                                <i class="fas fa-${lock.last_action.toLowerCase().includes('lock') ? 'lock' : 'lock-open'} me-2"></i>
+                                ${lock.last_action}
+                            </span>
+                        `);
+                        $('#lastActivityUser').html(`
+                            <small class="text-muted">
+                                <i class="fas fa-user me-1"></i>${lock.last_user}<br>
+                                <i class="fas fa-clock me-1"></i>${formatDateTime(lock.last_activity)}
+                            </small>
+                        `);
+                    } else {
+                        $('#lastActivityText').text('No recent activity');
+                        $('#lastActivityUser').hide();
+                    }
+                }
+            },
+            error: function() {
+                $('#lockStatusText').html('<span class="text-danger">Error loading data</span>');
+                $('#batteryStatusText').html('<span class="text-danger">Error loading data</span>');
+                $('#lastActivityText').html('<span class="text-danger">Error loading data</span>');
+            }
+        });
+    }
+
+    // Function to load recent activity
+    function loadRecentActivity() {
+        $.ajax({
+            url: '/api/activity?limit=5',
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                $('#recentActivityTable').empty();
+                
+                if (data.length === 0) {
+                    $('#recentActivityTable').html('<tr><td colspan="5" class="text-center">No recent activity</td></tr>');
+                    return;
+                }
+                
+                data.forEach(function(activity) {
+                    const lockClass = activity.action.toLowerCase().includes('lock') ? 'text-success' : 'text-danger';
+                    const row = `
+                        <tr>
+                            <td>${formatDateTime(activity.date)}</td>
+                            <td>${activity.lock_name}</td>
+                            <td class="${lockClass}">
+                                <i class="fas fa-${activity.action.toLowerCase().includes('lock') ? 'lock' : 'lock-open'} me-2"></i>
+                                ${activity.action}
+                            </td>
+                            <td>
+                                <i class="fas fa-user me-1"></i>
+                                ${activity.user}
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">
+                                    ${activity.trigger}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                    $('#recentActivityTable').append(row);
+                });
+            },
+            error: function() {
+                $('#recentActivityTable').html('<tr><td colspan="5" class="text-center text-danger">Error loading activity data</td></tr>');
+            }
+        });
+    }
+
+    // Function to load user activity chart
+    function loadUserActivityChart() {
+        $.ajax({
+            url: '/api/stats?days=7',
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                $('#totalEventsSpinner').hide();
+                $('#totalEventsText').text(data.total_events);
+                
+                // Create user activity pie chart
+                const userActivity = data.by_user;
+                const labels = userActivity.map(item => item.name);
+                const values = userActivity.map(item => item.count);
+                
+                const ctx = document.getElementById('userActivityChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: [
+                                '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b',
+                                '#5a5c69', '#858796', '#6f42c1', '#fd7e14', '#20c9a6'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 15
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Activity by User (Last 7 Days)',
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        }
+                    }
+                });
+            },
+            error: function() {
+                $('#totalEventsText').html('<span class="text-danger">Error</span>');
+                $('#userActivityChart').hide();
+            }
+        });
+    }
+
+    // Function to load system status
+    function loadSystemStatus() {
+        $.ajax({
+            url: '/api/config',
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                // Email Status
+                const emailEnabled = data.general.notification_type === 'email' || data.general.notification_type === 'both';
+                $('#emailStatusText').html(`
+                    <span class="${emailEnabled ? 'text-success' : 'text-secondary'}">
+                        <i class="fas fa-${emailEnabled ? 'check-circle' : 'times-circle'} me-2"></i>
+                        ${emailEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    ${emailEnabled ? `<small class="text-muted d-block mt-1">To: ${data.email.recipient}</small>` : ''}
+                `);
+                
+                // Telegram Status
+                const telegramEnabled = data.general.notification_type === 'telegram' || data.general.notification_type === 'both';
+                $('#telegramStatusText').html(`
+                    <span class="${telegramEnabled ? 'text-success' : 'text-secondary'}">
+                        <i class="fas fa-${telegramEnabled ? 'check-circle' : 'times-circle'} me-2"></i>
+                        ${telegramEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    ${telegramEnabled && data.telegram.chat_id ? `<small class="text-muted d-block mt-1">Chat ID: ${data.telegram.chat_id}</small>` : ''}
+                `);
+                
+                // Polling Interval
+                $('#pollingIntervalText').html(`
+                    <span class="text-primary">
+                        <i class="fas fa-history me-2"></i>
+                        ${data.general.polling_interval} seconds
+                    </span>
+                `);
+            },
+            error: function() {
+                $('#emailStatusText').html('<span class="text-danger">Error loading data</span>');
+                $('#telegramStatusText').html('<span class="text-danger">Error loading data</span>');
+                $('#pollingIntervalText').html('<span class="text-danger">Error loading data</span>');
+            }
+        });
+    }
+
+    // Helper function to format date and time
+    function formatDateTime(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleString();
+    }
+</script>
+{% endblock %}

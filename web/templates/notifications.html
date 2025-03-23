@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Notification Settings - Nuki Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-bell me-1"></i>
+                Notification Settings
+            </div>
+            <div class="card-body">
+                <form id="notificationSettingsForm">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>General Settings</h5>
+                            <div class="mb-3">
+                                <label class="form-label">Notification Method</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="notificationType" id="notificationTypeEmail" value="email">
+                                    <label class="form-check-label" for="notificationTypeEmail">
+                                        Email Only
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="notificationType" id="notificationTypeTelegram" value="telegram">
+                                    <label class="form-check-label" for="notificationTypeTelegram">
+                                        Telegram Only
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="notificationType" id="notificationTypeBoth" value="both">
+                                    <label class="form-check-label" for="notificationTypeBoth">
+                                        Both Email and Telegram
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="notificationType" id="notificationTypeNone" value="none">
+                                    <label class="form-check-label" for="notificationTypeNone">
+                                        Disable All Notifications
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="digestMode">
+                                <label class="form-check-label" for="digestMode">Use Digest Mode (group notifications)</label>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h5>Event Filtering</h5>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="notifyAutoLock">
+                                <label class="form-check-label" for="notifyAutoLock">Notify on Auto Lock events</label>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="notifySystemEvents">
+                                <label class="form-check-label" for="notifySystemEvents">Notify on System events</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <h5>Excluded Users</h5>
+                            <div class="mb-3">
+                                <select id="excludedUsers" class="form-select" multiple size="6">
+                                    <!-- User list will be loaded dynamically -->
+                                </select>
+                                <div class="form-text">Select users to exclude from notifications</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <h5>Excluded Actions</h5>
+                            <div class="mb-3">
+                                <select id="excludedActions" class="form-select" multiple size="6">
+                                    <option value="1">Unlock</option>
+                                    <option value="2">Lock</option>
+                                    <option value="3">Unlatch</option>
+                                    <option value="4">Lock 'n' Go</option>
+                                    <option value="5">Lock 'n' Go with unlatch</option>
+                                    <option value="6">Full Lock</option>
+                                </select>
+                                <div class="form-text">Select actions to exclude from notifications</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <h5>Excluded Triggers</h5>
+                            <div class="mb-3">
+                                <select id="excludedTriggers" class="form-select" multiple size="6">
+                                    <option value="0">System</option>
+                                    <option value="1">Manual</option>
+                                    <option value="2">Button</option>
+                                    <option value="3">Automatic</option>
+                                    <option value="4">App</option>
+                                    <option value="5">Website</option>
+                                    <option value="6">Auto Lock</option>
+                                    <option value="7">Time Control</option>
+                                </select>
+                                <div class="form-text">Select triggers to exclude from notifications</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <button type="button" id="saveNotificationSettings" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Save Notification Settings
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Load notification settings
+        loadNotificationSettings();
+        
+        // Load users for exclusion list
+        loadUsers();
+        
+        // Handle form submission
+        $('#saveNotificationSettings').click(saveNotificationSettings);
+    });
+    
+    function loadNotificationSettings() {
+        $.ajax({
+            url: '/api/notifications/settings',
+            method: 'GET',
+            success: function(data) {
+                // Set notification type
+                $('input[name="notificationType"][value="' + data.type + '"]').prop('checked', true);
+                
+                // Set digest mode
+                $('#digestMode').prop('checked', data.digest_mode);
+                
+                // Set event filtering
+                $('#notifyAutoLock').prop('checked', data.notify_auto_lock);
+                $('#notifySystemEvents').prop('checked', data.notify_system_events);
+                
+                // Set excluded actions
+                if (data.excluded_actions) {
+                    data.excluded_actions.forEach(function(action) {
+                        $('#excludedActions option[value="' + action + '"]').prop('selected', true);
+                    });
+                }
+                
+                // Set excluded triggers
+                if (data.excluded_triggers) {
+                    data.excluded_triggers.forEach(function(trigger) {
+                        $('#excludedTriggers option[value="' + trigger + '"]').prop('selected', true);
+                    });
+                }
+                
+                // Excluded users will be handled after loading users
+                window.excludedUsers = data.excluded_users || [];
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading notification settings:', error);
+                alert('Failed to load notification settings. See console for details.');
+            }
+        });
+    }
+    
+    function loadUsers() {
+        $.ajax({
+            url: '/api/users',
+            method: 'GET',
+            success: function(data) {
+                const userSelect = $('#excludedUsers');
+                userSelect.empty();
+                
+                // Add "Auto Lock" option
+                userSelect.append($('<option>').val('Auto Lock').text('Auto Lock'));
+                
+                // Add all users from the API
+                data.forEach(function(user) {
+                    userSelect.append($('<option>').val(user.name).text(user.name));
+                });
+                
+                // Set previously excluded users
+                if (window.excludedUsers) {
+                    window.excludedUsers.forEach(function(username) {
+                        userSelect.find('option[value="' + username + '"]').prop('selected', true);
+                    });
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading users:', error);
+                alert('Failed to load users. See console for details.');
+            }
+        });
+    }
+    
+    function saveNotificationSettings() {
+        // Collect form data
+        const settings = {
+            type: $('input[name="notificationType"]:checked').val(),
+            digest_mode: $('#digestMode').is(':checked'),
+            notify_auto_lock: $('#notifyAutoLock').is(':checked'),
+            notify_system_events: $('#notifySystemEvents').is(':checked'),
+            excluded_users: $('#excludedUsers').val() || [],
+            excluded_actions: $('#excludedActions').val() || [],
+            excluded_triggers: $('#excludedTriggers').val() || []
+        };
+        
+        $.ajax({
+            url: '/api/notifications/settings',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(settings),
+            success: function(response) {
+                alert('Notification settings saved successfully!');
+            },
+            error: function(xhr, status, error) {
+                console.error('Error saving notification settings:', error);
+                alert('Failed to save notification settings: ' + (xhr.responseJSON?.error || error));
+            }
+        });
+    }
+</script>
+{% endblock %}

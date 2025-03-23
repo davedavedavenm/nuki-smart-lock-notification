@@ -1,0 +1,434 @@
+{% extends "base.html" %}
+
+{% block title %}Users - Nuki Smart Lock{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-users me-2"></i>Users</h1>
+        <p class="lead">View and manage lock users</p>
+    </div>
+</div>
+
+<!-- User Table -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-users me-2"></i>User List
+                </h5>
+                <div>
+                    <button class="btn btn-light btn-sm" id="refreshBtn">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>User ID</th>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Activity</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userTableBody">
+                            <tr>
+                                <td colspan="6" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p id="userCount" class="mb-0">Loading user data...</p>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <span class="text-muted">Note: User management is read-only in this version</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- User Activity Chart -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>User Activity
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="userActivityChartContainer" style="height: 400px;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- User Details Modal -->
+<div class="modal fade" id="userDetailsModal" tabindex="-1" aria-labelledby="userDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userDetailsModalLabel">User Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">User ID</label>
+                            <input type="text" class="form-control" id="userId" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-control" id="userName" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Type</label>
+                            <input type="text" class="form-control" id="userType" readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Status</label>
+                            <div id="userStatus">
+                                <span class="badge bg-success">Enabled</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Recent Activity</label>
+                            <div id="userRecentActivity">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h6>Recent Actions</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Action</th>
+                                        <th>Lock</th>
+                                        <th>Trigger</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="userActivityTable">
+                                    <tr>
+                                        <td colspan="4" class="text-center">
+                                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Global variables
+    let allUsers = [];
+    let allActivity = [];
+    let userActivityChart;
+    
+    // Document ready function
+    $(document).ready(function() {
+        // Load initial data
+        loadUsers();
+        loadActivity();
+        
+        // Set up event listeners
+        setupEventListeners();
+    });
+    
+    // Set up event listeners
+    function setupEventListeners() {
+        // Refresh button
+        $('#refreshBtn').on('click', function() {
+            loadUsers();
+            loadActivity();
+        });
+    }
+    
+    // Load users
+    function loadUsers() {
+        $('#userTableBody').html(`
+            <tr>
+                <td colspan="6" class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </td>
+            </tr>
+        `);
+        
+        $.ajax({
+            url: '/api/users',
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                allUsers = data;
+                displayUsers(data);
+            },
+            error: function(xhr, status, error) {
+                $('#userTableBody').html(`
+                    <tr>
+                        <td colspan="6" class="text-center text-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error loading users: ${error}
+                        </td>
+                    </tr>
+                `);
+                $('#userCount').text('Error loading user data');
+            }
+        });
+    }
+    
+    // Load activity data
+    function loadActivity() {
+        $.ajax({
+            url: '/api/activity',
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                allActivity = data;
+                createUserActivityChart();
+            },
+            error: function(xhr, status, error) {
+                $('#userActivityChartContainer').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Error loading activity data: ${error}
+                    </div>
+                `);
+            }
+        });
+    }
+    
+    // Display users
+    function displayUsers(users) {
+        if (!users || users.length === 0) {
+            $('#userTableBody').html(`
+                <tr>
+                    <td colspan="6" class="text-center">No users found</td>
+                </tr>
+            `);
+            $('#userCount').text('No users found');
+            return;
+        }
+        
+        $('#userTableBody').empty();
+        
+        // Create user rows
+        users.forEach(function(user) {
+            // Get activity count for this user
+            const userActivity = allActivity.filter(activity => activity.user === user.name).length;
+            
+            // Create status badge
+            const statusBadge = user.enabled 
+                ? '<span class="badge bg-success">Enabled</span>'
+                : '<span class="badge bg-danger">Disabled</span>';
+            
+            // Create row
+            const row = `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.name}</td>
+                    <td>${user.type}</td>
+                    <td>${statusBadge}</td>
+                    <td>${userActivity > 0 ? userActivity + ' events' : 'No activity'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary view-user-btn" data-id="${user.id}">
+                            <i class="fas fa-eye me-1"></i>View
+                        </button>
+                    </td>
+                </tr>
+            `;
+            
+            $('#userTableBody').append(row);
+        });
+        
+        $('#userCount').text(`${users.length} users found`);
+        
+        // Add click handler for view buttons
+        $('.view-user-btn').on('click', function() {
+            const userId = $(this).data('id');
+            showUserDetails(userId);
+        });
+    }
+    
+    // Show user details
+    function showUserDetails(userId) {
+        // Find user
+        const user = allUsers.find(u => u.id === userId);
+        
+        if (!user) {
+            alert('User not found');
+            return;
+        }
+        
+        // Fill user details in modal
+        $('#userId').val(user.id);
+        $('#userName').val(user.name);
+        $('#userType').val(user.type);
+        
+        // Set status badge
+        $('#userStatus').html(user.enabled 
+            ? '<span class="badge bg-success">Enabled</span>'
+            : '<span class="badge bg-danger">Disabled</span>'
+        );
+        
+        // Get user activity
+        const userActivity = allActivity.filter(activity => activity.user === user.name);
+        
+        // Show recent activity count
+        $('#userRecentActivity').text(
+            userActivity.length > 0 
+                ? `${userActivity.length} recent events` 
+                : 'No recent activity'
+        );
+        
+        // Show user activity in table
+        $('#userActivityTable').empty();
+        
+        if (userActivity.length === 0) {
+            $('#userActivityTable').html(`
+                <tr>
+                    <td colspan="4" class="text-center">No recent activity</td>
+                </tr>
+            `);
+        } else {
+            // Sort by date, newest first
+            userActivity.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            // Show up to 5 most recent activities
+            userActivity.slice(0, 5).forEach(function(activity) {
+                const actionClass = activity.action.toLowerCase().includes('lock') ? 'text-success' : 'text-danger';
+                
+                const row = `
+                    <tr>
+                        <td>${formatDateTime(activity.date)}</td>
+                        <td class="${actionClass}">${activity.action}</td>
+                        <td>${activity.lock_name}</td>
+                        <td><span class="badge bg-secondary">${activity.trigger}</span></td>
+                    </tr>
+                `;
+                
+                $('#userActivityTable').append(row);
+            });
+        }
+        
+        // Show modal
+        new bootstrap.Modal(document.getElementById('userDetailsModal')).show();
+    }
+    
+    // Create user activity chart
+    function createUserActivityChart() {
+        $('#userActivityChartContainer').empty();
+        
+        if (!allActivity || allActivity.length === 0) {
+            $('#userActivityChartContainer').html('<div class="text-center">No activity data available</div>');
+            return;
+        }
+        
+        // Group activity by user
+        const userCounts = {};
+        
+        allActivity.forEach(function(activity) {
+            if (!userCounts[activity.user]) {
+                userCounts[activity.user] = 0;
+            }
+            userCounts[activity.user]++;
+        });
+        
+        // Convert to array and sort by count
+        const userData = Object.entries(userCounts)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count);
+        
+        // Take top 10 users for chart
+        const chartData = userData.slice(0, 10);
+        
+        // Create canvas
+        $('#userActivityChartContainer').html('<canvas id="userActivityChart"></canvas>');
+        
+        // Create chart
+        const ctx = document.getElementById('userActivityChart').getContext('2d');
+        userActivityChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartData.map(item => item.name),
+                datasets: [{
+                    label: 'Activity Count',
+                    data: chartData.map(item => item.count),
+                    backgroundColor: '#4e73df',
+                    borderColor: '#4e73df',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Top 10 Users by Activity',
+                        font: {
+                            size: 16
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Helper function to format date and time
+    function formatDateTime(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleString();
+    }
+</script>
+{% endblock %}
