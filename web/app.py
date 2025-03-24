@@ -109,11 +109,48 @@ def logout():
     flash('You were logged out')
     return redirect(url_for('login'))
 
-@app.route('/profile')
+@app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
     """User profile page"""
     return render_template('profile.html')
+
+@app.route('/api/profile', methods=['POST'])
+@login_required
+def update_profile():
+    """API endpoint to update user profile"""
+    try:
+        # Get data from request
+        data = request.json
+        current_password = data.get('current_password')
+        new_password = data.get('new_password')
+        theme = data.get('theme')
+        
+        # Get current user
+        username = session.get('username')
+        
+        # Verify current password
+        if current_password and new_password:
+            if not user_db.authenticate(username, current_password):
+                return jsonify({"error": "Current password is incorrect"}), 401
+            
+            # Update password
+            success = user_db.update_password(username, new_password)
+            if not success:
+                return jsonify({"error": "Failed to update password"}), 500
+            
+            logger.info(f"Password updated for user: {username}")
+        
+        # Update theme if provided
+        if theme:
+            user_db.update_theme(username, theme)
+            session['theme'] = theme
+            logger.info(f"Theme updated for user: {username} to {theme}")
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error updating profile: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/theme', methods=['POST'])
 @login_required
@@ -540,6 +577,17 @@ def update_config():
         # Get current config file path
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         config_path = os.path.join(base_dir, "config", "config.ini")
+        config_dir = os.path.dirname(config_path)
+        backup_path = os.path.join(config_dir, "config.ini.bak")
+        
+        # Create a backup before making changes
+        import shutil
+        try:
+            if os.path.exists(config_path):
+                shutil.copy2(config_path, backup_path)
+                logger.info(f"Created backup at {backup_path}")
+        except Exception as backup_error:
+            logger.warning(f"Failed to create backup: {backup_error}")
         
         # Import the configuration utility functions
         sys.path.insert(0, os.path.join(parent_dir, "scripts"))
@@ -548,24 +596,56 @@ def update_config():
         # Get data from request
         data = request.json
         
+        # Validate notification type to ensure it's not empty
+        if 'general' in data and 'notification_type' in data['general']:
+            if not data['general']['notification_type']:
+                data['general']['notification_type'] = 'both'
+        
         # Update configuration
+        success_count = 0
+        error_count = 0
         for section, options in data.items():
             for option, value in options.items():
                 # Convert boolean values to strings
                 if isinstance(value, bool):
                     value = str(value).lower()
                 
-                # Update config
-                update_config_func(config_path, section, option, str(value))
+                try:
+                    # Update config
+                    update_config_func(config_path, section, option, str(value))
+                    success_count += 1
+                except Exception as option_error:
+                    logger.error(f"Error updating option {section}.{option}: {option_error}")
+                    error_count += 1
+        
+        if error_count > 0:
+            logger.warning(f"Configuration update completed with {error_count} errors and {success_count} successes")
+        else:
+            logger.info(f"Configuration update completed successfully with {success_count} changes")
         
         # Reload configuration
         global config, api
         config = ConfigManager(parent_dir)
         api = NukiAPI(config)
         
-        return jsonify({"success": True})
+        # Ensure file has proper permissions
+        try:
+            os.chmod(config_path, 0o640)
+        except Exception as perm_error:
+            logger.warning(f"Failed to set config file permissions: {perm_error}")
+        
+        return jsonify({"success": True, "changes": success_count, "errors": error_count})
     except Exception as e:
         logger.error(f"Error updating configuration: {e}")
+        # Try to restore backup if it exists
+        try:
+            if os.path.exists(backup_path):
+                import shutil
+                shutil.copy2(backup_path, config_path)
+                logger.info(f"Restored configuration from backup after error")
+        except Exception as restore_error:
+            logger.error(f"Failed to restore backup: {restore_error}")
+            
         return jsonify({"error": str(e)}), 500
 
 @app.route('/stats')
