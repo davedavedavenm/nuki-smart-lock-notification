@@ -172,7 +172,7 @@ def update_theme():
         logger.error(f"Error updating theme: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/users/manage')
+@app.route('/users_manage')
 @admin_required
 def users_manage():
     """User management page"""
