@@ -16,6 +16,7 @@ A comprehensive notification system for Nuki Smart Lock 4th Generation using a R
 - 🔍 **Smart Filtering**: Filter notifications by user, action type, or trigger type
 - 🌙 **Dark Mode**: Toggle between light and dark themes in the web interface
 - 👥 **User Management**: Manage multiple user accounts with different permission levels
+- 🔑 **Management Agency Access**: Allow management agencies to create temporary access codes
 - 🔐 **Security Pattern Detection**: Detect unusual lock behaviors with security monitoring
 - 🐳 **Docker Support**: Deploy using Docker for simplified setup
 
@@ -162,8 +163,37 @@ The web interface provides a user-friendly way to manage your Nuki lock notifica
 - **Configuration**: Adjust notification settings
 - **User Management**: Add and manage users (admin only)
 - **Notification Settings**: Configure notification preferences
+- **Temporary Codes**: Create and manage temporary access codes (admin and agency roles)
 
 Access the web interface at `http://your-pi-ip:5000`
+
+### User Roles
+
+The system supports three types of user roles:
+
+1. **Admin**: Full access to all features and settings
+2. **Agency**: Restricted access focused on temporary code management
+3. **User**: Basic access for viewing lock status and activity
+
+#### Creating Agency Users
+
+To create a management agency user with the ability to manage temporary access codes:
+
+1. Log in as an admin user
+2. Go to Admin → Create Agency User
+3. Fill in the required information
+4. Click "Create Agency User"
+
+#### Managing Temporary Codes
+
+To create a temporary access code:
+
+1. Log in as an admin or agency user
+2. Go to the "Temporary Codes" page
+3. Fill in the code, name/purpose, and expiry date/time
+4. Click "Create Temporary Code"
+
+Temporary codes will automatically expire at the set time.
 
 ## Security Features
 

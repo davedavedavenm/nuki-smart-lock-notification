@@ -16,8 +16,8 @@ sys.path.insert(0, parent_dir)
 from scripts.nuki.config import ConfigManager
 from scripts.nuki.api import NukiAPI
 from scripts.nuki.utils import ActivityTracker
-from models import UserDatabase, User
-from temp_codes import TemporaryCodeDatabase
+from web.models import UserDatabase, User
+from web.temp_codes import TemporaryCodeDatabase
 
 # Configure logging
 logging.basicConfig(
