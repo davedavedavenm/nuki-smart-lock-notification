@@ -210,6 +210,37 @@ For more details, see the [SECURITY.md](SECURITY.md) file.
 
 Common issues and solutions:
 
+### API Authentication Failed (401 Unauthorized)
+
+If you're seeing "401 Unauthorized" errors in the logs:
+
+- Your Nuki API token has likely expired or been revoked
+- Generate a new API token using the token manager:
+  ```bash
+  # If running traditionally:
+  python scripts/token_manager.py
+  
+  # If running in Docker:
+  docker exec -it nuki-monitor python scripts/token_manager.py
+  ```
+- Alternatively, you can edit `config/credentials.ini` directly with your new token
+- After updating the token, restart the service or container:
+  ```bash
+  # For traditional installation:
+  sudo systemctl restart nuki-monitor.service
+  
+  # For Docker installation:
+  docker compose restart nuki-monitor
+  ```
+- You can verify if your token is working with the built-in verification tool:
+  ```bash
+  # Traditional:
+  python scripts/verify_token.py
+  
+  # Docker:
+  docker exec -it nuki-monitor python scripts/verify_token.py
+  ```
+
 ### Password hashing error when using Docker
 
 If you see an error like `ValueError: unsupported hash type scrypt:32768:8:1` after logging in:
@@ -231,18 +262,34 @@ If you see an error like `ValueError: unsupported hash type scrypt:32768:8:1` af
 - Verify that notification settings are correct
 - Check the logs for errors:
   ```bash
+  # For traditional installation:
   tail -f ~/nukiweb/logs/nuki_monitor.log
+  
+  # For Docker installation:
+  docker logs nuki-monitor
   ```
 
 ### Web interface not working
 
 - Ensure the web service is running:
   ```bash
+  # For traditional installation:
   sudo systemctl status nuki-web.service
+  
+  # For Docker installation:
+  docker ps | grep nuki-web
   ```
 - Check for errors in the web logs:
   ```bash
+  # For traditional installation:
   tail -f ~/nukiweb/logs/nuki_web.log
+  
+  # For Docker installation:
+  docker logs nuki-web
+  ```
+- Verify the health status with:
+  ```bash
+  curl http://your-pi-ip:5000/health
   ```
 
 ### Cannot determine user name for an action
@@ -251,8 +298,24 @@ If you see an error like `ValueError: unsupported hash type scrypt:32768:8:1` af
 - Check that you're using the latest version
 - Try to reset the user cache:
   ```bash
+  # For traditional installation:
   rm ~/nukiweb/logs/user_cache.json
+  
+  # For Docker installation:
+  docker exec -it nuki-monitor rm -f /app/logs/user_cache.json
   ```
+
+### Checking API Health
+
+You can manually check the health of your Nuki API connection:
+
+```bash
+# For traditional installation:
+python scripts/health_monitor.py
+
+# For Docker installation:
+docker exec -it nuki-monitor python scripts/health_monitor.py
+```
 
 ## Repository
 

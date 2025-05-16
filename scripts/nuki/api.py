@@ -56,13 +56,39 @@ class NukiAPI:
                     time.sleep(wait_time)
                     continue
                 
+                # Specific handling for auth errors
+                if response.status_code == 401:
+                    error_msg = "API Authentication Failed: Your Nuki API token appears to be invalid or expired"
+                    response_text = ""
+                    
+                    try:
+                        json_resp = response.json()
+                        if "detailMessage" in json_resp:
+                            error_msg += f": {json_resp['detailMessage']}"
+                            response_text = json_resp
+                    except:
+                        if hasattr(response, 'text'):
+                            response_text = response.text
+                    
+                    logger.error(error_msg)
+                    if response_text:
+                        logger.error(f"Response: {response_text}")
+                        
+                    # Provide help message
+                    logger.warning("To fix this issue:")
+                    logger.warning("1. Run scripts/token_manager.py to generate a new API token")
+                    logger.warning("2. Restart the application or container after updating the token")
+                    
+                    # No point in retrying auth errors
+                    return None
+                    
                 # Handle other error codes
                 response.raise_for_status()
                 return response.json()
                 
             except requests.exceptions.RequestException as e:
                 error_msg = f"API request failed: {str(e)}"
-                if hasattr(e.response, 'text'):
+                if hasattr(e, 'response') and hasattr(e.response, 'text'):
                     error_msg += f", Response: {e.response.text}"
                 
                 logger.error(error_msg)

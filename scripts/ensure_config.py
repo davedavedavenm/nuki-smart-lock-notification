@@ -1,56 +1,61 @@
 #!/usr/bin/env python3
+"""
+Configuration Validation Script
+Ensures that all required configuration files exist with the correct structure.
+"""
+
 import os
-import shutil
 import sys
+import configparser
+import logging
+import shutil
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger('ensure_config')
 
 def ensure_config_files():
-    """
-    Ensure configuration files exist by copying example files if needed.
-    """
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    config_dir = os.path.join(base_dir, 'config')
+    """Ensure all required configuration files exist"""
+    # Determine config directory
+    config_dir = os.environ.get('CONFIG_DIR', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config'))
     
-    # Create config directory if it doesn't exist
-    if not os.path.exists(config_dir):
-        os.makedirs(config_dir)
-        print(f"Created config directory: {config_dir}")
+    # Ensure config directory exists
+    os.makedirs(config_dir, exist_ok=True)
     
-    # Check and copy config.ini if needed
-    config_file = os.path.join(config_dir, 'config.ini')
-    config_example = os.path.join(config_dir, 'config.ini.example')
+    # List of required configuration files and their example templates
+    required_files = {
+        'config.ini': 'config.ini.example',
+        'credentials.ini': 'credentials.ini.example'
+    }
     
-    if not os.path.exists(config_file) and os.path.exists(config_example):
-        shutil.copy(config_example, config_file)
-        print(f"Created config.ini from example")
-    
-    # Check and copy credentials.ini if needed
-    cred_file = os.path.join(config_dir, 'credentials.ini')
-    cred_example = os.path.join(config_dir, 'credentials.ini.example')
-    
-    if not os.path.exists(cred_file) and os.path.exists(cred_example):
-        shutil.copy(cred_example, cred_file)
-        print(f"Created credentials.ini from example")
-        # Set secure permissions for credentials file
-        try:
-            os.chmod(cred_file, 0o600)  # Read/write for owner only
-        except Exception as e:
-            print(f"Warning: Could not set secure permissions on credentials file: {e}")
-    
-    # Check if config files exist now
-    if os.path.exists(config_file) and os.path.exists(cred_file):
-        print("Configuration files are ready")
-        return True
-    else:
-        missing = []
-        if not os.path.exists(config_file):
-            missing.append("config.ini")
-        if not os.path.exists(cred_file):
-            missing.append("credentials.ini")
-        print(f"Missing configuration files: {', '.join(missing)}")
-        return False
+    for config_file, example_file in required_files.items():
+        config_path = os.path.join(config_dir, config_file)
+        example_path = os.path.join(config_dir, example_file)
+        
+        # If the config file doesn't exist but the example does, copy it
+        if not os.path.exists(config_path) and os.path.exists(example_path):
+            try:
+                shutil.copy(example_path, config_path)
+                logger.info(f"Created {config_file} from example template")
+                
+                # Set secure permissions for credentials file
+                if config_file == 'credentials.ini':
+                    try:
+                        os.chmod(config_path, 0o600)
+                    except:
+                        pass  # May fail on Windows
+            except Exception as e:
+                logger.error(f"Error creating {config_file}: {e}")
+        
+        # Verify the file exists now
+        if not os.path.exists(config_path):
+            logger.error(f"Required configuration file {config_file} is missing!")
+            
+    logger.info("Configuration files are ready")
+    return True
 
 if __name__ == "__main__":
-    if ensure_config_files():
-        sys.exit(0)
-    else:
-        sys.exit(1)
+    ensure_config_files()
