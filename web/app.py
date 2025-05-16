@@ -17,6 +17,7 @@ from scripts.nuki.config import ConfigManager
 from scripts.nuki.api import NukiAPI
 from scripts.nuki.utils import ActivityTracker
 from models import UserDatabase, User
+from temp_codes import TemporaryCodeDatabase
 
 # Configure logging
 logging.basicConfig(
@@ -43,6 +44,7 @@ config = ConfigManager(parent_dir)
 api = NukiAPI(config)
 tracker = ActivityTracker(parent_dir)
 user_db = UserDatabase(parent_dir)
+temp_code_db = TemporaryCodeDatabase(parent_dir)
 
 # Login required decorator
 def login_required(f):
@@ -63,6 +65,19 @@ def admin_required(f):
             return redirect(url_for('login', next=request.url))
         if session.get('role') != 'admin':
             flash('You need administrator privileges to access this page')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Agency access required decorator (admin or agency role)
+def agency_access_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session:
+            flash('Please log in to access this page')
+            return redirect(url_for('login', next=request.url))
+        if session.get('role') not in ['admin', 'agency']:
+            flash('You need agency or administrator privileges to access this page')
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
@@ -786,6 +801,194 @@ def get_users():
     except Exception as e:
         logger.error(f"Error getting users: {e}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/temp-codes')
+@agency_access_required
+def temp_codes_page():
+    """Temporary codes management page"""
+    return render_template('temp_codes.html')
+
+@app.route('/api/temp-codes', methods=['GET'])
+@agency_access_required
+def get_temp_codes():
+    """API endpoint to get temporary codes"""
+    try:
+        # Clean expired codes
+        temp_code_db.clean_expired_codes()
+        
+        # For agency users, only show codes they created
+        if session.get('role') == 'agency':
+            codes = temp_code_db.get_codes_by_creator(session.get('username'))
+        else:
+            # Admins see all codes
+            codes = temp_code_db.get_all_codes()
+        
+        # Add creator names
+        for code in codes:
+            creator = user_db.get_user(code.get('created_by'))
+            if creator:
+                code['creator_name'] = code.get('created_by')
+            else:
+                code['creator_name'] = 'Unknown'
+        
+        return jsonify(codes)
+    except Exception as e:
+        logger.error(f"Error getting temporary codes: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/temp-codes', methods=['POST'])
+@agency_access_required
+def create_temp_code():
+    """API endpoint to create a temporary code"""
+    try:
+        # Get data from request
+        data = request.json
+        code = data.get('code')
+        name = data.get('name')
+        expiry = data.get('expiry')
+        
+        if not code or not name or not expiry:
+            return jsonify({"error": "Code, name, and expiry are required"}), 400
+        
+        # Validate code format (4-8 digits)
+        if not code.isdigit() or len(code) < 4 or len(code) > 8:
+            return jsonify({"error": "Code must be 4-8 digits"}), 400
+        
+        # Get first smartlock ID (we'll use the first one for simplicity)
+        locks = api.get_smartlocks()
+        if not locks:
+            return jsonify({"error": "No smartlocks found"}), 404
+        
+        # Use the first smartlock
+        smartlock_id = locks[0].get('smartlockId')
+        
+        # Convert expiry to datetime
+        expiry_datetime = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
+        
+        # Add code to Nuki API
+        result = api.add_temporary_code(smartlock_id, code, name, expiry_datetime)
+        
+        if not result.get('success'):
+            return jsonify({"error": result.get('message', 'Failed to add code to lock')}), 500
+        
+        # Generate a unique ID for the code
+        code_id = str(int(time.time()))
+        
+        # Add code to database
+        success = temp_code_db.add_code(
+            code_id=code_id, 
+            code=code, 
+            name=name, 
+            created_by=session.get('username'), 
+            expiry=expiry_datetime
+        )
+        
+        if not success:
+            # Try to clean up the API authorization if database fails
+            auth_id = result.get('auth_id')
+            if auth_id:
+                api.remove_code(smartlock_id, auth_id)
+            return jsonify({"error": "Failed to save code to database"}), 500
+        
+        # Record the auth_id in our database for easier cleanup later
+        temp_code_db.update_code(code_id, {"auth_id": result.get('auth_id')})
+        
+        return jsonify({
+            "id": code_id,
+            "code": code,
+            "name": name,
+            "created_by": session.get('username'),
+            "created_at": datetime.now().isoformat(),
+            "expiry": expiry_datetime.isoformat(),
+            "auth_id": result.get('auth_id')
+        })
+    except Exception as e:
+        logger.error(f"Error creating temporary code: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/temp-codes/<code_id>', methods=['DELETE'])
+@agency_access_required
+def delete_temp_code(code_id):
+    """API endpoint to delete a temporary code"""
+    try:
+        # Get code from database
+        code = temp_code_db.get_code(code_id)
+        if not code:
+            return jsonify({"error": "Code not found"}), 404
+        
+        # Check permissions for agency users
+        if session.get('role') == 'agency' and code.get('created_by') != session.get('username'):
+            return jsonify({"error": "You can only delete codes you created"}), 403
+        
+        # Get the auth_id
+        auth_id = code.get('auth_id')
+        
+        # If no auth_id stored, try to find it
+        if not auth_id:
+            # Get first smartlock ID
+            locks = api.get_smartlocks()
+            if not locks:
+                return jsonify({"error": "No smartlocks found"}), 404
+            
+            # Use the first smartlock
+            smartlock_id = locks[0].get('smartlockId')
+            
+            # Find auth_id by code value
+            auth_id = api.find_auth_id_by_code(smartlock_id, code.get('code'))
+        
+        # If we have an auth_id, delete from API
+        if auth_id:
+            # Get first smartlock ID
+            locks = api.get_smartlocks()
+            if locks:
+                smartlock_id = locks[0].get('smartlockId')
+                api.remove_code(smartlock_id, auth_id)
+        
+        # Delete from database
+        success = temp_code_db.delete_code(code_id)
+        if not success:
+            return jsonify({"error": "Failed to delete code from database"}), 500
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error deleting temporary code: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/admin/create-agency', methods=['GET', 'POST'])
+@admin_required
+def create_agency_user():
+    """Admin page to create agency users"""
+    if request.method == 'POST':
+        try:
+            username = request.form.get('username')
+            password = request.form.get('password')
+            email = request.form.get('email')
+            active = 'active' in request.form
+            
+            if not all([username, password, email]):
+                flash('Username, password, and email are required', 'danger')
+                return redirect(url_for('create_agency_user'))
+            
+            if user_db.user_exists(username):
+                flash('Username already exists', 'danger')
+                return redirect(url_for('create_agency_user'))
+            
+            # Create the agency user
+            success = user_db.add_user(username, password, 'agency', active)
+            
+            if success:
+                flash('Agency user created successfully', 'success')
+                return redirect(url_for('users_manage'))
+            else:
+                flash('Failed to create agency user', 'danger')
+                return redirect(url_for('create_agency_user'))
+                
+        except Exception as e:
+            logger.error(f"Error creating agency user: {e}")
+            flash(f"Error: {str(e)}", 'danger')
+            return redirect(url_for('create_agency_user'))
+    
+    return render_template('create_agency.html')
 
 @app.route('/health')
 def health_check():

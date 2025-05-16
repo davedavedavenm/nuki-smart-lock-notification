@@ -247,3 +247,106 @@ class NukiAPI:
         except Exception as e:
             logger.error(f"Error parsing date {date_str}: {e}")
             return None
+            
+    def add_temporary_code(self, smartlock_id, code, name, expiry):
+        """Add a temporary access code to the lock
+        
+        Args:
+            smartlock_id: ID of the smart lock
+            code: The numeric code to add
+            name: User-friendly name/description for the code
+            expiry: Datetime object for when the code should expire
+        
+        Returns:
+            dict: Result with success flag and error message or auth ID
+        """
+        try:
+            # Convert expiry to timestamp
+            if isinstance(expiry, datetime):
+                expiry_timestamp = int(expiry.timestamp())
+            elif isinstance(expiry, str):
+                expiry_timestamp = int(datetime.fromisoformat(expiry).timestamp())
+            else:
+                expiry_timestamp = int(expiry)  # Assume it's already a timestamp
+                
+            # Prepare payload for API
+            payload = {
+                "name": name,
+                "code": code,
+                "allowedUntil": expiry_timestamp,
+                "allowedFromTime": int(datetime.now().timestamp()),
+                "type": 13  # Code type for temporary code
+            }
+            
+            # Make request to the API
+            result = self._make_request(
+                'POST', 
+                f"{self.config.base_url}/smartlock/{smartlock_id}/auth",
+                json=payload
+            )
+            
+            if result is None:
+                return {"success": False, "message": "Failed to add temporary code"}
+            
+            return {"success": True, "auth_id": result.get('id')}
+            
+        except Exception as e:
+            logger.error(f"Error adding temporary code: {e}")
+            return {"success": False, "message": str(e)}
+    
+    def remove_code(self, smartlock_id, auth_id):
+        """Remove an access code from the lock
+        
+        Args:
+            smartlock_id: ID of the smart lock
+            auth_id: ID of the authorization to remove
+            
+        Returns:
+            dict: Result with success flag and error message
+        """
+        try:
+            # Make request to the API
+            result = self._make_request(
+                'DELETE',
+                f"{self.config.base_url}/smartlock/{smartlock_id}/auth/{auth_id}"
+            )
+            
+            if result is None:
+                return {"success": False, "message": "Failed to remove code"}
+            
+            return {"success": True}
+            
+        except Exception as e:
+            logger.error(f"Error removing code: {e}")
+            return {"success": False, "message": str(e)}
+    
+    def find_auth_id_by_code(self, smartlock_id, code):
+        """Find authorization ID by code value
+        
+        Args:
+            smartlock_id: ID of the smart lock
+            code: The actual code value to look for
+            
+        Returns:
+            str or None: Authorization ID if found, None otherwise
+        """
+        try:
+            # Get all authorizations
+            auth_list = self._make_request(
+                'GET',
+                f"{self.config.base_url}/smartlock/{smartlock_id}/auth"
+            )
+            
+            if not auth_list:
+                return None
+            
+            # Look for the code
+            for auth in auth_list:
+                if auth.get('code') == code:
+                    return auth.get('id')
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error finding authorization by code: {e}")
+            return None

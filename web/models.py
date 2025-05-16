@@ -169,6 +169,10 @@ class User:
     def is_admin(self):
         return self.role == 'admin'
     
+    @property
+    def is_agency(self):
+        return self.role == 'agency'
+    
     @classmethod
     def from_db_user(cls, db_user, username):
         """Create a User object from database user dictionary"""
