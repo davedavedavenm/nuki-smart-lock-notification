@@ -12,8 +12,8 @@ COPY config /app/config
 COPY docker-entrypoint.sh /app/
 
 # Create directories with proper permissions and set appropriate ownership
-RUN mkdir -p /app/logs /app/data \
-    && chmod -R 777 /app/logs /app/data \
+RUN mkdir -p /app/logs /app/data /app/flask_session \
+    && chmod -R 777 /app/logs /app/data /app/flask_session \
     && chmod -R 777 /app/config \
     && touch /app/logs/nuki_monitor.log /app/logs/health_monitor.log \
     && chmod 666 /app/logs/nuki_monitor.log /app/logs/health_monitor.log

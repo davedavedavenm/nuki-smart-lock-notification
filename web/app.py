@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
+from flask_session import Session
 
 # Add parent directory to path to import nuki modules
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -54,7 +55,20 @@ if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
 
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # Required for session and flash messages
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))  # Use persistent secret key if available
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_FILE_DIR'] = os.environ.get('SESSION_FILE_DIR', os.path.join(parent_dir, 'flask_session'))
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Longer session lifetime
+app.config['SESSION_COOKIE_SECURE'] = False  # Allow session on http for development
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Security best practice
+
+# Initialize Flask-Session
+Session(app)
+
+# Make sessions permanent by default
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
 
 # Initialize dark mode as default
 init_app(app)

@@ -9,12 +9,14 @@ services:
       - ./config:/app/config:rw
       - ./logs:/app/logs:rw
       - ./data:/app/data:rw
+      - ./flask_session:/app/flask_session:rw
     environment:
       - CONFIG_DIR=/app/config
       - LOGS_DIR=/app/logs
       - TZ=Europe/London
       - DEBUG=true
       - DEFAULT_THEME=dark
+      - SECRET_KEY=nuki-smart-lock-dashboard-fixed-key
     networks:
       - nuki-network
     healthcheck:
@@ -46,6 +48,7 @@ services:
       - ./config:/app/config:rw
       - ./logs:/app/logs:rw
       - ./data:/app/data:rw
+      - ./flask_session:/app/flask_session:rw
     environment:
       - CONFIG_DIR=/app/config
       - LOGS_DIR=/app/logs
@@ -53,6 +56,7 @@ services:
       - FLASK_ENV=production
       - TZ=Europe/London
       - DEFAULT_THEME=dark
+      - SECRET_KEY=nuki-smart-lock-dashboard-fixed-key
     networks:
       - nuki-network
     depends_on:
