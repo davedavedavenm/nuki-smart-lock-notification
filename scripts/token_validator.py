@@ -58,12 +58,20 @@ def analyze_token_format(token):
         print(f"Stripped token: '{token.strip()}'")
     
     # Check for invalid characters
-    if not re.match(r'^[A-Za-z0-9\-_=\.]+$', token):
+    pattern = r'[A-Za-z0-9\-_=\.]'
+    valid_pattern = r'^[A-Za-z0-9\-_=\.]+$'
+    
+    if not re.match(valid_pattern, token):
         print("⚠️ Warning: Token contains characters that may not be valid")
-        print(f"Invalid characters: {[c for c in token if not re.match(r'[A-Za-z0-9\-_=\.]', c)]}")
+        invalid_chars = []
+        for c in token:
+            if not re.match(pattern, c):
+                invalid_chars.append(c)
+        print(f"Invalid characters: {invalid_chars}")
     
     # Check if it's a JWT token (many APIs use this format)
-    if re.match(r'^[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+$', token):
+    jwt_pattern = r'^[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+$'
+    if re.match(jwt_pattern, token):
         print("ℹ️ Info: Token appears to be in JWT format")
         
         # Try to decode the JWT payload

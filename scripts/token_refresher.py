@@ -142,7 +142,8 @@ def main():
         return
     
     # Basic format check
-    if not re.match(r'^[A-Za-z0-9\-_=\.]+$', new_token):
+    valid_pattern = r'^[A-Za-z0-9\-_=\.]+$'
+    if not re.match(valid_pattern, new_token):
         print("⚠️ Warning: Token contains characters that may not be valid.")
         confirm = input("Continue anyway? (y/n): ").strip().lower()
         
