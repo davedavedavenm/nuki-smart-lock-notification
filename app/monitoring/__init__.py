@@ -1,0 +1,3 @@
+"""
+Lock activity monitoring module.
+"""
