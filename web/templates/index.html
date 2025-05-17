@@ -130,7 +130,8 @@
     </div>
 </div>
 
-<!-- System Status -->
+<!-- System Status - Only visible to admins -->
+{% if session.get('role') == 'admin' %}
 <div class="row">
     <div class="col-12">
         <div class="card shadow">
@@ -167,6 +168,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -176,7 +178,11 @@
         loadDashboardData();
         loadRecentActivity();
         loadUserActivityChart();
+        
+        // Only load system status for admin users
+        {% if session.get('role') == 'admin' %}
         loadSystemStatus();
+        {% endif %}
     });
 
     // Function to load main dashboard data
@@ -353,8 +359,10 @@
         });
     }
 
-    // Function to load system status
+    // Function to load system status - ADMIN ONLY
     function loadSystemStatus() {
+        // This function should only be called if the user is an admin (protected by server-side template logic)
+        {% if session.get('role') == 'admin' %}
         $.ajax({
             url: '/api/config',
             type: 'GET',
@@ -394,6 +402,7 @@
                 $('#pollingIntervalText').html('<span class="text-danger">Error loading data</span>');
             }
         });
+        {% endif %}
     }
 
     // Helper function to format date and time

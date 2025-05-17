@@ -465,13 +465,13 @@ def get_status():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/notifications')
-@login_required
+@admin_required
 def notifications():
-    """Notification settings page"""
+    """Notification settings page - Admin only"""
     return render_template('notifications.html')
 
 @app.route('/api/notifications/settings', methods=['GET'])
-@login_required
+@admin_required
 def get_notification_settings():
     """API endpoint to get notification settings"""
     try:
@@ -549,13 +549,13 @@ def update_notification_settings():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/config')
-@login_required
+@admin_required
 def config_page():
-    """Configuration page"""
+    """Configuration page - Admin only"""
     return render_template('config.html')
 
 @app.route('/api/config', methods=['GET'])
-@login_required
+@admin_required
 def get_config():
     """API endpoint to get configuration"""
     try:
@@ -606,7 +606,7 @@ def get_config():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/config', methods=['POST'])
-@login_required
+@admin_required
 def update_config():
     """API endpoint to update configuration"""
     try:
@@ -1057,9 +1057,69 @@ def health_check():
             "timestamp": int(time.time())
         }), 500
 
-# Apply theme to all responses
+# Helper function to filter sensitive data for non-admin users
+def filter_api_response_for_role(response):
+    """Filter API responses to remove sensitive data for non-admin users"""
+    if not response.is_json:
+        return response
+    
+    # Only filter for non-admin users
+    if 'logged_in' not in session or session.get('role') == 'admin':
+        return response
+    
+    # Check if this is a sensitive API endpoint
+    sensitive_endpoints = [
+        '/api/config',
+        '/api/status'
+    ]
+
+is_sensitive = False
+    for endpoint in sensitive_endpoints:
+        if request.path.startswith(endpoint):
+            is_sensitive = True
+            break
+    
+    if not is_sensitive:
+        return response
+    
+    try:
+        # Get JSON data
+        data = response.get_json()
+        
+        # Filter status endpoint to remove sensitive information
+        if request.path.startswith('/api/status'):
+            # Remove personal email and telegram details
+            if isinstance(data, list):
+                for lock in data:
+                    if 'email_details' in lock:
+                        lock.pop('email_details')
+                    if 'telegram_details' in lock:
+                        lock.pop('telegram_details')
+        
+        # Filter config endpoint (should be blocked by decorator, but just in case)
+        if request.path.startswith('/api/config'):
+            # Prepare limited config data for non-admin users
+            limited_data = {}
+            
+            # Only include public configuration options
+            if 'general' in data:
+                limited_data['general'] = {
+                    'polling_interval': data['general'].get('polling_interval')
+                }
+            
+            data = limited_data
+        
+        # Set the modified data
+        response.set_data(json.dumps(data))
+    except Exception as e:
+        logger.error(f"Error filtering API response: {e}")
+    
+    return response
+
+# Apply theme to all responses and filter sensitive data
 @app.after_request
-def apply_theme(response):
+def apply_theme_and_filter(response):
+    # Apply dark theme to HTML responses
     if 'logged_in' in session and session.get('theme') == 'dark':
         # Only apply to HTML responses
         if response.content_type and 'text/html' in response.content_type:
@@ -1070,9 +1130,13 @@ def apply_theme(response):
                 response.set_data(response_data)
             # Add dark mode CSS link if not present
             if '<head>' in response_data and 'dark-mode.css' not in response_data:
-                css_link = '<link rel="stylesheet" href="{{ url_for(\'static\', filename=\'css/dark-mode.css\') }}">'
+                css_link = '<link rel="stylesheet" href="{{ url_for(\'static\', filename=\'css/dark-mode.css\') }}">' 
                 response_data = response_data.replace('</head>', f'{css_link}\n</head>')
                 response.set_data(response_data)
+    
+    # Filter sensitive data for non-admin users
+    response = filter_api_response_for_role(response)
+    
     return response
 
 # Main entry point
