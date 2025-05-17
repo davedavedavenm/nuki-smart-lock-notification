@@ -90,15 +90,15 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Agency access required decorator (admin or agency role)
-def agency_access_required(f):
+# Agent access required decorator (admin or agent role)
+def agent_access_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'logged_in' not in session:
             flash('Please log in to access this page')
             return redirect(url_for('login', next=request.url))
-        if session.get('role') not in ['admin', 'agency']:
-            flash('You need agency or administrator privileges to access this page')
+        if session.get('role') not in ['admin', 'agent']:
+            flash('You need agent or administrator privileges to access this page')
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
@@ -824,21 +824,21 @@ def get_users():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/temp-codes')
-@agency_access_required
+@agent_access_required
 def temp_codes_page():
     """Temporary codes management page"""
     return render_template('temp_codes.html')
 
 @app.route('/api/temp-codes', methods=['GET'])
-@agency_access_required
+@agent_access_required
 def get_temp_codes():
     """API endpoint to get temporary codes"""
     try:
         # Clean expired codes
         temp_code_db.clean_expired_codes()
         
-        # For agency users, only show codes they created
-        if session.get('role') == 'agency':
+        # For agent users, only show codes they created
+        if session.get('role') == 'agent':
             codes = temp_code_db.get_codes_by_creator(session.get('username'))
         else:
             # Admins see all codes
@@ -858,7 +858,7 @@ def get_temp_codes():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/temp-codes', methods=['POST'])
-@agency_access_required
+@agent_access_required
 def create_temp_code():
     """API endpoint to create a temporary code"""
     try:
@@ -928,7 +928,7 @@ def create_temp_code():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/temp-codes/<code_id>', methods=['DELETE'])
-@agency_access_required
+@agent_access_required
 def delete_temp_code(code_id):
     """API endpoint to delete a temporary code"""
     try:
@@ -937,8 +937,8 @@ def delete_temp_code(code_id):
         if not code:
             return jsonify({"error": "Code not found"}), 404
         
-        # Check permissions for agency users
-        if session.get('role') == 'agency' and code.get('created_by') != session.get('username'):
+        # Check permissions for agent users
+        if session.get('role') == 'agent' and code.get('created_by') != session.get('username'):
             return jsonify({"error": "You can only delete codes you created"}), 403
         
         # Get the auth_id
@@ -978,7 +978,7 @@ def delete_temp_code(code_id):
 @app.route('/admin/create-agency', methods=['GET', 'POST'])
 @admin_required
 def create_agency_user():
-    """Admin page to create agency users"""
+    """Admin page to create agent users"""
     if request.method == 'POST':
         try:
             username = request.form.get('username')
@@ -994,18 +994,18 @@ def create_agency_user():
                 flash('Username already exists', 'danger')
                 return redirect(url_for('create_agency_user'))
             
-            # Create the agency user
-            success = user_db.add_user(username, password, 'agency', active)
+            # Create the agent user
+            success = user_db.add_user(username, password, 'agent', active)
             
             if success:
-                flash('Agency user created successfully', 'success')
+                flash('Agent user created successfully', 'success')
                 return redirect(url_for('users_manage'))
             else:
-                flash('Failed to create agency user', 'danger')
+                flash('Failed to create agent user', 'danger')
                 return redirect(url_for('create_agency_user'))
                 
         except Exception as e:
-            logger.error(f"Error creating agency user: {e}")
+            logger.error(f"Error creating agent user: {e}")
             flash(f"Error: {str(e)}", 'danger')
             return redirect(url_for('create_agency_user'))
     

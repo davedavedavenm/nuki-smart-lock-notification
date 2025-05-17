@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container">
-  <h1>Create Agency User</h1>
+  <h1>Create Agent User</h1>
   <div class="card">
     <div class="card-header">
-      <h5>New Agency User</h5>
+      <h5>New Agent User</h5>
     </div>
     <div class="card-body">
       <form method="POST" action="{{ url_for('create_agency_user') }}">
@@ -32,10 +32,27 @@
           </div>
         </div>
         <div class="d-flex justify-content-between">
-          <button type="submit" class="btn btn-primary">Create Agency User</button>
+          <button type="submit" class="btn btn-primary">Create Agent User</button>
           <a href="{{ url_for('users_manage') }}" class="btn btn-secondary">Cancel</a>
         </div>
       </form>
+    </div>
+    <div class="card-footer">
+      <div class="alert alert-info">
+        <h5>About Agent Users</h5>
+        <p>Agent users have limited access to the dashboard. They can:</p>
+        <ul>
+          <li>View the dashboard home page</li>
+          <li>View lock activity and status</li>
+          <li>Create and manage temporary access codes</li>
+        </ul>
+        <p>Agent users <strong>cannot</strong> access:</p>
+        <ul>
+          <li>System configuration</li>
+          <li>User management</li>
+          <li>Statistics and other administrative functions</li>
+        </ul>
+      </div>
     </div>
   </div>
 </div>

@@ -18,18 +18,36 @@ class ConfigManager:
             self.credentials_path = os.path.join(config_dir_env, "credentials.ini")
             logger.info(f"Using config directory from environment: {config_dir_env}")
         
-        # Check if config directory exists
+        # Check if config directory exists and is writable
         config_dir = os.path.dirname(self.config_path)
         if not os.path.exists(config_dir):
             try:
                 os.makedirs(config_dir, exist_ok=True)
                 logger.info(f"Created config directory: {config_dir}")
+            except PermissionError as e:
+                logger.critical(f"❌ CRITICAL: Permission denied creating config directory {config_dir}")
+                logger.critical(f"The application does not have write permissions to create the directory.")
+                logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+                sys.exit(1)
             except Exception as e:
-                logger.error(f"Failed to create config directory {config_dir}: {e}")
+                logger.critical(f"❌ CRITICAL: Failed to create config directory {config_dir}: {e}")
+                logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+                sys.exit(1)
+        elif not os.access(config_dir, os.W_OK):
+            logger.critical(f"❌ CRITICAL: Config directory {config_dir} is not writable")
+            logger.critical(f"The application needs write access to this directory for users.json")
+            logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+            sys.exit(1)
                 
         # Load configuration files
-        self.config = self._load_config()
-        self.credentials = self._load_credentials()
+        try:
+            self.config = self._load_config()
+            self.credentials = self._load_credentials()
+        except (PermissionError, IOError) as e:
+            logger.critical(f"❌ CRITICAL: Permission error accessing configuration files: {e}")
+            logger.critical(f"The application cannot read/write to configuration files.")
+            logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+            sys.exit(1)
         
         # Configuration settings
         self.notification_type = self.config.get('General', 'notification_type', fallback='both')
@@ -64,11 +82,22 @@ class ConfigManager:
         
         # Check if API token is set
         if not self.api_token:
-            logger.error("❌ API token not set or credentials.ini is not readable!")
-            logger.error("This may be due to a permission issue with the config directory.")
-            logger.error("DIAGNOSTIC: No API token found in credentials.ini")
-            logger.error("Please ensure credentials.ini exists and has proper permissions (chmod 644)")
-            logger.error("See DOCKER_SETUP.md for details on setting correct permissions.")
+            logger.critical("❌ CRITICAL: API token not set or credentials.ini is not readable!")
+            logger.critical("This may be due to a permission issue with the config directory.")
+            logger.critical("DIAGNOSTIC: No API token found in credentials.ini")
+            logger.critical("Make sure credentials.ini exists with proper permissions (chmod 644)")
+            logger.critical("See DOCKER_SETUP.md for details on setting correct permissions.")
+            
+            # Check if credentials file exists to provide more helpful error messages
+            if not os.path.exists(self.credentials_path):
+                logger.critical(f"File does not exist: {self.credentials_path}")
+                logger.critical("You need to create this file with your API token.")
+            elif not os.access(self.credentials_path, os.R_OK):
+                logger.critical(f"File exists but is not readable: {self.credentials_path}")
+                logger.critical(f"Fix with: chmod 644 {os.path.basename(self.credentials_path)}")
+            
+            # Exit with error code to prevent starting with invalid configuration
+            sys.exit(1)
         else:
             # Mask token for security while providing useful debugging info
             token_len = len(self.api_token)
@@ -140,12 +169,19 @@ class ConfigManager:
         
         try:
             if os.path.exists(self.config_path):
+                if not os.access(self.config_path, os.R_OK):
+                    raise PermissionError(f"Cannot read configuration file: {self.config_path}")
                 config.read(self.config_path)
                 logger.info(f"Loaded configuration from {self.config_path}")
             else:
                 logger.warning(f"Config file not found at {self.config_path}, creating default")
                 self._create_default_config(config)
                 self._save_config(config, self.config_path)
+        except PermissionError as e:
+            logger.critical(f"❌ CRITICAL: Permission error with config file: {e}")
+            logger.critical(f"Make sure {os.path.basename(self.config_path)} has the correct permissions (chmod 644)")
+            logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+            raise
         except Exception as e:
             logger.error(f"Error loading config file: {e}")
             self._create_default_config(config)
@@ -158,6 +194,8 @@ class ConfigManager:
         
         try:
             if os.path.exists(self.credentials_path):
+                if not os.access(self.credentials_path, os.R_OK):
+                    raise PermissionError(f"Cannot read credentials file: {self.credentials_path}")
                 credentials.read(self.credentials_path)
                 logger.info(f"Loaded credentials from {self.credentials_path}")
             else:
@@ -171,6 +209,11 @@ class ConfigManager:
                     logger.info(f"Set secure permissions for {self.credentials_path}")
                 except Exception as perm_e:
                     logger.warning(f"Could not set permissions for credentials file: {perm_e}")
+        except PermissionError as e:
+            logger.critical(f"❌ CRITICAL: Permission error with credentials file: {e}")
+            logger.critical(f"Make sure {os.path.basename(self.credentials_path)} has the correct permissions (chmod 644)")
+            logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+            raise
         except Exception as e:
             logger.error(f"Error loading credentials file: {e}")
             self._create_empty_credentials(credentials)
@@ -181,13 +224,23 @@ class ConfigManager:
         """Save a configuration object to file"""
         try:
             # Create directory if it doesn't exist
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            dir_path = os.path.dirname(file_path)
+            if not os.path.exists(dir_path):
+                os.makedirs(dir_path, exist_ok=True)
             
+            if os.path.exists(file_path) and not os.access(file_path, os.W_OK):
+                raise PermissionError(f"Cannot write to configuration file: {file_path}")
+                
             with open(file_path, 'w') as f:
                 config_obj.write(f)
                 
             logger.info(f"Saved configuration to {file_path}")
             return True
+        except PermissionError as e:
+            logger.critical(f"❌ CRITICAL: Permission error saving configuration: {e}")
+            logger.critical(f"Make sure the container has write access to the config directory.")
+            logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+            return False
         except Exception as e:
             logger.error(f"Error saving configuration to {file_path}: {e}")
             return False
@@ -247,11 +300,20 @@ class ConfigManager:
     def reload(self):
         """Reload configuration and credentials from disk"""
         logger.info("Reloading configuration files")
-        self.config = self._load_config()
-        self.credentials = self._load_credentials()
-        # Re-initialize settings (simplified version, you may want to re-add all settings)
-        self.api_token = self.credentials.get('Nuki', 'api_token', fallback='')
-        self.headers = {
-            "Authorization": f"Bearer {self.api_token}",
-            "Accept": "application/json"
-        }
+        try:
+            self.config = self._load_config()
+            self.credentials = self._load_credentials()
+            # Re-initialize settings (simplified version, you may want to re-add all settings)
+            self.api_token = self.credentials.get('Nuki', 'api_token', fallback='')
+            if not self.api_token:
+                logger.error("❌ API token not found when reloading credentials!")
+                logger.error("Please check your credentials.ini file.")
+            self.headers = {
+                "Authorization": f"Bearer {self.api_token}",
+                "Accept": "application/json"
+            }
+            return True
+        except (PermissionError, IOError) as e:
+            logger.critical(f"❌ CRITICAL: Permission error reloading configuration: {e}")
+            logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+            return False

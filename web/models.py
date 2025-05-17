@@ -45,10 +45,14 @@ class UserDatabase:
             print(f"Error saving users: {e}")
             return False
     
-    def add_user(self, username, password, role='user', active=True):
+    def add_user(self, username, password, role='agent', active=True):
         """Add a new user or update existing user"""
         if not username or not password:
             return False
+            
+        # Validate role (default to agent if invalid role provided)
+        if role not in ['admin', 'agent']:
+            role = 'agent'
             
         self.users[username] = {
             'password_hash': generate_password_hash(password, method='pbkdf2:sha256'),
@@ -93,6 +97,10 @@ class UserDatabase:
     def update_role(self, username, new_role):
         """Update a user's role"""
         if not username in self.users:
+            return False
+        
+        # Validate role (only allow specific roles)
+        if new_role not in ['admin', 'agent']:
             return False
             
         self.users[username]['role'] = new_role
@@ -170,8 +178,8 @@ class User:
         return self.role == 'admin'
     
     @property
-    def is_agency(self):
-        return self.role == 'agency'
+    def is_agent(self):
+        return self.role == 'agent'
     
     @classmethod
     def from_db_user(cls, db_user, username):
@@ -181,7 +189,7 @@ class User:
             
         return cls(
             username=username,
-            role=db_user.get('role', 'user'),
+            role=db_user.get('role', 'agent'),
             active=db_user.get('active', True),
             theme=db_user.get('theme', 'light')
         )

@@ -16,7 +16,7 @@ A comprehensive notification system for Nuki Smart Lock 4th Generation using a R
 - 🔍 **Smart Filtering**: Filter notifications by user, action type, or trigger type
 - 🌙 **Dark Mode**: Toggle between light and dark themes in the web interface
 - 👥 **User Management**: Manage multiple user accounts with different permission levels
-- 🔑 **Management Agency Access**: Allow management agencies to create temporary access codes
+- 🔑 **Agent Access**: Allow agents to create temporary access codes
 - 🔐 **Security Pattern Detection**: Detect unusual lock behaviors with security monitoring
 - 🐳 **Docker Support**: Deploy using Docker for simplified setup
 
@@ -80,12 +80,15 @@ A comprehensive notification system for Nuki Smart Lock 4th Generation using a R
 
 4. Set up proper directory permissions for Docker bind mounts:
    ```bash
-   # For Linux/macOS
-   chmod +x setup_docker_volumes.sh
-   ./setup_docker_volumes.sh
+   # Create directories if they don't exist
+   mkdir -p config logs data
 
-   # For Windows
-   setup_docker_volumes.bat
+   # Set directory permissions (Linux/macOS only)
+   chmod 777 config
+   chmod -R 777 logs data
+   
+   # Set config file permissions (if they exist)
+   chmod 644 config/*.ini
    ```
 
 5. Build and start Docker containers:
@@ -93,7 +96,7 @@ A comprehensive notification system for Nuki Smart Lock 4th Generation using a R
    docker compose up -d
    ```
 
-5. Access the web interface at `http://your-pi-ip:5000`
+6. Access the web interface at `http://your-pi-ip:5000`
 
 ## Directory Structure
 
@@ -170,35 +173,37 @@ The web interface provides a user-friendly way to manage your Nuki lock notifica
 
 - **Dashboard**: View current lock status and recent activity
 - **Activity**: Browse complete activity history
-- **Configuration**: Adjust notification settings
+- **Status**: Check the current status of all your locks
+- **Temporary Codes**: Create and manage temporary access codes (admin and agent roles)
+- **Configuration**: Adjust notification settings (admin only)
 - **User Management**: Add and manage users (admin only)
-- **Notification Settings**: Configure notification preferences
-- **Temporary Codes**: Create and manage temporary access codes (admin and agency roles)
+- **Notification Settings**: Configure notification preferences (admin only)
 
 Access the web interface at `http://your-pi-ip:5000`
 
 ### User Roles
 
-The system supports three types of user roles:
+The system supports two types of user roles:
 
 1. **Admin**: Full access to all features and settings
-2. **Agency**: Restricted access focused on temporary code management
-3. **User**: Basic access for viewing lock status and activity
+2. **Agent**: Restricted access for managing temporary codes and viewing basic lock information
 
-#### Creating Agency Users
+#### Creating Agent Users
 
-To create a management agency user with the ability to manage temporary access codes:
+To create an agent user with the ability to manage temporary access codes:
 
 1. Log in as an admin user
-2. Go to Admin → Create Agency User
+2. Go to Admin → Create Agent User
 3. Fill in the required information
-4. Click "Create Agency User"
+4. Click "Create Agent User"
+
+The agent role provides limited dashboard access focused primarily on temporary code management.
 
 #### Managing Temporary Codes
 
 To create a temporary access code:
 
-1. Log in as an admin or agency user
+1. Log in as an admin or agent user
 2. Go to the "Temporary Codes" page
 3. Fill in the code, name/purpose, and expiry date/time
 4. Click "Create Temporary Code"
@@ -215,6 +220,28 @@ Temporary codes will automatically expire at the set time.
 - Activity anomaly monitoring
 
 For more details, see the [SECURITY.md](SECURITY.md) file.
+
+## Docker Deployment Guidelines
+
+For detailed information about Docker deployment, including important information about container permissions and bind mounts, please refer to the [DOCKER_SETUP.md](DOCKER_SETUP.md) document.
+
+### Important: Host Directory Permissions for Docker
+
+When using Docker, the containers run as a non-root user (`nuki` with UID 999). This means the host directories mounted into the container must have appropriate permissions:
+
+```bash
+# Create directories if they don't exist
+mkdir -p config logs data
+
+# Set directory permissions (Linux/macOS only)
+chmod 777 config
+chmod -R 777 logs data
+
+# Set config file permissions (if they exist)
+chmod 644 config/*.ini
+```
+
+These permissions are critical for the application to function correctly. If the container cannot access the config files or write to logs, it will fail to start or operate correctly.
 
 ## Troubleshooting
 
@@ -242,42 +269,6 @@ If you're seeing "401 Unauthorized" errors in the logs:
   # For Docker installation:
   docker compose restart nuki-monitor
   ```
-- You can verify if your token is working with the built-in verification tool:
-  ```bash
-  # Traditional:
-  python scripts/verify_token.py
-  
-  # Docker:
-  docker exec -it nuki-monitor python scripts/verify_token.py
-  ```
-
-### Password hashing error when using Docker
-
-If you see an error like `ValueError: unsupported hash type scrypt:32768:8:1` after logging in:
-
-- This happens because the Docker container's Python environment doesn't support the scrypt hashing algorithm
-- Run the fix script to update the password hashing method:
-  ```bash
-  # Linux/Mac
-  ./fix-password-hash.sh
-  
-  # Windows
-  fix-password-hash.bat
-  ```
-- This will reset the admin user with default credentials (admin/nukiadmin)
-
-### No notifications are being sent
-
-- Check that your API token is valid
-- Verify that notification settings are correct
-- Check the logs for errors:
-  ```bash
-  # For traditional installation:
-  tail -f ~/nukiweb/logs/nuki_monitor.log
-  
-  # For Docker installation:
-  docker logs nuki-monitor
-  ```
 
 ### Docker Bind Mount Permission Issues
 
@@ -287,36 +278,7 @@ If you're using Docker and see errors like:
 - No notifications despite correct configuration
 - Containers crash or restart repeatedly
 
-This indicates a permission issue with the Docker bind mounts:
-
-1. Run the permission setup script:
-   ```bash
-   # For Linux/macOS
-   chmod +x setup_docker_volumes.sh
-   ./setup_docker_volumes.sh
-
-   # For Windows
-   setup_docker_volumes.bat
-   ```
-
-2. For manual setup, set proper permissions on the host:
-   ```bash
-   # Create directories if they don't exist
-   mkdir -p config logs data
-
-   # Set permissions (Linux/macOS only)
-   chmod 777 config
-   chmod -R 777 logs data
-   chmod 644 config/*.ini  # Only if config files exist
-   ```
-
-3. Restart the containers:
-   ```bash
-   docker compose down
-   docker compose up -d
-   ```
-
-See the [DOCKER_SETUP.md](DOCKER_SETUP.md) file for more detailed information on Docker bind mount permissions.
+This indicates a permission issue with the Docker bind mounts. Follow the steps in [DOCKER_SETUP.md](DOCKER_SETUP.md) to fix these issues.
 
 ### Web interface not working
 
@@ -340,31 +302,6 @@ See the [DOCKER_SETUP.md](DOCKER_SETUP.md) file for more detailed information on
   ```bash
   curl http://your-pi-ip:5000/health
   ```
-
-### Cannot determine user name for an action
-
-- The API might return auth IDs differently
-- Check that you're using the latest version
-- Try to reset the user cache:
-  ```bash
-  # For traditional installation:
-  rm ~/nukiweb/logs/user_cache.json
-  
-  # For Docker installation:
-  docker exec -it nuki-monitor rm -f /app/logs/user_cache.json
-  ```
-
-### Checking API Health
-
-You can manually check the health of your Nuki API connection:
-
-```bash
-# For traditional installation:
-python scripts/health_monitor.py
-
-# For Docker installation:
-docker exec -it nuki-monitor python scripts/health_monitor.py
-```
 
 ## Repository
 
