@@ -38,6 +38,21 @@ class NukiAPI:
         max_retries = self.config.max_retries if retry else 1
         retry_delay = self.config.retry_delay
         
+        # Log the Authorization header being used
+        auth_header = self.config.headers.get("Authorization", "")
+        if auth_header:
+            # Extract and mask just the token portion of the header
+            if auth_header.startswith("Bearer ") and len(auth_header) > 7:
+                token_part = auth_header[7:]  # Skip "Bearer "
+                if len(token_part) >= 5:
+                    logger.info(f"DIAGNOSTIC: HTTP Request - Using Authorization header: Bearer {token_part[:5]}... for {method} {url}")
+                else:
+                    logger.info(f"DIAGNOSTIC: HTTP Request - Using Authorization header: Bearer *** for {method} {url}")
+            else:
+                logger.info(f"DIAGNOSTIC: HTTP Request - Using Authorization header in unexpected format for {method} {url}")
+        else:
+            logger.info(f"DIAGNOSTIC: HTTP Request - No Authorization header found for {method} {url}")
+        
         for attempt in range(max_retries):
             try:
                 response = requests.request(
@@ -48,6 +63,9 @@ class NukiAPI:
                     json=json,
                     timeout=30  # Set a reasonable timeout
                 )
+                
+                # Log response status code
+                logger.info(f"DIAGNOSTIC: HTTP Response - {method} {url} → Status: {response.status_code}")
                 
                 # Check for rate limiting
                 if response.status_code == 429:

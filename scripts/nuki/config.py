@@ -52,11 +52,33 @@ class ConfigManager:
         # Check if API token is set
         if not self.api_token:
             logger.warning("API token not set in credentials.ini! API requests will fail.")
+            logger.info("DIAGNOSTIC: No API token found in credentials.ini")
+        else:
+            # Mask token for security while providing useful debugging info
+            token_len = len(self.api_token)
+            if token_len >= 10:
+                masked_token = f"{self.api_token[:5]}...{self.api_token[-5:]}"
+            else:
+                masked_token = f"{self.api_token[:2]}...{self.api_token[-2:]}" if token_len >= 4 else "***"
+            logger.info(f"DIAGNOSTIC: API token loaded successfully - {masked_token} (length: {token_len})")
         
         self.headers = {
             "Authorization": f"Bearer {self.api_token}",
             "Accept": "application/json"
         }
+        
+        # Log the prepared Authorization header
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header:
+            # Extract and mask just the token portion of the header
+            if auth_header.startswith("Bearer ") and len(auth_header) > 7:
+                token_part = auth_header[7:]  # Skip "Bearer "
+                if len(token_part) >= 5:
+                    logger.info(f"DIAGNOSTIC: Authorization header prepared: Bearer {token_part[:5]}...")
+                else:
+                    logger.info(f"DIAGNOSTIC: Authorization header prepared: Bearer ***")
+            else:
+                logger.info(f"DIAGNOSTIC: Authorization header prepared but in unexpected format")
         
         # Email settings
         self.smtp_server = self.config.get('Email', 'smtp_server', fallback='')
