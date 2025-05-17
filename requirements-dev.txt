@@ -1,0 +1,14 @@
+# Development requirements for Nuki Smart Lock Notification System
+pytest==7.2.1
+pytest-cov==4.0.0
+black==22.12.0
+flake8==6.0.0
+isort==5.11.4
+sphinx==6.1.3
+pre-commit==3.0.0
+pylint==2.15.10
+bandit==1.7.4
+coverage==7.1.0
+
+# Include web requirements (which also include core requirements)
+-r requirements-web.txt

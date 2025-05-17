@@ -1,32 +1,36 @@
+version: '3.8'
+
 services:
   nuki-monitor:
     build:
       context: .
-      dockerfile: Dockerfile.monitor
+      dockerfile: ./docker/monitor/Dockerfile
     container_name: nuki-monitor
     restart: unless-stopped
     volumes:
-      - ./config:/app/config:rw
-      - ./logs:/app/logs:rw
-      - ./data:/app/data:rw
-      - ./flask_session:/app/flask_session:rw
+      - nuki_config:/app/config:rw
+      - nuki_logs:/app/logs:rw
+      - nuki_data:/app/data:rw
+      - nuki_session:/app/flask_session:rw
     environment:
       - CONFIG_DIR=/app/config
       - LOGS_DIR=/app/logs
       - TZ=Europe/London
-      - DEBUG=true
+      - DEBUG=false
       - DEFAULT_THEME=dark
-      - SECRET_KEY=nuki-smart-lock-dashboard-fixed-key
+      # Generate a secure key with: openssl rand -hex 24
+      - SECRET_KEY=${NUKI_SECRET_KEY:-change_this_to_a_secure_random_key}
     networks:
       - nuki-network
     healthcheck:
-      test: ["CMD", "bash", "-c", "python /app/scripts/health_monitor.py || exit 0"]
-      interval: 5m
+      test: ["CMD", "python", "-m", "app.monitoring.health_monitor", "--check-service"]
+      interval: 3m
       timeout: 30s
       retries: 3
       start_period: 60s
-    user: root
-    # Add resource limits for better performance
+    # Run as non-root user for security
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    # Service constraints
     deploy:
       resources:
         limits:
@@ -39,36 +43,39 @@ services:
   nuki-web:
     build:
       context: .
-      dockerfile: Dockerfile.web
+      dockerfile: ./docker/web/Dockerfile
     container_name: nuki-web
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "${WEB_PORT:-5000}:5000"
     volumes:
-      - ./config:/app/config:rw
-      - ./logs:/app/logs:rw
-      - ./data:/app/data:rw
-      - ./flask_session:/app/flask_session:rw
+      - nuki_config:/app/config:rw
+      - nuki_logs:/app/logs:rw
+      - nuki_data:/app/data:rw
+      - nuki_session:/app/flask_session:rw
     environment:
       - CONFIG_DIR=/app/config
       - LOGS_DIR=/app/logs
-      - FLASK_APP=web/app.py
+      - FLASK_APP=app.web.app
       - FLASK_ENV=production
       - TZ=Europe/London
       - DEFAULT_THEME=dark
-      - SECRET_KEY=nuki-smart-lock-dashboard-fixed-key
+      # Use the same secret key as the monitor service
+      - SECRET_KEY=${NUKI_SECRET_KEY:-change_this_to_a_secure_random_key}
     networks:
       - nuki-network
     depends_on:
       nuki-monitor:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health", "||", "exit", "1"]
       interval: 1m
       timeout: 10s
       retries: 3
       start_period: 20s
-    # Add resource limits for better performance
+    # Run as non-root user for security
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    # Service constraints
     deploy:
       resources:
         limits:
@@ -82,6 +89,29 @@ networks:
   nuki-network:
     driver: bridge
 
+# Use named volumes for better persistence and management
 volumes:
+  nuki_config:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${CONFIG_PATH:-./config}
+      o: bind
+  nuki_logs:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${LOGS_PATH:-./logs}
+      o: bind
   nuki_data:
     driver: local
+    driver_opts:
+      type: none
+      device: ${DATA_PATH:-./data}
+      o: bind
+  nuki_session:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${SESSION_PATH:-./flask_session}
+      o: bind

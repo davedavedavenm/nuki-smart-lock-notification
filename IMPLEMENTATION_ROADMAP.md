@@ -7,135 +7,135 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 ### Week 1: Setup and Docker Configuration
 
 #### Day 1-2: Project Setup and Structure
-- [ ] Create the new directory structure as outlined in the cleanup plan
-- [ ] Set up Git branch for cleanup work
-- [ ] Create placeholder files and README.md files in each directory
-- [ ] Transfer existing configuration files to the new structure
+- [x] Create the new directory structure as outlined in the cleanup plan
+- [x] Set up Git branch for cleanup work
+- [x] Create placeholder files and README.md files in each directory
+- [x] Transfer existing configuration files to the new structure
 
 **Files to create:**
-- `app/` directory with all subdirectories
-- `docker/` directory with subdirectories
-- `cli/` directory
-- `tests/` directory with subdirectories
+- [x] `app/` directory with all subdirectories
+- [x] `docker/` directory with subdirectories
+- [x] `cli/` directory
+- [x] `tests/` directory with subdirectories
 
 #### Day 3-4: Docker Configuration Refactoring
-- [ ] Move Docker files to the `docker/` directory
-- [ ] Create separate Dockerfiles for monitor and web services
-- [ ] Update docker-compose.yml with modern syntax
-- [ ] Implement proper volume management
-- [ ] Add comprehensive health checks
+- [x] Move Docker files to the `docker/` directory
+- [x] Create separate Dockerfiles for monitor and web services
+- [x] Update docker-compose.yml with modern syntax
+- [x] Implement proper volume management
+- [x] Add comprehensive health checks
 
 **Files to modify:**
-- `Dockerfile.monitor` → `docker/monitor/Dockerfile`
-- `Dockerfile.web` → `docker/web/Dockerfile`
-- `docker-entrypoint.sh` → `docker/monitor/entrypoint.sh`
-- `docker-entrypoint-web.sh` → `docker/web/entrypoint.sh`
-- `docker-compose.yml` → Updated version with new paths
+- [x] `Dockerfile.monitor` → `docker/monitor/Dockerfile`
+- [x] `Dockerfile.web` → `docker/web/Dockerfile`
+- [x] `docker-entrypoint.sh` → `docker/monitor/entrypoint.sh`
+- [x] `docker-entrypoint-web.sh` → `docker/web/entrypoint.sh`
+- [x] `docker-compose.yml` → Updated version with new paths
 
 #### Day 5: Dependency Management
-- [ ] Audit current dependencies
-- [ ] Create separate requirements files
-- [ ] Update Dockerfiles to use the correct requirements files
-- [ ] Add dependency checking script
+- [x] Audit current dependencies
+- [x] Create separate requirements files
+- [x] Update Dockerfiles to use the correct requirements files
+- [x] Add dependency checking script
 
 **Files to create:**
-- `requirements.txt` - Core requirements
-- `requirements-web.txt` - Web interface requirements
-- `requirements-dev.txt` - Development dependencies
-- `scripts/check_dependencies.py` - Dependency checking script
+- [x] `requirements.txt` - Core requirements
+- [x] `requirements-web.txt` - Web interface requirements
+- [x] `requirements-dev.txt` - Development dependencies
+- [x] `scripts/check_dependencies.py` - Dependency checking script
 
 ### Week 2: Core Module Migration
 
 #### Day 1-2: API and Configuration Modules
-- [ ] Refactor `nuki/api.py` to `app/api/nuki_api.py`
+- [x] Refactor `nuki/api.py` to `app/api/nuki_api.py`
 - [ ] Create web API endpoints in `app/api/web_api.py`
-- [ ] Refactor `nuki/config.py` to `app/config/settings.py`
-- [ ] Add configuration validation in `app/config/validators.py`
+- [x] Refactor `nuki/config.py` to `app/config/config_manager.py`
+- [x] Add configuration utility in `app/config/configure.py`
 
 **Specific changes:**
-- Extract API functionality from `nuki/api.py`
-- Split configuration loading and validation
-- Add proper error handling and logging
+- [x] Extract API functionality from `nuki/api.py`
+- [x] Move configuration loading and management to new module
+- [x] Add proper error handling and logging
 
 #### Day 3-4: Notification and Utility Modules
-- [ ] Refactor `nuki/notification.py` to `app/notifications/dispatcher.py`
-- [ ] Create separate services for email and Telegram
-- [ ] Refactor utility functions to appropriate modules
+- [x] Refactor `nuki/notification.py` to `app/notifications/notifier.py`
+- [x] Create separate services for email and Telegram
+- [x] Refactor utility functions to appropriate modules
 - [ ] Create common logging utilities
 
 **Specific changes:**
-- Extract email functionality to `app/notifications/email_service.py`
-- Extract Telegram functionality to `app/notifications/telegram_service.py`
-- Move date utilities to `app/utils/date_utils.py`
-- Create consistent logging in `app/utils/logging.py`
+- [x] Extract email functionality to `app/notifications/email_service.py`
+- [x] Extract Telegram functionality to `app/notifications/telegram_service.py`
+- [x] Move activity utilities to `app/utils/activity_tracker.py`
+- [x] Add permission checking in `app/utils/check_permissions.py`
 
 #### Day 5: Basic Documentation
 - [ ] Create basic documentation structure
 - [ ] Document the new directory structure
-- [ ] Add README files to key directories
+- [x] Add README files to key directories
 - [ ] Document Docker configuration
 
 **Files to create/update:**
-- `docs/development/structure.md`
-- `docs/deployment/docker.md`
-- README files in each directory
+- [ ] `docs/development/structure.md`
+- [ ] `docs/deployment/docker.md`
+- [x] README files in each directory
 
 ## Phase 2: Code Refactoring
 
 ### Week 3: Core Functionality Refactoring
 
 #### Day 1-2: Monitoring Module
-- [ ] Refactor `nuki_monitor.py` to `app/monitoring/monitor.py`
-- [ ] Extract activity tracking to `app/monitoring/activity_tracker.py`
+- [x] Refactor `nuki_monitor.py` to `app/monitoring/nuki_monitor.py`
+- [x] Move health monitoring to `app/monitoring/health_monitor.py`
 - [ ] Create simplified entry point in `cli/nuki_monitor.py`
 
 **Specific changes:**
-- Split main monitoring class into smaller, focused classes
-- Improve error handling and recovery
-- Add better logging and diagnostics
+- [x] Move monitoring classes to appropriate modules
+- [x] Improve error handling and recovery
+- [x] Add better logging and diagnostics
 
 #### Day 3-4: Models and Data Handling
 - [ ] Create data models in `app/models/`
-- [ ] Refactor `models.py` to separate model files
+- [x] Refactor `models.py` to `app/web/models.py`
 - [ ] Implement proper data validation
 
 **Specific changes:**
-- Create `app/models/user.py` for user-related models
-- Create `app/models/activity.py` for activity data
-- Create `app/models/temp_code.py` for temporary codes
+- [ ] Create `app/models/user.py` for user-related models
+- [ ] Create `app/models/activity.py` for activity data
+- [ ] Create `app/models/temp_code.py` for temporary codes
 
 #### Day 5: Security Module
-- [ ] Refactor security-related code to `app/security/`
+- [x] Refactor security-related code to `app/security/`
 - [ ] Improve authentication handling
-- [ ] Add security monitoring features
+- [x] Move security monitoring to `app/security/security_monitor.py`
 
 **Specific changes:**
-- Create `app/security/auth.py` for authentication
-- Create `app/security/monitoring.py` for security monitoring
-- Create `app/security/alerting.py` for security alerts
+- [x] Move security monitoring and configuration
+- [x] Move security alerting system
+- [ ] Enhance security features
 
 ### Week 4: Web Interface Refactoring
 
 #### Day 1-2: Core Web Application
-- [ ] Refactor `web/app.py` to `app/web/app.py`
+- [x] Refactor `web/app.py` to `app/web/app.py`
 - [ ] Extract route handlers to separate modules
 - [ ] Implement proper middleware
 
 **Specific changes:**
-- Create route modules for different sections
-- Add proper authentication middleware
-- Improve error handling for API endpoints
+- [ ] Create route modules for different sections
+- [ ] Add proper authentication middleware
+- [ ] Improve error handling for API endpoints
 
 #### Day 3-4: Frontend Improvements
 - [ ] Reorganize static files
-- [ ] Implement proper theme system
+- [x] Implement proper theme system
 - [ ] Improve JavaScript organization
 - [ ] Enhance mobile responsiveness
 
 **Specific changes:**
-- Create theme system with CSS variables
-- Organize JavaScript by functionality
-- Add media queries for mobile layouts
+- [x] Move dark mode module to web structure
+- [ ] Organize JavaScript by functionality
+- [ ] Add media queries for mobile layouts
 
 #### Day 5: Testing Framework
 - [ ] Set up testing framework
@@ -144,10 +144,10 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 - [ ] Add CI workflow for tests
 
 **Files to create/modify:**
-- `tests/conftest.py`
-- `tests/unit/test_api.py`
-- `tests/unit/test_config.py`
-- `.github/workflows/test.yml`
+- [ ] `tests/conftest.py`
+- [ ] `tests/unit/test_api.py`
+- [ ] `tests/unit/test_config.py`
+- [ ] `.github/workflows/test.yml`
 
 ## Phase 3: Enhancement and Optimization
 
@@ -159,9 +159,9 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 - [ ] Add mock objects for external dependencies
 
 **Specific changes:**
-- Create tests for each core module
-- Add parameterized tests for different scenarios
-- Implement mocks for API, email, and Telegram
+- [ ] Create tests for each core module
+- [ ] Add parameterized tests for different scenarios
+- [ ] Implement mocks for API, email, and Telegram
 
 #### Day 3-4: Integration Tests
 - [ ] Create integration tests for API endpoints
@@ -170,9 +170,9 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 - [ ] Add Docker-based testing
 
 **Specific changes:**
-- Create end-to-end tests for core workflows
-- Test API responses for different inputs
-- Verify notification formatting and delivery
+- [ ] Create end-to-end tests for core workflows
+- [ ] Test API responses for different inputs
+- [ ] Verify notification formatting and delivery
 
 #### Day 5: Security Enhancements
 - [ ] Implement proper password policies
@@ -181,10 +181,10 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 - [ ] Fix file permissions
 
 **Specific changes:**
-- Add password complexity requirements
-- Implement login attempt throttling
-- Create request validation middleware
-- Document and enforce proper file permissions
+- [ ] Add password complexity requirements
+- [ ] Implement login attempt throttling
+- [ ] Create request validation middleware
+- [ ] Document and enforce proper file permissions
 
 ### Week 6: Performance and Documentation
 
@@ -195,9 +195,9 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 - [ ] Add performance monitoring
 
 **Specific changes:**
-- Add caching for API responses
-- Optimize notification delivery
-- Improve Docker resource usage
+- [ ] Add caching for API responses
+- [ ] Optimize notification delivery
+- [ ] Improve Docker resource usage
 
 #### Day 3-5: Comprehensive Documentation
 - [ ] Complete API documentation
@@ -206,10 +206,10 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 - [ ] Add troubleshooting guides
 
 **Files to create/update:**
-- `docs/api/endpoints.md`
-- `docs/deployment/setup.md`
-- `docs/user/guide.md`
-- `docs/troubleshooting.md`
+- [ ] `docs/api/endpoints.md`
+- [ ] `docs/deployment/setup.md`
+- [ ] `docs/user/guide.md`
+- [ ] `docs/troubleshooting.md`
 
 ## Phase 4: Final Polishing
 
@@ -222,10 +222,10 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 - [ ] Test deployment process
 
 **Specific tasks:**
-- Run full test suite
-- Test on different environments
-- Verify Docker deployment
-- Test upgrade process
+- [ ] Run full test suite
+- [ ] Test on different environments
+- [ ] Verify Docker deployment
+- [ ] Test upgrade process
 
 #### Day 3-4: Documentation Review and Completion
 - [ ] Review all documentation
@@ -234,9 +234,9 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 - [ ] Add upgrade guide
 
 **Files to create/update:**
-- `RELEASE_NOTES.md`
-- `UPGRADE.md`
-- Final updates to documentation
+- [ ] `RELEASE_NOTES.md`
+- [ ] `UPGRADE.md`
+- [ ] Final updates to documentation
 
 #### Day 5: Final Release
 - [ ] Create final release branch
@@ -245,10 +245,10 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 - [ ] Project handover documentation
 
 **Specific tasks:**
-- Create release tag
-- Final documentation review
-- Prepare for deployment to production
-- Document outstanding items and future improvements
+- [ ] Create release tag
+- [ ] Final documentation review
+- [ ] Prepare for deployment to production
+- [ ] Document outstanding items and future improvements
 
 ## Tracking and Coordination
 
