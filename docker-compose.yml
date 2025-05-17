@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   nuki-monitor:
     build:
@@ -8,17 +6,9 @@ services:
     container_name: nuki-monitor
     restart: unless-stopped
     volumes:
-      # IMPORTANT: Bind mounts require appropriate permissions on the host system
-      # The container user 'nuki' (UID 999) must be able to read/write these directories
-      # Before starting, run these commands:
-      #   1. mkdir -p config logs data
-      #   2. chmod 777 config
-      #   3. chmod -R 777 logs data
-      #   4. chmod 644 config/*.ini (if config files exist)
-      # See DOCKER_SETUP.md section "Docker Bind Mount Permissions" for details
-      - ./config:/app/config  # Config dir (needs read for .ini files, write for users.json)
-      - ./logs:/app/logs      # Logs directory (needs write access)
-      - ./data:/app/data      # Data directory (needs write access)
+      - ./config:/app/config:rw
+      - ./logs:/app/logs:rw
+      - ./data:/app/data:rw
     environment:
       - CONFIG_DIR=/app/config
       - LOGS_DIR=/app/logs
@@ -31,6 +21,15 @@ services:
       timeout: 20s
       retries: 3
       start_period: 30s
+    # Add resource limits for better performance
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
   nuki-web:
     build:
@@ -41,17 +40,9 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # IMPORTANT: Bind mounts require appropriate permissions on the host system
-      # The container user 'nuki' (UID 999) must be able to read/write these directories
-      # Before starting, run these commands:
-      #   1. mkdir -p config logs data
-      #   2. chmod 777 config
-      #   3. chmod -R 777 logs data
-      #   4. chmod 644 config/*.ini (if config files exist)
-      # See DOCKER_SETUP.md section "Docker Bind Mount Permissions" for details
-      - ./config:/app/config  # Config dir (needs read for .ini files, write for users.json)
-      - ./logs:/app/logs      # Logs directory (needs write access)
-      - ./data:/app/data      # Data directory (needs write access)
+      - ./config:/app/config:rw
+      - ./logs:/app/logs:rw
+      - ./data:/app/data:rw
     environment:
       - CONFIG_DIR=/app/config
       - LOGS_DIR=/app/logs
@@ -61,14 +52,28 @@ services:
     networks:
       - nuki-network
     depends_on:
-      - nuki-monitor
+      nuki-monitor:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 1m
       timeout: 10s
       retries: 3
       start_period: 20s
+    # Add resource limits for better performance
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
 networks:
   nuki-network:
     driver: bridge
+
+volumes:
+  nuki_data:
+    driver: local

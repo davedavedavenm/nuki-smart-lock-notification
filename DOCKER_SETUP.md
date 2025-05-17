@@ -1,155 +1,160 @@
-# Docker Setup Guide for Nuki Smart Lock Notification System
+# Docker Setup for Nuki Smart Lock Notification System
 
-This guide provides detailed instructions for setting up and running the Nuki Smart Lock Notification System using Docker.
+This document provides instructions for setting up and deploying the Nuki Smart Lock Notification System using Docker.
 
-## Quick Start
+## Prerequisites
+
+- Docker and Docker Compose installed on your system
+- Git for cloning the repository
+- Basic knowledge of Docker concepts
+
+## Setup Instructions
+
+### 1. Clone the Repository
 
 ```bash
-# Clone the repository
-git clone https://github.com/davedavedavenm/nuki-smart-lock-notification.git
-cd nuki-smart-lock-notification
+git clone https://github.com/davedavedavenm/nuki-smart-lock-notification.git nukiweb
+cd nukiweb
+```
 
-# Set up host directories and permissions
+### 2. Prepare Configuration Files
+
+```bash
+# Create required directories
 mkdir -p config logs data
-chmod 777 config logs data
 
-# Create configuration files (if not existing)
+# Copy and edit configuration files
 cp config/config.ini.example config/config.ini
 cp config/credentials.ini.example config/credentials.ini
 
 # Edit the configuration files
 nano config/config.ini
 nano config/credentials.ini
+```
 
-# Set proper permissions for config files
+### 3. Set Correct Permissions
+
+Docker containers run with a specific user (`nuki` with UID 999) that needs appropriate permissions to access mounted volumes:
+
+```bash
+# Set permissions for directories
+chmod -R 777 logs
+chmod -R 777 data
+chmod 777 config
+
+# Set permissions for config files
 chmod 644 config/*.ini
+```
 
-# Start the containers
+### 4. Build and Start Docker Containers
+
+```bash
+# Build and start the containers
+docker compose up -d
+
+# Check container status
+docker compose ps
+
+# View logs
+docker compose logs -f
+```
+
+## Container Management
+
+### Stopping Containers
+
+```bash
+docker compose down
+```
+
+### Restarting Containers
+
+```bash
+docker compose restart
+```
+
+### Rebuilding Containers After Changes
+
+```bash
+docker compose build --no-cache
 docker compose up -d
 ```
 
-## Important: Host Directory Permissions for Docker Bind Mounts
+## Troubleshooting
 
-### Understanding Container User Context
+### Permission Issues
 
-The application's Docker containers run as a non-root user (`nuki` with UID 999) for security reasons. This means the container process doesn't have root privileges within the container or on the host system.
-
-When using bind mounts in `docker-compose.yml` (e.g., `./config:/app/config`), the container user (`nuki`) must have appropriate permissions to access the host directories that are mounted into the container.
-
-### Required Permissions
-
-The following directories require specific permissions:
-
-1. **`./config` Directory**:
-   - **Read access**: For loading `config.ini` and `credentials.ini`
-   - **Write access**: For creating and updating `users.json` (user database)
-   
-2. **`./logs` Directory**:
-   - **Write access**: For creating and writing log files
-
-3. **`./data` Directory**:
-   - **Write access**: For storing temporary data and cached information
-
-### Symptoms of Incorrect Host Permissions
-
-If permissions are not set correctly, you may encounter:
-
-- Container crashes with messages like: `Permission denied: '/app/logs/nuki_monitor.log'`
-- Web interface reporting: "No API token found" due to inability to read `credentials.ini`
-- User management failures with messages about being unable to write to `users.json`
-- Login failures because the application cannot read/write to the user database
-
-### Setting Correct Permissions on Linux
-
-Run these commands in the directory where the `docker-compose.yml` file is located:
+If you encounter permission errors in the logs, ensure the directories have the correct permissions:
 
 ```bash
-# Create directories if they don't exist
-mkdir -p config logs data
-
-# Set directory permissions (allows reading/writing to directories)
-chmod 777 config
 chmod -R 777 logs data
-
-# If you have configuration files, set appropriate permissions
-# (readable by all, writable by owner)
-chmod 644 config/config.ini config/credentials.ini
-```
-
-### Setting Correct Permissions on Raspberry Pi
-
-The commands are the same as for Linux:
-
-```bash
-# Create directories if they don't exist
-mkdir -p config logs data
-
-# Set directory permissions
 chmod 777 config
-chmod -R 777 logs data
-
-# Set config file permissions
-chmod 644 config/config.ini config/credentials.ini
+chmod 644 config/*.ini
 ```
 
-### Understanding Permission Numbers
+### Network Issues
 
-- `777`: Full read/write/execute for everyone (directories)
-- `644`: Read/write for owner, read-only for everyone else (config files)
+If containers cannot communicate:
 
-### Alternative: User Mapping
+1. Check that both containers are on the same network:
+   ```bash
+   docker network inspect nukiweb_nuki-network
+   ```
 
-For advanced users, you can alternatively use user mapping with Docker to map the container's `nuki` user to your host user:
+2. Ensure the network is properly configured in `docker-compose.yml`.
+
+### Container Logs
+
+View logs to diagnose issues:
 
 ```bash
-# Find your user and group IDs
-id
-
-# Add the user mapping when running
-docker compose up -d --user $(id -u):$(id -g)
+docker logs nuki-monitor
+docker logs nuki-web
 ```
 
-## Troubleshooting Permission Issues
+## Security Recommendations
 
-If permission issues persist:
+1. Do not expose the web interface directly to the internet without proper security measures
+2. Use HTTPS by setting up a reverse proxy with SSL/TLS (e.g., Nginx or Traefik)
+3. Change default credentials immediately after setup
+4. Use strong passwords for the web interface
+5. Regularly update the Docker images and host system
 
-1. **Check Container Logs**:
-   ```bash
-   docker logs nuki-monitor
-   docker logs nuki-web
-   ```
+## Backup and Restore
 
-2. **Verify Permissions on Host**:
-   ```bash
-   ls -la config logs data
-   ```
+### Backup
 
-3. **Test Writing from Container**:
-   ```bash
-   docker exec -it nuki-monitor sh -c "touch /app/logs/test.txt"
-   ```
+Backup your data by copying the mounted volumes:
 
-4. **Ensure All Parent Directories Have Appropriate Permissions**:
-   Sometimes, the issue might be with parent directory permissions, not just the immediate directories.
+```bash
+tar -czvf nuki-backup-$(date +%Y%m%d).tar.gz config data
+```
 
-5. **Reset Permissions**:
-   ```bash
-   chmod -R 777 logs data
-   chmod 777 config
-   chmod 644 config/*.ini
-   ```
+### Restore
 
-## Users.json File Location and Permissions
+Restore from a backup:
 
-The web application stores user account information in `/app/config/users.json`. This file:
+```bash
+# Stop containers
+docker compose down
 
-- Is automatically created during first startup if it doesn't exist
-- Requires write permissions for the container's `nuki` user
-- Contains sensitive information (like password hashes)
-- By default has permissions set to `600` (owner read/write only)
+# Extract backup
+tar -xzvf nuki-backup-20240517.tar.gz
 
-The host's `./config` directory must have write permissions for the container's `nuki` user to create and update this file.
+# Ensure correct permissions
+chmod -R 777 logs data
+chmod 777 config
+chmod 644 config/*.ini
 
-## Further Configuration
+# Restart containers
+docker compose up -d
+```
 
-For more details on configuring the application, see the [Configuration Guide](CONFIGURATION.md).
+## Production Deployment Recommendations
+
+1. Set resource limits in docker-compose.yml (already configured)
+2. Enable logging rotation
+3. Implement a proper backup strategy
+4. Monitor container health
+5. Set up automatic restart for Docker service
+6. Configure system monitoring for the host machine
