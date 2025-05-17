@@ -2,6 +2,10 @@
 notification_type = both
 polling_interval = 60
 
+[Nuki]
+smartlock_id = 18255246837
+use_explicit_id = true
+
 [Notification]
 digest_mode = false
 digest_interval = 3600

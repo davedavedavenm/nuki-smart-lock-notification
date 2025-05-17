@@ -47,10 +47,20 @@ class NukiMonitor:
         """Initialize event history without sending notifications"""
         logger.info("Initializing event history...")
         
-        locks = self.api.get_smartlocks()
-        if not locks:
-            logger.error("No smartlocks found")
-            return False
+        # Check for explicit smartlock ID configuration
+        if self.config.use_explicit_id and self.config.smartlock_id:
+            logger.debug(f"Using explicit smartlock ID: {self.config.smartlock_id}")
+            # Create a single-lock array to simulate the API response structure
+            locks = [{
+                'smartlockId': self.config.smartlock_id,
+                'name': 'Configured Lock'  # Default name when using explicit ID
+            }]
+        else:
+            # Get locks dynamically from API
+            locks = self.api.get_smartlocks()
+            if not locks:
+                logger.error("No smartlocks found")
+                return False
         
         for lock in locks:
             lock_id = lock.get('smartlockId')
@@ -79,10 +89,20 @@ class NukiMonitor:
         
         logger.info("Checking for new activity...")
         
-        locks = self.api.get_smartlocks()
-        if not locks:
-            logger.error("No smartlocks found")
-            return False
+        # Check for explicit smartlock ID configuration
+        if self.config.use_explicit_id and self.config.smartlock_id:
+            logger.debug(f"Using explicit smartlock ID: {self.config.smartlock_id}")
+            # Create a single-lock array to simulate the API response structure
+            locks = [{
+                'smartlockId': self.config.smartlock_id,
+                'name': 'Configured Lock'  # Default name when using explicit ID
+            }]
+        else:
+            # Get locks dynamically from API
+            locks = self.api.get_smartlocks()
+            if not locks:
+                logger.error("No smartlocks found")
+                return False
         
         new_events = []
         

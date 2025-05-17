@@ -1,189 +1,117 @@
 #!/usr/bin/env python3
-"""
-Nuki API Token Management Utility
-This script helps you generate, validate, and update your Nuki API token.
-"""
-
 import os
 import sys
-import requests
+import getpass
 import configparser
-import logging
-import webbrowser
-import time
-import json
-from getpass import getpass
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('token_manager')
+# Get base directory
+script_dir = os.path.dirname(os.path.abspath(__file__))
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-class NukiTokenManager:
-    def __init__(self):
-        self.config_dir = os.environ.get('CONFIG_DIR', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config'))
-        self.credentials_path = os.path.join(self.config_dir, 'credentials.ini')
-        self.nuki_api_url = "https://api.nuki.io"
-        self.nuki_web_url = "https://web.nuki.io"
-        
-    def load_credentials(self):
-        """Load credentials file"""
-        if not os.path.exists(self.credentials_path):
-            logger.warning(f"Credentials file not found at {self.credentials_path}")
-            return None
-        
-        try:
-            credentials = configparser.ConfigParser()
-            credentials.read(self.credentials_path)
-            return credentials
-        except Exception as e:
-            logger.error(f"Error loading credentials: {e}")
-            return None
-            
-    def save_credentials(self, credentials):
-        """Save credentials to file"""
-        try:
-            os.makedirs(os.path.dirname(self.credentials_path), exist_ok=True)
-            
-            with open(self.credentials_path, 'w') as f:
-                credentials.write(f)
-                
-            # Set secure permissions
-            try:
-                os.chmod(self.credentials_path, 0o600)
-            except:
-                pass  # May fail on Windows
-                
-            logger.info(f"Credentials saved to {self.credentials_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error saving credentials: {e}")
-            return False
-            
-    def get_current_token(self):
-        """Get current API token from credentials"""
-        credentials = self.load_credentials()
-        if not credentials:
-            return None
-            
-        try:
-            return credentials.get('Nuki', 'api_token', fallback='')
-        except:
-            return None
-            
-    def update_token(self, new_token):
-        """Update the API token in credentials file"""
-        credentials = self.load_credentials()
-        if not credentials:
-            credentials = configparser.ConfigParser()
-            
-        if 'Nuki' not in credentials:
-            credentials.add_section('Nuki')
-            
-        credentials.set('Nuki', 'api_token', new_token)
-        return self.save_credentials(credentials)
-        
-    def validate_token(self, token):
-        """Validate if a token is working"""
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/json"
-        }
-        
-        try:
-            response = requests.get(
-                f"{self.nuki_api_url}/smartlock",
-                headers=headers,
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                locks = response.json()
-                return True, f"Token valid - found {len(locks)} smartlocks"
-            else:
-                return False, f"Token invalid - Status code: {response.status_code}, Response: {response.text}"
-        except Exception as e:
-            return False, f"Error validating token: {e}"
-            
-    def open_token_generation_page(self):
-        """Open the Nuki API token generation page in browser"""
-        url = f"{self.nuki_web_url}/#/account/api"
-        print(f"\nOpening {url} in your browser...\n")
-        print("1. Log in to your Nuki account (if not already logged in)")
-        print("2. On the API page, generate a new API token")
-        print("3. Copy the token and paste it when prompted\n")
-        
-        try:
-            webbrowser.open(url)
-        except:
-            print(f"Could not open the browser automatically. Please manually visit: {url}")
-            
-        time.sleep(2)  # Give time for browser to open
+# Path to the credentials file
+credentials_path = os.path.join(base_dir, "config", "credentials.ini")
 
-def main():
-    """Main function"""
-    print("\n====================================")
-    print("   Nuki API Token Management Tool   ")
-    print("====================================\n")
-    
-    manager = NukiTokenManager()
-    current_token = manager.get_current_token()
-    
-    # Check if we have a current token
-    if current_token:
-        print(f"Current token found: {current_token[:4]}...{current_token[-4:]}")
-        valid, message = manager.validate_token(current_token)
-        
-        if valid:
-            print(f"✅ {message}")
-            print("\nOptions:")
-            print("1. Keep existing token")
-            print("2. Generate new token")
-            
-            choice = input("\nEnter your choice (1-2): ")
-            if choice != "2":
-                print("Keeping existing token. No changes made.")
-                return
-        else:
-            print(f"❌ {message}")
-            print("The current token is not working. You need to generate a new one.")
-    else:
-        print("No existing token found. You need to generate a new one.")
-    
-    # Generate new token flow
-    manager.open_token_generation_page()
-    
-    # Get new token from user
-    print("\nEnter the new API token from the Nuki Web interface:")
-    new_token = getpass("Token (input will be hidden): ")
-    
-    if not new_token.strip():
-        print("No token provided. Exiting without changes.")
-        return
-        
-    # Validate new token
-    print("\nValidating new token...")
-    valid, message = manager.validate_token(new_token)
-    
-    if valid:
-        print(f"✅ {message}")
-        # Save the new token
-        if manager.update_token(new_token):
-            print("\n✅ Token updated successfully!")
-            print("You need to restart the Nuki monitoring system for changes to take effect.")
-        else:
-            print("\n❌ Failed to update token configuration.")
-    else:
-        print(f"❌ {message}")
-        print("The provided token is not valid. Please check and try again.")
+print("=== Nuki API Token Manager ===")
+print(f"Credentials file: {credentials_path}")
 
-if __name__ == "__main__":
+# Check if the credentials directory exists
+if not os.path.isdir(os.path.dirname(credentials_path)):
+    print(f"Creating directory: {os.path.dirname(credentials_path)}")
+    os.makedirs(os.path.dirname(credentials_path), exist_ok=True)
+
+# Load the existing credentials if available
+config = configparser.ConfigParser()
+if os.path.exists(credentials_path):
+    config.read(credentials_path)
+    print("Loaded existing credentials file")
+else:
+    print("No existing credentials file found, creating new one")
+
+# Ensure the Nuki section exists
+if 'Nuki' not in config:
+    config.add_section('Nuki')
+
+# Get the current token if it exists
+current_token = config.get('Nuki', 'api_token', fallback='')
+if current_token:
+    masked_token = f"{current_token[:5]}...{current_token[-5:]}" if len(current_token) > 10 else "***"
+    print(f"Current API token: {masked_token}")
+else:
+    print("No API token currently set")
+
+# Ask the user for a new token
+print("\nTo generate a new API token, please follow these steps:")
+print("1. Login to Nuki Web at https://web.nuki.io/")
+print("2. Go to your account menu and select 'API'")
+print("3. Click 'Generate API token' and ensure ALL permissions are checked:")
+print("   - Especially 'View activity logs and get log notifications'")
+print("4. Copy the token and paste it below\n")
+
+new_token = input("Enter your new Nuki API token (press Enter to keep current): ").strip()
+
+if new_token:
+    # Save the new token
+    config.set('Nuki', 'api_token', new_token)
+    with open(credentials_path, 'w') as f:
+        config.write(f)
+    
+    # Set secure permissions for the file
     try:
-        main()
-    except KeyboardInterrupt:
-        print("\nOperation cancelled by user.")
+        os.chmod(credentials_path, 0o600)
+        print(f"Set secure permissions for {credentials_path}")
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        print(f"\n❌ An error occurred: {e}")
+        print(f"Warning: Could not set permissions for credentials file: {e}")
+    
+    print("\nAPI token saved successfully!")
+else:
+    print("\nNo changes made to API token")
+
+# Now check config.ini for smartlock_id setting
+config_path = os.path.join(base_dir, "config", "config.ini")
+if os.path.exists(config_path):
+    config = configparser.ConfigParser()
+    config.read(config_path)
+    
+    # Check for explicit smartlock ID
+    use_explicit_id = config.getboolean('Nuki', 'use_explicit_id', fallback=False)
+    smartlock_id = config.get('Nuki', 'smartlock_id', fallback='')
+    
+    print("\n=== Smartlock Configuration ===")
+    if use_explicit_id:
+        print(f"Using explicit smartlock ID: {smartlock_id}")
+        
+        # Offer to update it
+        update_id = input("Enter a new smartlock ID (or press Enter to keep current): ").strip()
+        if update_id:
+            if 'Nuki' not in config:
+                config.add_section('Nuki')
+            
+            config.set('Nuki', 'smartlock_id', update_id)
+            config.set('Nuki', 'use_explicit_id', 'true')
+            
+            with open(config_path, 'w') as f:
+                config.write(f)
+            
+            print(f"Updated smartlock ID to: {update_id}")
+    else:
+        print("Currently using dynamic smartlock discovery (through API)")
+        set_explicit = input("Would you like to set an explicit smartlock ID? (y/n): ").strip().lower()
+        
+        if set_explicit == 'y':
+            new_id = input("Enter the smartlock ID: ").strip()
+            
+            if new_id:
+                if 'Nuki' not in config:
+                    config.add_section('Nuki')
+                
+                config.set('Nuki', 'smartlock_id', new_id)
+                config.set('Nuki', 'use_explicit_id', 'true')
+                
+                with open(config_path, 'w') as f:
+                    config.write(f)
+                
+                print(f"Set explicit smartlock ID to: {new_id}")
+else:
+    print("\nConfig file not found. Run the main application first to generate it.")
+
+print("\nSetup complete! Please restart the application for changes to take effect.")

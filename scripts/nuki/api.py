@@ -164,12 +164,62 @@ class NukiAPI:
             # Ensure limit is within reasonable bounds
             if limit <= 0 or limit > 100:
                 limit = 10
+            
+            logger.info(f"DIAGNOSTIC: Requesting logs for smartlock ID {smartlock_id}")
                 
-            result = self._make_request(
-                'GET', 
-                f"{self.config.base_url}/smartlock/{smartlock_id}/log",
-                params={"limit": limit}
-            )
+            # Special handling for 401 errors on this endpoint
+            url = f"{self.config.base_url}/smartlock/{smartlock_id}/log"
+            params = {"limit": limit}
+            
+            # Make the direct request with detailed logging
+            try:
+                response = requests.request(
+                    method='GET',
+                    url=url,
+                    headers=self.config.headers,
+                    params=params,
+                    timeout=30
+                )
+                
+                logger.info(f"DIAGNOSTIC: Log request status code: {response.status_code}")
+                
+                if response.status_code == 401:
+                    # Enhanced 401 error diagnostic
+                    error_data = ""
+                    try:
+                        error_data = response.json()
+                        logger.error(f"Authentication error for log endpoint: {error_data}")
+                    except:
+                        error_data = response.text
+                        logger.error(f"Authentication error for log endpoint (raw): {error_data}")
+                    
+                    # Check if token has the right scope
+                    logger.warning("POTENTIAL FIX SUGGESTIONS:")
+                    logger.warning("1. Check if your token has 'View activity logs and get log notifications' permissions")
+                    logger.warning("2. Verify that the smartlock ID in config.ini matches the one in your Nuki account")
+                    logger.warning("3. Try generating a new API token with all permissions")
+                    
+                    # Return empty result but don't retry
+                    return []
+                
+                # Process successful response or let _make_request handle other errors
+                if response.status_code == 200:
+                    result = response.json()
+                else:
+                    # Use normal request handling for other status codes
+                    result = self._make_request(
+                        'GET', 
+                        url,
+                        params=params
+                    )
+            except Exception as req_err:
+                logger.error(f"Error in direct log request: {req_err}")
+                # Fall back to standard request handling
+                result = self._make_request(
+                    'GET', 
+                    url,
+                    params=params
+                )
             
             if result is None:
                 return []

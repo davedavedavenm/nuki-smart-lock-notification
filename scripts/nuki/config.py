@@ -49,6 +49,19 @@ class ConfigManager:
         self.api_token = self.credentials.get('Nuki', 'api_token', fallback='')
         self.base_url = "https://api.nuki.io"
         
+        # Smartlock settings
+        self.smartlock_id = self.config.get('Nuki', 'smartlock_id', fallback='')
+        self.use_explicit_id = self.config.getboolean('Nuki', 'use_explicit_id', fallback=False)
+        
+        if self.use_explicit_id and self.smartlock_id:
+            logger.info(f"Using explicit smartlock ID: {self.smartlock_id}")
+        elif self.use_explicit_id and not self.smartlock_id:
+            logger.warning("'use_explicit_id' is enabled but no 'smartlock_id' is configured in config.ini!")
+            logger.warning("Please add 'smartlock_id = YOUR_LOCK_ID' to the [Nuki] section in config.ini")
+        else:
+            logger.info("Using dynamic smartlock ID discovery from API")
+        
+        
         # Check if API token is set
         if not self.api_token:
             logger.warning("API token not set in credentials.ini! API requests will fail.")
