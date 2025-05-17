@@ -27,13 +27,23 @@ Follow the workflow below for manual deployment and management.
    ```bash
    git clone https://github.com/davedavedavenm/nuki-smart-lock-notification.git
    cd nuki-smart-lock-notification
+   
+   # Create directories and set permissions (important for bind mounts)
+   mkdir -p config logs data
+   chmod -R 777 logs data
+   
+   # Start the containers
    docker compose up -d
    ```
 
 ### Windows
 1. Install Docker Desktop from [Docker Hub](https://www.docker.com/products/docker-desktop/)
 2. Clone the repository using Git or download as ZIP
-3. Open Command Prompt in the repository folder:
+3. Create necessary directories before starting containers:
+   ```cmd
+   mkdir config logs data
+   ```
+4. Open Command Prompt in the repository folder:
    ```cmd
    docker compose up -d
    ```
@@ -44,6 +54,12 @@ Follow the workflow below for manual deployment and management.
    ```bash
    git clone https://github.com/davedavedavenm/nuki-smart-lock-notification.git
    cd nuki-smart-lock-notification
+   
+   # Create directories
+   mkdir -p config logs data
+   chmod -R 777 logs data
+   
+   # Start containers
    docker compose up -d
    ```
 
@@ -51,7 +67,7 @@ Follow the workflow below for manual deployment and management.
 
 On first launch, the system will:
 1. Create default configuration files if none exist
-2. Set up necessary volumes for persistence
+2. Set up necessary directories for persistence
 3. Initialize with default admin credentials (admin/nukiadmin)
 4. Start all required services
 
@@ -60,31 +76,43 @@ After deploying, configure your system by accessing:
 http://localhost:5000 (or http://your-device-ip:5000)
 ```
 
+## Bind Mount Permissions
+
+The system uses bind mounts to persist data between container restarts. Since the application runs as a non-root user inside the container, you may need to set appropriate permissions on the host directories:
+
+```bash
+# Create directories if they don't exist
+mkdir -p config logs data
+
+# Set permissions to allow the non-root container user to write
+chmod -R 777 logs data
+```
+
+If you encounter permission errors, see the TROUBLESHOOTING.md file for more detailed solutions.
+
 ## Volume Management and Data Persistence
 
-The Docker setup uses volumes to ensure your data persists between container restarts:
+The Docker setup uses bind mounts to ensure your data persists between container restarts:
 
 ```yaml
 volumes:
-  nuki-config:    # Stores configuration files
-  nuki-logs:      # Stores application logs
-  nuki-data:      # Stores user data and history
+  - ./config:/app/config  # Stores configuration files
+  - ./logs:/app/logs      # Stores application logs
+  - ./data:/app/data      # Stores user data and history
 ```
 
 ### Backup and Restore
 
 **Backup your data:**
 ```bash
-# Create a backup of all volumes
-docker run --rm -v nuki-config:/config -v nuki-logs:/logs -v nuki-data:/data \
-  -v $(pwd):/backup alpine tar czf /backup/nuki-backup.tar.gz /config /logs /data
+# Create a backup of all directories
+tar czf nuki-backup.tar.gz config logs data
 ```
 
 **Restore from backup:**
 ```bash
 # Restore from backup file
-docker run --rm -v nuki-config:/config -v nuki-logs:/logs -v nuki-data:/data \
-  -v $(pwd):/backup alpine sh -c "cd / && tar xzf /backup/nuki-backup.tar.gz"
+tar xzf nuki-backup.tar.gz
 ```
 
 ## Security Considerations
@@ -217,12 +245,15 @@ docker compose up -d
    - Check container logs: `docker compose logs nuki-web`
 
 2. **Configuration Not Saving**
-   - Check volume permissions: `docker volume inspect nuki-config`
+   - Check directory permissions: `ls -la config logs data`
    - Verify config file exists: `docker compose exec nuki-web ls -la /app/config`
 
 3. **No Notifications Being Sent**
    - Check credentials: `docker compose exec nuki-monitor cat /app/config/credentials.ini`
    - Verify API connectivity: `docker compose logs nuki-monitor | grep "API"`
+
+4. **Permission Denied Errors**
+   - See TROUBLESHOOTING.md for detailed solutions to permission issues
 
 ### Container Health Checks
 

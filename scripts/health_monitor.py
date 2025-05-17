@@ -13,20 +13,57 @@ import json
 import time
 from datetime import datetime, timedelta
 
-# Set up logging
+# Set up logging with fallback to console if file logging fails
+log_handlers = []
+try:
+    # Ensure logs directory exists
+    logs_dir = os.environ.get('LOGS_DIR', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs'))
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    # Try to set up file handler
+    log_file = os.path.join(logs_dir, 'health_monitor.log')
+    file_handler = logging.FileHandler(log_file)
+    log_handlers.append(file_handler)
+except (PermissionError, IOError) as e:
+    print(f"WARNING: Could not set up file logging: {e}")
+    print("File logging will be disabled. Check directory permissions.")
+    print("See TROUBLESHOOTING.md for information on fixing permission issues.")
+
+# Always add console handler as fallback
+log_handlers.append(logging.StreamHandler())
+
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=log_handlers
 )
 logger = logging.getLogger('health_monitor')
+
+if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
+    logger.warning("File logging is disabled due to permission issues. Using console logging only.")
+    logger.warning("To fix this, ensure the container has write access to the logs directory.")
+    logger.warning("See TROUBLESHOOTING.md for more information.")
 
 class NukiHealthMonitor:
     def __init__(self):
         self.config_dir = os.environ.get('CONFIG_DIR', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config'))
         self.credentials_path = os.path.join(self.config_dir, 'credentials.ini')
-        self.health_file = os.path.join(os.environ.get('LOGS_DIR', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs')), 'api_health.json')
+        self.logs_dir = os.environ.get('LOGS_DIR', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs'))
+        self.health_file = os.path.join(self.logs_dir, 'api_health.json')
         self.nuki_api_url = "https://api.nuki.io"
         
+        # Check directory permissions
+        self._check_directory_permissions()
+        
+    def _check_directory_permissions(self):
+        """Check if directories are writable and log warnings"""
+        # Check logs directory
+        if not os.access(self.logs_dir, os.W_OK):
+            logger.warning(f"Logs directory is not writable: {self.logs_dir}")
+            logger.warning("This may cause issues with health monitoring.")
+            logger.warning("See TROUBLESHOOTING.md for information on fixing permission issues.")
+            
     def load_token(self):
         """Load API token from credentials file"""
         if not os.path.exists(self.credentials_path):
@@ -121,8 +158,9 @@ class NukiHealthMonitor:
             }
     
     def save_health_status(self, status):
-        """Save the health status to a file"""
+        """Save the health status to a file with fallback to console for permission issues"""
         try:
+            # Ensure directory exists
             os.makedirs(os.path.dirname(self.health_file), exist_ok=True)
             
             with open(self.health_file, 'w') as f:
@@ -130,18 +168,25 @@ class NukiHealthMonitor:
                 
             logger.info(f"Health status saved to {self.health_file}")
             return True
-        except Exception as e:
-            logger.error(f"Error saving health status: {e}")
+        except (PermissionError, IOError) as e:
+            logger.warning(f"Cannot save health status to file due to permission error: {e}")
+            logger.warning("Health status will only be available in logs")
+            logger.info(f"Health status: {json.dumps(status, indent=2)}")
+            logger.warning("See TROUBLESHOOTING.md for information on fixing permission issues.")
             return False
             
     def load_health_status(self):
-        """Load the health status from file"""
+        """Load the health status from file with fallback for permission issues"""
         if not os.path.exists(self.health_file):
             return None
             
         try:
             with open(self.health_file, 'r') as f:
                 return json.load(f)
+        except (PermissionError, IOError) as e:
+            logger.warning(f"Cannot read health status file due to permission error: {e}")
+            logger.warning("See TROUBLESHOOTING.md for information on fixing permission issues.")
+            return None
         except Exception as e:
             logger.error(f"Error loading health status: {e}")
             return None
@@ -151,13 +196,22 @@ class NukiHealthMonitor:
         current_status = self.check_api_health()
         previous_status = self.load_health_status()
         
+        # Check if logs directory is writable
+        logs_dir_writable = os.access(self.logs_dir, os.W_OK)
+        if not logs_dir_writable:
+            # Add permission warning to status
+            current_status["permissions_warning"] = "Logs directory is not writable, which may cause issues."
+        
         # Compare with previous status
         status_changed = False
         if previous_status and previous_status.get("status") != current_status.get("status"):
             status_changed = True
             
         # Save the new status
-        self.save_health_status(current_status)
+        save_success = self.save_health_status(current_status)
+        if not save_success:
+            # If we couldn't save to file, log the status
+            logger.info(f"API Status: {current_status.get('status')} - {current_status.get('message')}")
         
         # Print status
         if status_changed:
@@ -183,6 +237,12 @@ def main():
     """Main function"""
     monitor = NukiHealthMonitor()
     status = monitor.check_and_report()
+    
+    # Check for permission issues
+    if "permissions_warning" in status:
+        logger.warning("Permission issues detected:")
+        logger.warning(status["permissions_warning"])
+        logger.warning("See TROUBLESHOOTING.md for information on fixing permission issues.")
     
     # Exit with appropriate code based on status
     if status.get("status") == "healthy":

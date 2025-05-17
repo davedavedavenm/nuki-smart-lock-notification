@@ -8,9 +8,12 @@ services:
     container_name: nuki-monitor
     restart: unless-stopped
     volumes:
-      - config-volume:/app/config
-      - logs-volume:/app/logs
-      - data-volume:/app/data
+      # IMPORTANT: These bind mounts require appropriate permissions on the host
+      # The 'nuki' user inside the container needs write access to logs and data directories
+      # Before starting, run: mkdir -p config logs data && chmod -R 777 logs data
+      - ./config:/app/config  # Config directory (primarily needs read access)
+      - ./logs:/app/logs      # Logs directory (needs write access)
+      - ./data:/app/data      # Data directory (needs write access)
     environment:
       - CONFIG_DIR=/app/config
       - LOGS_DIR=/app/logs
@@ -33,9 +36,12 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - config-volume:/app/config
-      - logs-volume:/app/logs
-      - data-volume:/app/data
+      # IMPORTANT: These bind mounts require appropriate permissions on the host
+      # The 'nuki' user inside the container needs write access to logs and data directories
+      # Before starting, run: mkdir -p config logs data && chmod -R 777 logs data
+      - ./config:/app/config  # Config directory (primarily needs read access)
+      - ./logs:/app/logs      # Logs directory (needs write access)
+      - ./data:/app/data      # Data directory (needs write access)
     environment:
       - CONFIG_DIR=/app/config
       - LOGS_DIR=/app/logs
@@ -52,14 +58,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
-
-volumes:
-  config-volume:
-    driver: local
-  logs-volume:
-    driver: local
-  data-volume:
-    driver: local
 
 networks:
   nuki-network:

@@ -19,16 +19,37 @@ from scripts.nuki.utils import ActivityTracker
 from web.models import UserDatabase, User
 from web.temp_codes import TemporaryCodeDatabase
 
+# Configure logging with fallback to console if file logging fails
+log_handlers = []
+try:
+    # Create logs directory if it doesn't exist
+    logs_dir = os.path.join(parent_dir, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    # Attempt to add file handler
+    log_file = os.path.join(logs_dir, "nuki_web.log")
+    file_handler = logging.FileHandler(log_file)
+    log_handlers.append(file_handler)
+except (PermissionError, IOError) as e:
+    print(f"WARNING: Could not set up file logging: {e}")
+    print("File logging will be disabled. Check directory permissions.")
+    print("See TROUBLESHOOTING.md for information on fixing permission issues.")
+
+# Always add console handler as fallback
+log_handlers.append(logging.StreamHandler())
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(os.path.join(parent_dir, "logs", "nuki_web.log")),
-        logging.StreamHandler()
-    ]
+    handlers=log_handlers
 )
 logger = logging.getLogger('nuki_web')
+
+if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
+    logger.warning("File logging is disabled due to permission issues. Using console logging only.")
+    logger.warning("To fix this, ensure the container has write access to the logs directory.")
+    logger.warning("See TROUBLESHOOTING.md for more information.")
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -1002,19 +1023,30 @@ def health_check():
         config_exists = os.path.exists(config_file)
         creds_exists = os.path.exists(creds_file)
         
+        # Check logs directory is writable
+        logs_dir = os.path.join(parent_dir, 'logs')
+        logs_writable = os.access(logs_dir, os.W_OK)
+        
         # Calculate uptime (simple version since we don't store start time)
         uptime = "healthy"
         
         # Create status response
         status = {
-            "status": "healthy",
+            "status": "healthy" if (config_exists and creds_exists and logs_writable) else "warning",
             "uptime": uptime,
             "config_files": {
                 "config.ini": config_exists,
                 "credentials.ini": creds_exists
             },
+            "permissions": {
+                "logs_writable": logs_writable
+            },
             "timestamp": int(time.time())
         }
+        
+        if not logs_writable:
+            logger.warning("Logs directory is not writable - this may cause issues")
+            status["message"] = "Directory permission issues detected. See TROUBLESHOOTING.md"
         
         return jsonify(status), 200
     except Exception as e:

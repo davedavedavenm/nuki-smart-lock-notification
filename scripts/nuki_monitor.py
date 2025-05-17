@@ -5,16 +5,37 @@ import logging
 import sys
 from datetime import datetime
 
-# Set up logging
+# Set up logging with fallback to console if file logging fails
+log_handlers = []
+try:
+    # Ensure logs directory exists
+    logs_dir = os.path.join(os.environ.get('LOGS_DIR', '/app/logs'))
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    # Try to set up file handler
+    log_file = os.path.join(logs_dir, 'nuki_monitor.log')
+    file_handler = logging.FileHandler(log_file)
+    log_handlers.append(file_handler)
+except (PermissionError, IOError) as e:
+    print(f"WARNING: Could not set up file logging: {e}")
+    print("File logging will be disabled. Check directory permissions.")
+    print("See TROUBLESHOOTING.md for information on fixing permission issues.")
+
+# Always add console handler as fallback
+log_handlers.append(logging.StreamHandler())
+
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(os.path.join(os.environ.get('LOGS_DIR', '/app/logs'), 'nuki_monitor.log')),
-        logging.StreamHandler()
-    ]
+    handlers=log_handlers
 )
 logger = logging.getLogger('nuki_monitor')
+
+if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
+    logger.warning("File logging is disabled due to permission issues. Using console logging only.")
+    logger.warning("To fix this, ensure the container has write access to the logs directory.")
+    logger.warning("See TROUBLESHOOTING.md for more information.")
 
 # Add the scripts directory to the Python path
 scripts_dir = os.path.dirname(os.path.abspath(__file__))
@@ -32,6 +53,9 @@ class NukiMonitor:
         # Get base directory
         self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
+        # Check directory permissions
+        self._check_directory_permissions()
+        
         # Initialize components
         self.config = ConfigManager(self.base_dir)
         self.api = NukiAPI(self.config)
@@ -42,6 +66,36 @@ class NukiMonitor:
         self.first_run = True
         
         logger.info("Nuki Monitor initialized")
+    
+    def _check_directory_permissions(self):
+        """Check directory permissions and log warnings if issues are found"""
+        logs_dir = os.path.join(self.base_dir, 'logs')
+        data_dir = os.path.join(self.base_dir, 'data')
+        
+        # Check logs directory
+        if not os.path.exists(logs_dir):
+            try:
+                os.makedirs(logs_dir, exist_ok=True)
+                logger.info(f"Created logs directory: {logs_dir}")
+            except (PermissionError, IOError) as e:
+                logger.warning(f"Cannot create logs directory: {e}")
+        
+        # Check data directory
+        if not os.path.exists(data_dir):
+            try:
+                os.makedirs(data_dir, exist_ok=True)
+                logger.info(f"Created data directory: {data_dir}")
+            except (PermissionError, IOError) as e:
+                logger.warning(f"Cannot create data directory: {e}")
+                
+        # Check write permissions
+        if not os.access(logs_dir, os.W_OK):
+            logger.warning(f"Cannot write to logs directory: {logs_dir}")
+            logger.warning("See TROUBLESHOOTING.md for information on fixing permission issues.")
+            
+        if not os.access(data_dir, os.W_OK):
+            logger.warning(f"Cannot write to data directory: {data_dir}")
+            logger.warning("See TROUBLESHOOTING.md for information on fixing permission issues.")
     
     def initialize_history(self):
         """Initialize event history without sending notifications"""
@@ -73,8 +127,13 @@ class NukiMonitor:
                 continue
             
             # Just save the activity without processing notifications
-            self.tracker.save_activity(current_activity)
-            logger.info(f"Initialized history for lock {lock_name} with {len(current_activity)} events")
+            try:
+                self.tracker.save_activity(current_activity)
+                logger.info(f"Initialized history for lock {lock_name} with {len(current_activity)} events")
+            except (PermissionError, IOError) as e:
+                logger.error(f"Failed to save activity history due to permission error: {e}")
+                logger.error("Check that the data directory is writable by the container.")
+                return False
         
         return True
     
@@ -83,8 +142,11 @@ class NukiMonitor:
         # Special handling for first run
         if self.first_run:
             logger.info("First run detected, initializing event history without sending notifications")
-            self.initialize_history()
+            success = self.initialize_history()
             self.first_run = False
+            if not success:
+                logger.warning("Failed to initialize history, will retry on next check")
+                return False
             return True
         
         logger.info("Checking for new activity...")
@@ -118,61 +180,76 @@ class NukiMonitor:
             
             # Process new events
             for event in current_activity:
-                # Skip if we've seen this event before
-                if self.tracker.is_event_processed(event):
-                    continue
+                try:
+                    # Skip if we've seen this event before
+                    if self.tracker.is_event_processed(event):
+                        continue
+                        
+                    # Extract event details
+                    event_id = event.get('id')
+                    event_type = event.get('name', 'Unknown Action')
+                    action = event.get('action')
+                    trigger = event.get('trigger')
+                    auth_id = event.get('authId')
+                    date = self.api.parse_date(event.get('date'))
                     
-                # Extract event details
-                event_id = event.get('id')
-                event_type = event.get('name', 'Unknown Action')
-                action = event.get('action')
-                trigger = event.get('trigger')
-                auth_id = event.get('authId')
-                date = self.api.parse_date(event.get('date'))
-                
-                if not date:
+                    if not date:
+                        continue
+                    
+                    # Get action description
+                    action_description = self.api.get_action_description(event)
+                    
+                    # Get user name if available
+                    user_name = "Auto Lock"  # Default for auto lock events
+                    
+                    # Special handling for trigger 6 (auto lock)
+                    if trigger == 6:
+                        user_name = "Auto Lock"
+                    else:
+                        user_name = self.api.get_user_name(auth_id) if auth_id else "Unknown User"
+                    
+                    # Create event record
+                    event_record = {
+                        'lock_name': lock_name,
+                        'lock_id': lock_id,
+                        'event_type': action_description,  # Use improved action description
+                        'action': action,
+                        'trigger': trigger,
+                        'user_name': user_name,
+                        'date': date.strftime('%Y-%m-%d %H:%M:%S'),
+                        'event_id': event_id
+                    }
+                    
+                    new_events.append(event_record)
+                    logger.info(f"New event: {action_description} by {user_name} at {event_record['date']}")
+                except Exception as e:
+                    logger.error(f"Error processing event: {e}")
                     continue
-                
-                # Get action description
-                action_description = self.api.get_action_description(event)
-                
-                # Get user name if available
-                user_name = "Auto Lock"  # Default for auto lock events
-                
-                # Special handling for trigger 6 (auto lock)
-                if trigger == 6:
-                    user_name = "Auto Lock"
-                else:
-                    user_name = self.api.get_user_name(auth_id) if auth_id else "Unknown User"
-                
-                # Create event record
-                event_record = {
-                    'lock_name': lock_name,
-                    'lock_id': lock_id,
-                    'event_type': action_description,  # Use improved action description
-                    'action': action,
-                    'trigger': trigger,
-                    'user_name': user_name,
-                    'date': date.strftime('%Y-%m-%d %H:%M:%S'),
-                    'event_id': event_id
-                }
-                
-                new_events.append(event_record)
-                logger.info(f"New event: {action_description} by {user_name} at {event_record['date']}")
             
             # Save the current activity as last activity
-            self.tracker.save_activity(current_activity)
+            try:
+                self.tracker.save_activity(current_activity)
+            except (PermissionError, IOError) as e:
+                logger.error(f"Failed to save activity history due to permission error: {e}")
+                logger.error("Check that the data directory is writable by the container.")
+                return False
         
         # Send notifications for new events
         if new_events:
             if self.config.digest_mode:
                 # Add to digest queue
                 for event in new_events:
-                    self.notifier.add_to_digest(event)
+                    try:
+                        self.notifier.add_to_digest(event)
+                    except Exception as e:
+                        logger.error(f"Error adding event to digest: {e}")
             else:
                 # Send immediate notifications
                 for event in new_events:
-                    self.notifier.send_notification(event)
+                    try:
+                        self.notifier.send_notification(event)
+                    except Exception as e:
+                        logger.error(f"Error sending notification: {e}")
         
         return True
     
@@ -182,7 +259,11 @@ class NukiMonitor:
         
         try:
             while True:
-                self.check_new_activity()
+                try:
+                    self.check_new_activity()
+                except Exception as e:
+                    logger.error(f"Error checking for new activity: {e}")
+                    
                 time.sleep(self.config.polling_interval)
         except KeyboardInterrupt:
             logger.info("Monitor stopped by user")
