@@ -18,6 +18,7 @@ from scripts.nuki.api import NukiAPI
 from scripts.nuki.utils import ActivityTracker
 from web.models import UserDatabase, User
 from web.temp_codes import TemporaryCodeDatabase
+from web.dark_mode import init_app
 
 # Configure logging with fallback to console if file logging fails
 log_handlers = []
@@ -54,6 +55,9 @@ if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Required for session and flash messages
+
+# Initialize dark mode as default
+init_app(app)
 
 # Provide common template variables
 @app.context_processor
@@ -123,7 +127,7 @@ def login():
             session['logged_in'] = True
             session['username'] = username
             session['role'] = user_data.get('role', 'user')
-            session['theme'] = user_data.get('theme', 'light')
+            session['theme'] = user_data.get('theme', 'dark')
             
             flash('You were successfully logged in')
             next_page = request.args.get('next')

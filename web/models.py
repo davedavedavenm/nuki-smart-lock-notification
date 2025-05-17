@@ -60,7 +60,7 @@ class UserDatabase:
             'active': active,
             'created_at': datetime.now().isoformat(),
             'last_login': None,
-            'theme': 'light'  # Default theme
+            'theme': 'dark'  # Default theme - dark mode
         }
         
         return self._save_users()
@@ -152,7 +152,7 @@ class UserDatabase:
 class User:
     """User class for Flask-Login compatibility"""
     
-    def __init__(self, username, role, active=True, theme='light'):
+    def __init__(self, username, role, active=True, theme='dark'):
         self.username = username
         self.role = role
         self.active = active
@@ -191,5 +191,5 @@ class User:
             username=username,
             role=db_user.get('role', 'agent'),
             active=db_user.get('active', True),
-            theme=db_user.get('theme', 'light')
+            theme=db_user.get('theme', 'dark')
         )

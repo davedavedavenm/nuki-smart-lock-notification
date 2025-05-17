@@ -10,13 +10,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <!-- Dark Mode CSS (loaded conditionally) -->
-    {% if session.get('theme') == 'dark' %}
+    <!-- Dark Mode CSS (loaded by default unless light mode explicitly set) -->
+    {% if session.get('theme', 'dark') != 'light' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dark-mode.css') }}">
     {% endif %}
     {% block head %}{% endblock %}
 </head>
-<body{% if session.get('theme') == 'dark' %} class="dark-theme"{% endif %}>
+<body{% if session.get('theme', 'dark') != 'light' %} class="dark-theme"{% endif %}>
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
