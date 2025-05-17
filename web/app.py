@@ -1072,8 +1072,8 @@ def filter_api_response_for_role(response):
         '/api/config',
         '/api/status'
     ]
-
-is_sensitive = False
+    
+    is_sensitive = False
     for endpoint in sensitive_endpoints:
         if request.path.startswith(endpoint):
             is_sensitive = True
