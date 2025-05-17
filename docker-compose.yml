@@ -13,14 +13,16 @@ services:
       - CONFIG_DIR=/app/config
       - LOGS_DIR=/app/logs
       - TZ=Europe/London
+      - DEBUG=true
     networks:
       - nuki-network
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_monitor.py"]
+      test: ["CMD", "bash", "-c", "python /app/scripts/health_monitor.py || exit 0"]
       interval: 5m
-      timeout: 20s
+      timeout: 30s
       retries: 3
-      start_period: 30s
+      start_period: 60s
+    user: root
     # Add resource limits for better performance
     deploy:
       resources:

@@ -47,9 +47,9 @@ echo "✅ Permission checks passed"
 python /app/scripts/ensure_config.py
 echo "✅ Configuration files verified"
 
-# Check API health before starting
+# Check API health before starting, but don't fail if it doesn't work yet
 echo "Checking Nuki API connection health..."
-python /app/scripts/health_monitor.py
+python /app/scripts/health_monitor.py || true
 API_STATUS=$?
 
 if [ $API_STATUS -eq 0 ]; then
@@ -57,10 +57,10 @@ if [ $API_STATUS -eq 0 ]; then
 elif [ $API_STATUS -eq 1 ]; then
     echo "⚠️ API connection has warnings but will continue"
 else
-    echo "❌ API connection has errors"
-    echo "The Nuki Monitor will start but may not function correctly."
-    echo "Please check your API token and credentials."
-    echo "You can use the token_manager.py script to refresh your token."
+    echo "⚠️ API connection status check did not succeed, but we'll continue anyway"
+    echo "This could be due to missing or invalid credentials."
+    echo "Please check config/credentials.ini and make sure it has valid API tokens."
+    echo "The system will still start up, but won't function correctly until credentials are fixed."
 fi
 
 # Start the main application

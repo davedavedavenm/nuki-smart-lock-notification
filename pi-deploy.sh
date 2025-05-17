@@ -1,115 +1,78 @@
 #!/bin/bash
+# Nuki Smart Lock Notification System - Pi Deployment Script
+# Deploys the application on a Raspberry Pi with Docker
 
-# Nuki Smart Lock Notification System - Docker Deployment Script
-# This script handles the deployment process on a Raspberry Pi
-
-set -e
-
-# Color definitions
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-echo -e "${BLUE}Nuki Smart Lock Notification System - Docker Deployment${NC}"
+echo "Nuki Smart Lock Notification System - Docker Deployment"
 echo "-----------------------------------------------------------"
 
-# Function to check if command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
-# Check if running as root
-if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}Please run this script as root${NC}"
-    exit 1
-fi
-
 # Check if Docker is installed
-if ! command_exists docker; then
-    echo -e "${YELLOW}Docker not found. Installing Docker...${NC}"
-    curl -fsSL https://get.docker.com -o get-docker.sh
-    sh get-docker.sh
-    usermod -aG docker $USER
-    echo -e "${GREEN}Docker installed successfully!${NC}"
+if ! command -v docker &> /dev/null; then
+    echo "Docker is not installed. Installing Docker..."
+    curl -sSL https://get.docker.com | sh
 else
-    echo -e "${GREEN}Docker is already installed.${NC}"
+    echo "Docker is already installed."
 fi
 
 # Create necessary directories
-echo -e "${BLUE}Creating necessary directories...${NC}"
-mkdir -p /root/nukiweb/{config,logs,data}
+echo "Creating necessary directories..."
+mkdir -p config logs data
 
-# Clone or update the repo
-echo -e "${BLUE}Cloning or updating the repository...${NC}"
-if [ -d "/root/nukiweb/.git" ]; then
-    echo "Repository exists, updating..."
-    cd /root/nukiweb
-    git pull
-else
-    echo "Cloning fresh repository..."
-    rm -rf /root/nukiweb
-    git clone https://github.com/davedavedavenm/nuki-smart-lock-notification.git /root/nukiweb
-    cd /root/nukiweb
-fi
-
-# Check if config files exist, create if not
-echo -e "${BLUE}Checking configuration files...${NC}"
-if [ ! -f "config/config.ini" ]; then
+# Copy example config files if they don't exist
+echo "Checking configuration files..."
+if [ ! -f "config/config.ini" ] && [ -f "config/config.ini.example" ]; then
     echo "Creating config.ini from example..."
     cp config/config.ini.example config/config.ini
-    echo -e "${YELLOW}Don't forget to edit config/config.ini with your settings!${NC}"
+    echo "Don't forget to edit config/config.ini with your settings!"
 fi
 
-if [ ! -f "config/credentials.ini" ]; then
+if [ ! -f "config/credentials.ini" ] && [ -f "config/credentials.ini.example" ]; then
     echo "Creating credentials.ini from example..."
     cp config/credentials.ini.example config/credentials.ini
-    echo -e "${YELLOW}Don't forget to edit config/credentials.ini with your API keys!${NC}"
+    echo "Don't forget to edit config/credentials.ini with your API keys!"
 fi
 
-# Set proper permissions for Docker volumes
-echo -e "${BLUE}Setting proper permissions...${NC}"
+# Set proper permissions - THIS IS CRITICAL
+echo "Setting proper permissions..."
 chmod -R 777 logs data
 chmod 777 config
-[ -f "config/config.ini" ] && chmod 644 config/config.ini
-[ -f "config/credentials.ini" ] && chmod 644 config/credentials.ini
+chmod 666 config/config.ini config/credentials.ini 2>/dev/null || true
 
-# Configure Docker to handle network timeouts better
-echo -e "${BLUE}Configuring Docker settings...${NC}"
-mkdir -p /etc/docker
-cat > /etc/docker/daemon.json << 'EOF'
-{
-  "registry-mirrors": ["https://registry-1.docker.io"],
-  "max-concurrent-downloads": 1,
-  "max-concurrent-uploads": 1
-}
-EOF
-
-# Restart Docker to apply changes
-systemctl restart docker
-
-# Build and start containers
-echo -e "${BLUE}Building and starting Docker containers...${NC}"
+# Build and start containers with modern docker compose syntax
+echo "Building and starting Docker containers..."
 echo "This might take a few minutes on the Raspberry Pi..."
-DOCKER_BUILDKIT=0 docker compose build --no-cache
 
-echo -e "${BLUE}Starting services...${NC}"
+# First, stop any running containers
+docker compose down
+
+# Build containers from scratch to ensure all changes are applied
+docker compose build --no-cache
+
+# Start containers in detached mode
 docker compose up -d
 
-# Check if services are running
-echo -e "${BLUE}Checking service status...${NC}"
-if docker ps | grep -q "nuki-web" && docker ps | grep -q "nuki-monitor"; then
-    echo -e "${GREEN}Services are running successfully!${NC}"
-    echo "Web interface is available at: http://$(hostname -I | awk '{print $1}'):5000"
+# Check if containers started successfully
+sleep 5
+if [ "$(docker compose ps | grep -c "running")" -eq 2 ]; then
+    echo "-----------------------------------------------------------"
+    echo "✓ Nuki Smart Lock Notification System deployed successfully!"
+    echo "-----------------------------------------------------------"
+    echo "Web interface available at: http://$(hostname -I | awk '{print $1}'):5000"
+    echo ""
+    echo "To view logs:"
+    echo "docker compose logs -f"
+    echo ""
+    echo "To restart services:"
+    echo "docker compose restart"
 else
-    echo -e "${RED}Services failed to start properly.${NC}"
-    echo "Checking logs for issues..."
-    docker logs nuki-web
-    docker logs nuki-monitor
+    echo "-----------------------------------------------------------"
+    echo "❌ Deployment incomplete - some containers failed to start"
+    echo "-----------------------------------------------------------"
+    echo "Checking container status..."
+    docker compose ps
+    echo ""
+    echo "Checking logs for nuki-monitor:"
+    docker compose logs nuki-monitor
+    echo ""
+    echo "Running troubleshooting script..."
+    ./troubleshoot.sh
 fi
-
-echo -e "${BLUE}Deployment completed!${NC}"
-echo "Run 'docker compose logs -f' to view service logs"
-echo "Run 'docker compose down' to stop services"
-echo "Run 'docker compose restart' to restart services"
