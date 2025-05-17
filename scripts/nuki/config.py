@@ -64,8 +64,11 @@ class ConfigManager:
         
         # Check if API token is set
         if not self.api_token:
-            logger.warning("API token not set in credentials.ini! API requests will fail.")
-            logger.info("DIAGNOSTIC: No API token found in credentials.ini")
+            logger.error("❌ API token not set or credentials.ini is not readable!")
+            logger.error("This may be due to a permission issue with the config directory.")
+            logger.error("DIAGNOSTIC: No API token found in credentials.ini")
+            logger.error("Please ensure credentials.ini exists and has proper permissions (chmod 644)")
+            logger.error("See DOCKER_SETUP.md for details on setting correct permissions.")
         else:
             # Mask token for security while providing useful debugging info
             token_len = len(self.api_token)
@@ -73,7 +76,7 @@ class ConfigManager:
                 masked_token = f"{self.api_token[:5]}...{self.api_token[-5:]}"
             else:
                 masked_token = f"{self.api_token[:2]}...{self.api_token[-2:]}" if token_len >= 4 else "***"
-            logger.info(f"DIAGNOSTIC: API token loaded successfully - {masked_token} (length: {token_len})")
+            logger.info(f"✅ DIAGNOSTIC: API token loaded successfully - {masked_token} (length: {token_len})")
         
         self.headers = {
             "Authorization": f"Bearer {self.api_token}",

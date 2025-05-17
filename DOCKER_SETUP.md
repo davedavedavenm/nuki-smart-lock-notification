@@ -321,6 +321,101 @@ services:
       - "traefik.http.routers.nuki.tls.certresolver=letsencrypt"
 ```
 
+## Docker Bind Mount Permissions
+
+### Understanding the Permission Requirements
+
+When using Docker with bind mounts, a critical issue often arises with file permissions. The Nuki Smart Lock Notification System uses a non-root user (`nuki`) inside the containers for security, but this creates challenges when accessing host-mounted directories:
+
+- The container's `nuki` user (typically UID 999) is different from your host system user
+- Bind-mounted directories retain their host ownership and permissions
+- The `nuki` user inside the container needs read/write access to these directories
+
+### Required Directory Permissions
+
+These directories must have appropriate permissions for the Docker setup to work correctly:
+
+1. **./config** - Contains configuration files:
+   - `credentials.ini` and `config.ini` need to be readable by the container user
+   - `users.json` is written by the web application and needs write access
+
+2. **./logs** - Stores application logs:
+   - Requires write access by the container user
+   - Both services write to this directory
+
+3. **./data** - Stores persistent application data:
+   - Requires write access by the container user
+   - Contains historical data and temporary files
+
+### Setting Correct Permissions
+
+Before starting your containers with `docker compose up -d`, execute these commands on your host system:
+
+```bash
+# Step 1: Create the directories if they don't exist
+mkdir -p config logs data
+
+# Step 2: Set appropriate permissions for the files within config/
+# If config files already exist:
+chmod 644 config/config.ini config/credentials.ini
+
+# Step 3: Set directory permissions
+chmod -R 777 logs data
+chmod 777 config
+```
+
+#### For More Secure Environments (Linux only)
+
+For production environments, you can use a more targeted approach by matching user IDs:
+
+```bash
+# First, find the UID/GID used in the container
+docker run --rm davedavedavenm/nuki-monitor id nuki
+# Example output: uid=999(nuki) gid=999(nuki) groups=999(nuki)
+
+# Then set ownership using these IDs (replace 999 with the actual value)
+sudo chown -R 999:999 config logs data
+# Set appropriate permissions
+chmod -R 755 logs data
+chmod 755 config
+chmod 644 config/*.ini
+```
+
+### Symptoms of Permission Problems
+
+You can identify permission issues by these symptoms:
+
+- Containers crashing or repeatedly restarting
+- Error logs showing `PermissionError: [Errno 13] Permission denied`
+- Messages like "No API token found" (can't read credentials.ini)
+- "Permission denied: '/app/config/users.json'" errors
+- Empty or missing log files
+- Web interface failing to save settings
+
+### Troubleshooting Permission Issues
+
+If you encounter permission problems despite following the steps above:
+
+1. **Check the container logs**:
+   ```bash
+   docker compose logs nuki-monitor
+   docker compose logs nuki-web
+   ```
+
+2. **Verify permissions inside the container**:
+   ```bash
+   docker compose exec nuki-monitor ls -la /app/config
+   docker compose exec nuki-monitor ls -la /app/logs
+   docker compose exec nuki-monitor ls -la /app/data
+   ```
+
+3. **Verify the container user**:
+   ```bash
+   docker compose exec nuki-monitor id
+   ```
+
+Please see TROUBLESHOOTING.md for more detailed solutions to permission issues, including alternatives like using named volumes instead of bind mounts.
+
 ## Conclusion
 
-Containerizing the Nuki Smart Lock Notification System with Docker provides a consistent and isolated environment for running the application. This approach simplifies deployment, updates, and maintenance while improving security through isolation.
+Containerizing the Nuki Smart Lock Notification System with Docker provides a consistent and isolated environment for running the application. This approach simplifies deployment, updates, and maintenance while improving security through isolation. Proper management of permissions is essential for smooth operation with bind mounts.

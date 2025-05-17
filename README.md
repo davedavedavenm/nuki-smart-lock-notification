@@ -78,9 +78,19 @@ A comprehensive notification system for Nuki Smart Lock 4th Generation using a R
    nano config/credentials.ini
    ```
 
-4. Build and start Docker containers:
+4. Set up proper directory permissions for Docker bind mounts:
    ```bash
-   docker-compose up -d
+   # For Linux/macOS
+   chmod +x setup_docker_volumes.sh
+   ./setup_docker_volumes.sh
+
+   # For Windows
+   setup_docker_volumes.bat
+   ```
+
+5. Build and start Docker containers:
+   ```bash
+   docker compose up -d
    ```
 
 5. Access the web interface at `http://your-pi-ip:5000`
@@ -268,6 +278,45 @@ If you see an error like `ValueError: unsupported hash type scrypt:32768:8:1` af
   # For Docker installation:
   docker logs nuki-monitor
   ```
+
+### Docker Bind Mount Permission Issues
+
+If you're using Docker and see errors like:
+- `Permission denied: '/app/config/credentials.ini'`
+- `Permission denied: '/app/config/users.json'`
+- No notifications despite correct configuration
+- Containers crash or restart repeatedly
+
+This indicates a permission issue with the Docker bind mounts:
+
+1. Run the permission setup script:
+   ```bash
+   # For Linux/macOS
+   chmod +x setup_docker_volumes.sh
+   ./setup_docker_volumes.sh
+
+   # For Windows
+   setup_docker_volumes.bat
+   ```
+
+2. For manual setup, set proper permissions on the host:
+   ```bash
+   # Create directories if they don't exist
+   mkdir -p config logs data
+
+   # Set permissions (Linux/macOS only)
+   chmod 777 config
+   chmod -R 777 logs data
+   chmod 644 config/*.ini  # Only if config files exist
+   ```
+
+3. Restart the containers:
+   ```bash
+   docker compose down
+   docker compose up -d
+   ```
+
+See the [DOCKER_SETUP.md](DOCKER_SETUP.md) file for more detailed information on Docker bind mount permissions.
 
 ### Web interface not working
 
