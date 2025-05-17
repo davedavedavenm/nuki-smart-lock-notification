@@ -2,6 +2,12 @@
 
 This roadmap provides a detailed breakdown of tasks for each phase of the cleanup project, with specific files to modify and suggested changes.
 
+## Task Status Legend
+- [x] Completed
+- [ ] [P0] Pending - Critical Priority (Blocker for other tasks)
+- [ ] [P1] Pending - High Priority (Core functionality)
+- [ ] [P2] Pending - Standard Priority (Enhancement)
+
 ## Phase 1: Foundation Restructuring
 
 ### Week 1: Setup and Docker Configuration
@@ -48,7 +54,7 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 
 #### Day 1-2: API and Configuration Modules
 - [x] Refactor `nuki/api.py` to `app/api/nuki_api.py`
-- [ ] Create web API endpoints in `app/api/web_api.py`
+- [x] Create web API endpoints in `app/api/web_api.py`
 - [x] Refactor `nuki/config.py` to `app/config/config_manager.py`
 - [x] Add configuration utility in `app/config/configure.py`
 
@@ -61,23 +67,24 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 - [x] Refactor `nuki/notification.py` to `app/notifications/notifier.py`
 - [x] Create separate services for email and Telegram
 - [x] Refactor utility functions to appropriate modules
-- [ ] Create common logging utilities
+- [x] Create common logging utilities
 
 **Specific changes:**
 - [x] Extract email functionality to `app/notifications/email_service.py`
 - [x] Extract Telegram functionality to `app/notifications/telegram_service.py`
 - [x] Move activity utilities to `app/utils/activity_tracker.py`
 - [x] Add permission checking in `app/utils/check_permissions.py`
+- [x] Implement standardized logging in `app/utils/logging_utils.py`
 
 #### Day 5: Basic Documentation
-- [ ] Create basic documentation structure
-- [ ] Document the new directory structure
+- [ ] [P2] Create basic documentation structure
+- [ ] [P2] Document the new directory structure
 - [x] Add README files to key directories
-- [ ] Document Docker configuration
+- [ ] [P2] Document Docker configuration
 
 **Files to create/update:**
-- [ ] `docs/development/structure.md`
-- [ ] `docs/deployment/docker.md`
+- [ ] [P2] `docs/development/structure.md`
+- [ ] [P2] `docs/deployment/docker.md`
 - [x] README files in each directory
 
 ## Phase 2: Code Refactoring
@@ -87,7 +94,7 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 #### Day 1-2: Monitoring Module
 - [x] Refactor `nuki_monitor.py` to `app/monitoring/nuki_monitor.py`
 - [x] Move health monitoring to `app/monitoring/health_monitor.py`
-- [ ] Create simplified entry point in `cli/nuki_monitor.py`
+- [x] Create simplified entry point in `cli/nuki_monitor.py`
 
 **Specific changes:**
 - [x] Move monitoring classes to appropriate modules
@@ -95,166 +102,180 @@ This roadmap provides a detailed breakdown of tasks for each phase of the cleanu
 - [x] Add better logging and diagnostics
 
 #### Day 3-4: Models and Data Handling
-- [ ] Create data models in `app/models/`
+- [ ] [P0] Create data models in `app/models/`
 - [x] Refactor `models.py` to `app/web/models.py`
-- [ ] Implement proper data validation
+- [ ] [P1] Implement proper data validation (Depends on: Data models implementation)
 
 **Specific changes:**
-- [ ] Create `app/models/user.py` for user-related models
-- [ ] Create `app/models/activity.py` for activity data
-- [ ] Create `app/models/temp_code.py` for temporary codes
+- [ ] [P0] Create `app/models/user.py` for user-related models
+- [ ] [P1] Create `app/models/activity.py` for activity data
+- [ ] [P1] Create `app/models/temp_code.py` for temporary codes
 
 #### Day 5: Security Module
 - [x] Refactor security-related code to `app/security/`
-- [ ] Improve authentication handling
+- [ ] [P1] Improve authentication handling (Depends on: User models implementation)
 - [x] Move security monitoring to `app/security/security_monitor.py`
 
 **Specific changes:**
 - [x] Move security monitoring and configuration
 - [x] Move security alerting system
-- [ ] Enhance security features
+- [ ] [P1] Enhance security features
 
 ### Week 4: Web Interface Refactoring
 
 #### Day 1-2: Core Web Application
 - [x] Refactor `web/app.py` to `app/web/app.py`
-- [ ] Extract route handlers to separate modules
-- [ ] Implement proper middleware
+- [ ] [P1] Extract route handlers to separate modules
+- [ ] [P1] Implement proper middleware (Depends on: Authentication handling)
 
 **Specific changes:**
-- [ ] Create route modules for different sections
-- [ ] Add proper authentication middleware
-- [ ] Improve error handling for API endpoints
+- [ ] [P1] Create route modules for different sections
+- [ ] [P1] Add proper authentication middleware
+- [ ] [P1] Improve error handling for API endpoints
 
 #### Day 3-4: Frontend Improvements
-- [ ] Reorganize static files
+- [ ] [P2] Reorganize static files
 - [x] Implement proper theme system
-- [ ] Improve JavaScript organization
-- [ ] Enhance mobile responsiveness
+- [ ] [P2] Improve JavaScript organization
+- [ ] [P2] Enhance mobile responsiveness
 
 **Specific changes:**
 - [x] Move dark mode module to web structure
-- [ ] Organize JavaScript by functionality
-- [ ] Add media queries for mobile layouts
+- [ ] [P2] Organize JavaScript by functionality
+- [ ] [P2] Add media queries for mobile layouts
 
 #### Day 5: Testing Framework
-- [ ] Set up testing framework
-- [ ] Create test fixtures
-- [ ] Implement basic unit tests
-- [ ] Add CI workflow for tests
+- [ ] [P1] Set up testing framework
+- [ ] [P1] Create test fixtures (Depends on: Data models implementation)
+- [ ] [P1] Implement basic unit tests
+- [ ] [P2] Add CI workflow for tests
 
 **Files to create/modify:**
-- [ ] `tests/conftest.py`
-- [ ] `tests/unit/test_api.py`
-- [ ] `tests/unit/test_config.py`
-- [ ] `.github/workflows/test.yml`
+- [ ] [P1] `tests/conftest.py`
+- [ ] [P1] `tests/unit/test_api.py`
+- [ ] [P1] `tests/unit/test_config.py`
+- [ ] [P2] `.github/workflows/test.yml`
 
 ## Phase 3: Enhancement and Optimization
 
 ### Week 5: Testing and Security
 
 #### Day 1-2: Comprehensive Unit Tests
-- [ ] Add tests for all core modules
-- [ ] Implement edge case testing
-- [ ] Add mock objects for external dependencies
+- [ ] [P1] Add tests for all core modules (Depends on: Testing framework)
+- [ ] [P1] Implement edge case testing
+- [ ] [P1] Add mock objects for external dependencies
 
 **Specific changes:**
-- [ ] Create tests for each core module
-- [ ] Add parameterized tests for different scenarios
-- [ ] Implement mocks for API, email, and Telegram
+- [ ] [P1] Create tests for each core module
+- [ ] [P1] Add parameterized tests for different scenarios
+- [ ] [P1] Implement mocks for API, email, and Telegram
 
 #### Day 3-4: Integration Tests
-- [ ] Create integration tests for API endpoints
-- [ ] Test notification delivery
-- [ ] Test configuration handling
-- [ ] Add Docker-based testing
+- [ ] [P1] Create integration tests for API endpoints (Depends on: Unit tests)
+- [ ] [P1] Test notification delivery
+- [ ] [P1] Test configuration handling
+- [ ] [P2] Add Docker-based testing
 
 **Specific changes:**
-- [ ] Create end-to-end tests for core workflows
-- [ ] Test API responses for different inputs
-- [ ] Verify notification formatting and delivery
+- [ ] [P1] Create end-to-end tests for core workflows
+- [ ] [P1] Test API responses for different inputs
+- [ ] [P1] Verify notification formatting and delivery
 
 #### Day 5: Security Enhancements
-- [ ] Implement proper password policies
-- [ ] Add rate limiting for login attempts
-- [ ] Enhance input validation
-- [ ] Fix file permissions
+- [ ] [P1] Implement proper password policies (Depends on: Authentication handling)
+- [ ] [P1] Add rate limiting for login attempts
+- [ ] [P1] Enhance input validation
+- [ ] [P2] Fix file permissions
 
 **Specific changes:**
-- [ ] Add password complexity requirements
-- [ ] Implement login attempt throttling
-- [ ] Create request validation middleware
-- [ ] Document and enforce proper file permissions
+- [ ] [P1] Add password complexity requirements
+- [ ] [P1] Implement login attempt throttling
+- [ ] [P1] Create request validation middleware
+- [ ] [P2] Document and enforce proper file permissions
 
 ### Week 6: Performance and Documentation
 
 #### Day 1-2: Performance Optimization
-- [ ] Optimize database queries
-- [ ] Improve caching
-- [ ] Reduce resource usage
-- [ ] Add performance monitoring
+- [ ] [P2] Optimize database queries
+- [ ] [P2] Improve caching
+- [ ] [P2] Reduce resource usage
+- [ ] [P2] Add performance monitoring
 
 **Specific changes:**
-- [ ] Add caching for API responses
-- [ ] Optimize notification delivery
-- [ ] Improve Docker resource usage
+- [ ] [P2] Add caching for API responses
+- [ ] [P2] Optimize notification delivery
+- [ ] [P2] Improve Docker resource usage
 
 #### Day 3-5: Comprehensive Documentation
-- [ ] Complete API documentation
-- [ ] Create deployment guides
-- [ ] Write user documentation
-- [ ] Add troubleshooting guides
+- [ ] [P2] Complete API documentation
+- [ ] [P2] Create deployment guides
+- [ ] [P2] Write user documentation
+- [ ] [P2] Add troubleshooting guides
 
 **Files to create/update:**
-- [ ] `docs/api/endpoints.md`
-- [ ] `docs/deployment/setup.md`
-- [ ] `docs/user/guide.md`
-- [ ] `docs/troubleshooting.md`
+- [ ] [P2] `docs/api/endpoints.md`
+- [ ] [P2] `docs/deployment/setup.md`
+- [ ] [P2] `docs/user/guide.md`
+- [ ] [P2] `docs/troubleshooting.md`
 
 ## Phase 4: Final Polishing
 
 ### Week 7: Finalization and Release
 
 #### Day 1-2: Bug Fixing and Final Testing
-- [ ] Perform comprehensive testing
-- [ ] Fix any remaining issues
-- [ ] Verify all functionality
-- [ ] Test deployment process
+- [ ] [P1] Perform comprehensive testing (Depends on: Integration tests)
+- [ ] [P1] Fix any remaining issues
+- [ ] [P1] Verify all functionality
+- [ ] [P1] Test deployment process
 
 **Specific tasks:**
-- [ ] Run full test suite
-- [ ] Test on different environments
-- [ ] Verify Docker deployment
-- [ ] Test upgrade process
+- [ ] [P1] Run full test suite
+- [ ] [P1] Test on different environments
+- [ ] [P1] Verify Docker deployment
+- [ ] [P1] Test upgrade process
 
 #### Day 3-4: Documentation Review and Completion
-- [ ] Review all documentation
-- [ ] Update with latest changes
-- [ ] Create release notes
-- [ ] Add upgrade guide
+- [ ] [P2] Review all documentation
+- [ ] [P2] Update with latest changes
+- [ ] [P2] Create release notes
+- [ ] [P2] Add upgrade guide
 
 **Files to create/update:**
-- [ ] `RELEASE_NOTES.md`
-- [ ] `UPGRADE.md`
-- [ ] Final updates to documentation
+- [ ] [P2] `RELEASE_NOTES.md`
+- [ ] [P2] `UPGRADE.md`
+- [ ] [P2] Final updates to documentation
 
 #### Day 5: Final Release
-- [ ] Create final release branch
-- [ ] Tag the release
-- [ ] Prepare for deployment
-- [ ] Project handover documentation
+- [ ] [P1] Create final release branch
+- [ ] [P1] Tag the release
+- [ ] [P1] Prepare for deployment
+- [ ] [P2] Project handover documentation
 
 **Specific tasks:**
-- [ ] Create release tag
-- [ ] Final documentation review
-- [ ] Prepare for deployment to production
-- [ ] Document outstanding items and future improvements
+- [ ] [P1] Create release tag
+- [ ] [P1] Final documentation review
+- [ ] [P1] Prepare for deployment to production
+- [ ] [P2] Document outstanding items and future improvements
+
+## Implementation Priority Focus (Next Sprint)
+
+### Critical Tasks (P0)
+1. Create data models in `app/models/` - Foundation for validation and authentication
+   - User models implementation
+   - Activity data structures
+   - Temporary code handling
+
+### High Priority Tasks (P1)
+1. Improve authentication handling once user models are complete
+2. Implement proper data validation mechanisms
+3. Extract route handlers for better modularity
+4. Set up testing framework for quality assurance
 
 ## Tracking and Coordination
 
 For each task:
 1. Create an issue in GitHub
-2. Use branches named by phase/module (e.g., `phase1/docker-config`)
+2. Use branches named by phase/module (e.g., `phase2/data-models`)
 3. Submit pull requests with detailed descriptions
 4. Update this roadmap with progress
 
