@@ -1,4 +1,4 @@
-FROM python:3.9-slim-bullseye
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
@@ -6,35 +6,30 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY scripts /app/scripts
-COPY config /app/config
-COPY docker-entrypoint.sh /app/
+# Create non-root user
+RUN groupadd -r nuki && useradd -r -g nuki nuki
+
+# Copy application code and set ownership in one step to minimize layers
+COPY --chown=nuki:nuki scripts /app/scripts
+COPY --chown=nuki:nuki config /app/config
+COPY --chown=nuki:nuki docker-entrypoint.sh /app/
 
 # Create directories with proper permissions and set appropriate ownership
 RUN mkdir -p /app/logs /app/data /app/flask_session \
-    && chmod -R 777 /app/logs /app/data /app/flask_session \
-    && chmod -R 777 /app/config \
+    && chown -R nuki:nuki /app/logs /app/data /app/flask_session /app/config \
+    && chmod -R 755 /app/logs /app/data /app/flask_session /app/config \
     && touch /app/logs/nuki_monitor.log /app/logs/health_monitor.log \
-    && chmod 666 /app/logs/nuki_monitor.log /app/logs/health_monitor.log
-
-# Make the entrypoint script executable
-RUN chmod +x /app/docker-entrypoint.sh
+    && chown nuki:nuki /app/logs/nuki_monitor.log /app/logs/health_monitor.log \
+    && chmod 664 /app/logs/nuki_monitor.log /app/logs/health_monitor.log \
+    && chmod +x /app/docker-entrypoint.sh
 
 # Set environment variables
 ENV CONFIG_DIR=/app/config
 ENV LOGS_DIR=/app/logs
 ENV PYTHONUNBUFFERED=1
 
-# While we'd prefer to run as a non-root user for security,
-# we'll run as root initially to handle permission issues
-# This can be changed back to a non-root user once the system is stable
-#RUN groupadd -r nuki && useradd -r -g nuki nuki \
-#    && chown -R nuki:nuki /app
-#USER nuki
-
-# Running as root for now to handle permissions
-RUN echo "Running as root to handle filesystem permissions"
+# Switch to non-root user
+USER nuki
 
 # Add healthcheck
 HEALTHCHECK --interval=5m --timeout=20s --start-period=30s --retries=3 \
