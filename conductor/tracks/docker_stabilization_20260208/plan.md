@@ -1,6 +1,6 @@
 # Implementation Plan: Docker Stabilization
 
-## Phase 1: Dockerfile Optimization & Security
+## Phase 1: Dockerfile Optimization & Security [checkpoint: d5f06a4]
 - [x] Task: Refine 'Dockerfile.monitor' for efficiency and security [commit: 931cbb7]
     - [ ] Update to a slim base image
     - [ ] Ensure non-root user execution
