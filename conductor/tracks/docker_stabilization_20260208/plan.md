@@ -1,7 +1,7 @@
 # Implementation Plan: Docker Stabilization
 
 ## Phase 1: Dockerfile Optimization & Security
-- [ ] Task: Refine 'Dockerfile.monitor' for efficiency and security
+- [x] Task: Refine 'Dockerfile.monitor' for efficiency and security [commit: 931cbb7]
     - [ ] Update to a slim base image
     - [ ] Ensure non-root user execution
     - [ ] Optimize layer caching
