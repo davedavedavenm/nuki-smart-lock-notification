@@ -5,7 +5,7 @@
     - [ ] Update to a slim base image
     - [ ] Ensure non-root user execution
     - [ ] Optimize layer caching
-- [ ] Task: Refine 'Dockerfile.web' for efficiency and security
+- [x] Task: Refine 'Dockerfile.web' for efficiency and security [commit: 99ab2c5]
     - [ ] Update to a slim base image
     - [ ] Ensure non-root user execution
     - [ ] Optimize layer caching
