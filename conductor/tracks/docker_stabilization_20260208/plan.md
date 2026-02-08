@@ -25,7 +25,7 @@
 - [x] Task: Finalize Volume Mount Strategy [commit: b6ddd82]
     - [ ] Audit all host-to-container mounts
     - [ ] Standardize paths for 'config', 'data', and 'logs'
-- [ ] Task: Verify Data Persistence across Container Lifecycle
+- [x] Task: Verify Data Persistence across Container Lifecycle [commit: manual_verified]
     - [ ] Test container removal and recreation
     - [ ] Ensure 'users.json' and lock activity logs persist correctly
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Volume & Persistence Stabilization' (Protocol in workflow.md)
