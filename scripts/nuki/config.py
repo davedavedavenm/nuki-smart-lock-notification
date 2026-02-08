@@ -50,26 +50,26 @@ class ConfigManager:
             sys.exit(1)
         
         # Configuration settings
-        self.notification_type = self.config.get('General', 'notification_type', fallback='both')
-        self.polling_interval = self.config.getint('General', 'polling_interval', fallback=60)
-        self.digest_mode = self.config.getboolean('Notification', 'digest_mode', fallback=False)
-        self.digest_interval = self.config.getint('Notification', 'digest_interval', fallback=3600)
-        self.track_all_users = self.config.getboolean('Notification', 'track_all_users', fallback=True)
-        self.notify_auto_lock = self.config.getboolean('Notification', 'notify_auto_lock', fallback=True)
-        self.notify_system_events = self.config.getboolean('Notification', 'notify_system_events', fallback=True)
+        self.notification_type = self._get_val('General', 'notification_type', env_name='NUKI_NOTIFICATION_TYPE', fallback='both')
+        self.polling_interval = self._get_val_int('General', 'polling_interval', env_name='NUKI_POLLING_INTERVAL', fallback=60)
+        self.digest_mode = self._get_val_bool('Notification', 'digest_mode', env_name='NUKI_DIGEST_MODE', fallback=False)
+        self.digest_interval = self._get_val_int('Notification', 'digest_interval', env_name='NUKI_DIGEST_INTERVAL', fallback=3600)
+        self.track_all_users = self._get_val_bool('Notification', 'track_all_users', env_name='NUKI_TRACK_ALL_USERS', fallback=True)
+        self.notify_auto_lock = self._get_val_bool('Notification', 'notify_auto_lock', env_name='NUKI_NOTIFY_AUTO_LOCK', fallback=True)
+        self.notify_system_events = self._get_val_bool('Notification', 'notify_system_events', env_name='NUKI_NOTIFY_SYSTEM_EVENTS', fallback=True)
         
         # Filter settings
-        self.excluded_users = self._parse_list(self.config.get('Filter', 'excluded_users', fallback=''))
-        self.excluded_actions = self._parse_list(self.config.get('Filter', 'excluded_actions', fallback=''))
-        self.excluded_triggers = self._parse_list(self.config.get('Filter', 'excluded_triggers', fallback=''))
+        self.excluded_users = self._parse_list(self._get_val('Filter', 'excluded_users', env_name='NUKI_EXCLUDED_USERS', fallback=''))
+        self.excluded_actions = self._parse_list(self._get_val('Filter', 'excluded_actions', env_name='NUKI_EXCLUDED_ACTIONS', fallback=''))
+        self.excluded_triggers = self._parse_list(self._get_val('Filter', 'excluded_triggers', env_name='NUKI_EXCLUDED_TRIGGERS', fallback=''))
         
         # API settings
-        self.api_token = self.credentials.get('Nuki', 'api_token', fallback='')
+        self.api_token = self._get_val('Nuki', 'api_token', env_name='NUKI_API_TOKEN', is_credential=True, fallback='')
         self.base_url = "https://api.nuki.io"
         
         # Smartlock settings
-        self.smartlock_id = self.config.get('Nuki', 'smartlock_id', fallback='')
-        self.use_explicit_id = self.config.getboolean('Nuki', 'use_explicit_id', fallback=False)
+        self.smartlock_id = self._get_val('Nuki', 'smartlock_id', env_name='NUKI_SMARTLOCK_ID', fallback='')
+        self.use_explicit_id = self._get_val_bool('Nuki', 'use_explicit_id', env_name='NUKI_USE_EXPLICIT_ID', fallback=False)
         
         if self.use_explicit_id and self.smartlock_id:
             logger.info(f"Using explicit smartlock ID: {self.smartlock_id}")
@@ -126,29 +126,29 @@ class ConfigManager:
                 logger.info(f"DIAGNOSTIC: Authorization header prepared but in unexpected format")
         
         # Email settings
-        self.smtp_server = self.config.get('Email', 'smtp_server', fallback='')
-        self.smtp_port = self.config.getint('Email', 'smtp_port', fallback=587)
-        self.email_username = self.credentials.get('Email', 'username', fallback='')
-        self.email_password = self.credentials.get('Email', 'password', fallback='')
-        self.email_sender = self.config.get('Email', 'sender', fallback='')
-        self.email_recipient = self.config.get('Email', 'recipient', fallback='')
-        self.use_html_email = self.config.getboolean('Email', 'use_html', fallback=True)
-        self.email_subject_prefix = self.config.get('Email', 'subject_prefix', fallback='Nuki Alert')
+        self.smtp_server = self._get_val('Email', 'smtp_server', env_name='NUKI_SMTP_SERVER', fallback='')
+        self.smtp_port = self._get_val_int('Email', 'smtp_port', env_name='NUKI_SMTP_PORT', fallback=587)
+        self.email_username = self._get_val('Email', 'username', env_name='NUKI_EMAIL_USERNAME', is_credential=True, fallback='')
+        self.email_password = self._get_val('Email', 'password', env_name='NUKI_EMAIL_PASSWORD', is_credential=True, fallback='')
+        self.email_sender = self._get_val('Email', 'sender', env_name='NUKI_EMAIL_SENDER', fallback='')
+        self.email_recipient = self._get_val('Email', 'recipient', env_name='NUKI_EMAIL_RECIPIENT', fallback='')
+        self.use_html_email = self._get_val_bool('Email', 'use_html', env_name='NUKI_EMAIL_USE_HTML', fallback=True)
+        self.email_subject_prefix = self._get_val('Email', 'subject_prefix', env_name='NUKI_EMAIL_SUBJECT_PREFIX', fallback='Nuki Alert')
         
         # Telegram settings
-        self.telegram_bot_token = self.credentials.get('Telegram', 'bot_token', fallback='')
-        self.telegram_chat_id = self.config.get('Telegram', 'chat_id', fallback='')
-        self.telegram_use_emoji = self.config.getboolean('Telegram', 'use_emoji', fallback=True)
-        self.telegram_format = self.config.get('Telegram', 'format', fallback='detailed')
+        self.telegram_bot_token = self._get_val('Telegram', 'bot_token', env_name='NUKI_TELEGRAM_BOT_TOKEN', is_credential=True, fallback='')
+        self.telegram_chat_id = self._get_val('Telegram', 'chat_id', env_name='NUKI_TELEGRAM_CHAT_ID', fallback='')
+        self.telegram_use_emoji = self._get_val_bool('Telegram', 'use_emoji', env_name='NUKI_TELEGRAM_USE_EMOJI', fallback=True)
+        self.telegram_format = self._get_val('Telegram', 'format', env_name='NUKI_TELEGRAM_FORMAT', fallback='detailed')
         
         # Advanced settings
-        self.max_events_per_check = self.config.getint('Advanced', 'max_events_per_check', fallback=5)
-        self.max_historical_events = self.config.getint('Advanced', 'max_historical_events', fallback=20)
-        self.debug_mode = self.config.getboolean('Advanced', 'debug_mode', fallback=False)
-        self.user_cache_timeout = self.config.getint('Advanced', 'user_cache_timeout', fallback=3600)
-        self.retry_on_failure = self.config.getboolean('Advanced', 'retry_on_failure', fallback=True)
-        self.max_retries = self.config.getint('Advanced', 'max_retries', fallback=3)
-        self.retry_delay = self.config.getint('Advanced', 'retry_delay', fallback=5)
+        self.max_events_per_check = self._get_val_int('Advanced', 'max_events_per_check', env_name='NUKI_MAX_EVENTS_PER_CHECK', fallback=5)
+        self.max_historical_events = self._get_val_int('Advanced', 'max_historical_events', env_name='NUKI_MAX_HISTORICAL_EVENTS', fallback=20)
+        self.debug_mode = self._get_val_bool('Advanced', 'debug_mode', env_name='NUKI_DEBUG_MODE', fallback=False)
+        self.user_cache_timeout = self._get_val_int('Advanced', 'user_cache_timeout', env_name='NUKI_USER_CACHE_TIMEOUT', fallback=3600)
+        self.retry_on_failure = self._get_val_bool('Advanced', 'retry_on_failure', env_name='NUKI_RETRY_ON_FAILURE', fallback=True)
+        self.max_retries = self._get_val_int('Advanced', 'max_retries', env_name='NUKI_MAX_RETRIES', fallback=3)
+        self.retry_delay = self._get_val_int('Advanced', 'retry_delay', env_name='NUKI_RETRY_DELAY', fallback=5)
         
         # Set debug logging if enabled
         if self.debug_mode:
@@ -157,6 +157,43 @@ class ConfigManager:
                 handler.setLevel(logging.DEBUG)
             logger.debug("Debug logging enabled")
     
+    def _get_val(self, section, key, env_name=None, is_credential=False, fallback=None):
+        """Get a value with environment variable prioritization"""
+        if env_name and os.environ.get(env_name):
+            return os.environ.get(env_name)
+        
+        target_config = self.credentials if is_credential else self.config
+        return target_config.get(section, key, fallback=fallback)
+
+    def _get_val_int(self, section, key, env_name=None, is_credential=False, fallback=None):
+        """Get an integer value with environment variable prioritization"""
+        if env_name and os.environ.get(env_name):
+            try:
+                return int(os.environ.get(env_name))
+            except (ValueError, TypeError):
+                pass
+        
+        target_config = self.credentials if is_credential else self.config
+        try:
+            return target_config.getint(section, key, fallback=fallback)
+        except (ValueError, TypeError):
+            return fallback
+
+    def _get_val_bool(self, section, key, env_name=None, is_credential=False, fallback=None):
+        """Get a boolean value with environment variable prioritization"""
+        if env_name and os.environ.get(env_name):
+            val = os.environ.get(env_name).lower()
+            if val in ('true', '1', 'yes', 'on'):
+                return True
+            if val in ('false', '0', 'no', 'off'):
+                return False
+        
+        target_config = self.credentials if is_credential else self.config
+        try:
+            return target_config.getboolean(section, key, fallback=fallback)
+        except (ValueError, TypeError):
+            return fallback
+
     def _parse_list(self, value_str):
         """Parse a comma-separated string into a list of values"""
         if not value_str:
