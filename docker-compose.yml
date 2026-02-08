@@ -14,18 +14,17 @@ services:
       - CONFIG_DIR=/app/config
       - LOGS_DIR=/app/logs
       - TZ=Europe/London
-      - DEBUG=true
+      - DEBUG=false
       - DEFAULT_THEME=dark
-      - SECRET_KEY=nuki-smart-lock-dashboard-fixed-key
+      - SECRET_KEY=${SECRET_KEY:-nuki-smart-lock-dashboard-fixed-key}
     networks:
       - nuki-network
     healthcheck:
-      test: ["CMD", "bash", "-c", "python /app/scripts/health_monitor.py || exit 0"]
+      test: ["CMD", "python", "/app/scripts/health_monitor.py"]
       interval: 5m
-      timeout: 30s
+      timeout: 20s
       retries: 3
-      start_period: 60s
-    user: root
+      start_period: 30s
     # Add resource limits for better performance
     deploy:
       resources:
@@ -56,7 +55,7 @@ services:
       - FLASK_ENV=production
       - TZ=Europe/London
       - DEFAULT_THEME=dark
-      - SECRET_KEY=nuki-smart-lock-dashboard-fixed-key
+      - SECRET_KEY=${SECRET_KEY:-nuki-smart-lock-dashboard-fixed-key}
     networks:
       - nuki-network
     depends_on:
