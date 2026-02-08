@@ -11,7 +11,7 @@
     - [ ] Optimize layer caching
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Dockerfile Optimization & Security' (Protocol in workflow.md)
 
-## Phase 2: Docker Compose & Environment Refinement
+## Phase 2: Docker Compose & Environment Refinement [checkpoint: 928c7ad]
 - [x] Task: Optimize 'docker-compose.yml' for production [commit: f8e7afc]
     - [ ] Implement health checks for both services
     - [ ] Refine restart policies
