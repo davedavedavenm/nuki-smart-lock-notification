@@ -6,9 +6,9 @@ from datetime import datetime
 logger = logging.getLogger('nuki_monitor')
 
 class ActivityTracker:
-    def __init__(self, base_dir):
-        self.base_dir = base_dir
-        self.last_activity_path = os.path.join(self.base_dir, "logs", "last_activity.json")
+    def __init__(self, data_dir):
+        self.data_dir = data_dir
+        self.last_activity_path = os.path.join(self.data_dir, "last_activity.json")
         self.processed_event_ids = set()
         self.last_activity = self._load_last_activity()
     

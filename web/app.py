@@ -81,9 +81,9 @@ def inject_now():
 # Load configuration
 config = ConfigManager(parent_dir)
 api = NukiAPI(config)
-tracker = ActivityTracker(parent_dir)
-user_db = UserDatabase(parent_dir)
-temp_code_db = TemporaryCodeDatabase(parent_dir)
+tracker = ActivityTracker(config.data_dir)
+user_db = UserDatabase(config.data_dir)
+temp_code_db = TemporaryCodeDatabase(config.data_dir)
 
 # Login required decorator
 def login_required(f):

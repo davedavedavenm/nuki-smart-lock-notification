@@ -7,10 +7,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 class UserDatabase:
     """Simple file-based user database"""
     
-    def __init__(self, base_dir):
-        """Initialize the database with a base directory"""
-        self.base_dir = base_dir
-        self.users_file = os.path.join(base_dir, 'config', 'users.json')
+    def __init__(self, data_dir):
+        """Initialize the database with a data directory"""
+        self.data_dir = data_dir
+        self.users_file = os.path.join(self.data_dir, 'users.json')
         self.users = self._load_users()
         
         # Create default admin user if no users exist

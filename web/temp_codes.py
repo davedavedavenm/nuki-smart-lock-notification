@@ -7,10 +7,10 @@ from datetime import datetime
 class TemporaryCodeDatabase:
     """File-based database for temporary access codes"""
     
-    def __init__(self, base_dir):
-        """Initialize the database with a base directory"""
-        self.base_dir = base_dir
-        self.codes_file = os.path.join(base_dir, 'config', 'temp_codes.json')
+    def __init__(self, data_dir):
+        """Initialize the database with a data directory"""
+        self.data_dir = data_dir
+        self.codes_file = os.path.join(self.data_dir, 'temp_codes.json')
         self.codes = self._load_codes()
     
     def _load_codes(self):

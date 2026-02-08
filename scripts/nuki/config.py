@@ -17,6 +17,15 @@ class ConfigManager:
             self.config_path = os.path.join(config_dir_env, "config.ini")
             self.credentials_path = os.path.join(config_dir_env, "credentials.ini")
             logger.info(f"Using config directory from environment: {config_dir_env}")
+            
+        # Check DATA_DIR environment variable
+        self.data_dir = os.environ.get('DATA_DIR', os.path.join(self.base_dir, "data"))
+        logger.info(f"Using data directory: {self.data_dir}")
+        
+        # Check if data directory exists
+        if not os.path.exists(self.data_dir):
+            os.makedirs(self.data_dir, exist_ok=True)
+            logger.info(f"Created data directory: {self.data_dir}")
         
         # Check if config directory exists and is writable
         config_dir = os.path.dirname(self.config_path)

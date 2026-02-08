@@ -12,6 +12,7 @@ services:
       - ./flask_session:/app/flask_session:rw
     environment:
       - CONFIG_DIR=/app/config
+      - DATA_DIR=/app/data
       - LOGS_DIR=/app/logs
       - TZ=Europe/London
       - DEBUG=false
@@ -50,6 +51,7 @@ services:
       - ./flask_session:/app/flask_session:rw
     environment:
       - CONFIG_DIR=/app/config
+      - DATA_DIR=/app/data
       - LOGS_DIR=/app/logs
       - FLASK_APP=web/app.py
       - FLASK_ENV=production

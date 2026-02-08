@@ -59,7 +59,7 @@ class NukiMonitor:
         # Initialize components
         self.config = ConfigManager(self.base_dir)
         self.api = NukiAPI(self.config)
-        self.tracker = ActivityTracker(self.base_dir)
+        self.tracker = ActivityTracker(self.config.data_dir)
         self.notifier = Notifier(self.config)
         
         # Flag to indicate first run
