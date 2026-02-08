@@ -22,7 +22,7 @@
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Docker Compose & Environment Refinement' (Protocol in workflow.md)
 
 ## Phase 3: Volume & Persistence Stabilization
-- [ ] Task: Finalize Volume Mount Strategy
+- [x] Task: Finalize Volume Mount Strategy [commit: b6ddd82]
     - [ ] Audit all host-to-container mounts
     - [ ] Standardize paths for 'config', 'data', and 'logs'
 - [ ] Task: Verify Data Persistence across Container Lifecycle
