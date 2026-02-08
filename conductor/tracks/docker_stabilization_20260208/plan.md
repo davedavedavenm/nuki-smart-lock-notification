@@ -21,7 +21,7 @@
     - [ ] Create a template for '.env' files
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Docker Compose & Environment Refinement' (Protocol in workflow.md)
 
-## Phase 3: Volume & Persistence Stabilization
+## Phase 3: Volume & Persistence Stabilization [checkpoint: e677d01]
 - [x] Task: Finalize Volume Mount Strategy [commit: b6ddd82]
     - [ ] Audit all host-to-container mounts
     - [ ] Standardize paths for 'config', 'data', and 'logs'
