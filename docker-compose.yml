@@ -59,6 +59,7 @@ services:
       - TZ=Europe/London
       - DEFAULT_THEME=dark
       - SECRET_KEY=${SECRET_KEY:-nuki-smart-lock-dashboard-fixed-key}
+      - GUNICORN_WORKERS=1
     networks:
       - nuki-network
     depends_on:

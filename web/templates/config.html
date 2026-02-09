@@ -217,12 +217,18 @@
                         <h5 class="card-title">Email Settings</h5>
                         <p class="card-text">Configure email notification settings.</p>
                         
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            Email credentials (username and password) can only be set through the command-line configuration utility for security reasons.
-                        </div>
-                        
                         <form id="emailForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="emailUsername" class="form-label">Username / Email</label>
+                                    <input type="text" class="form-control" id="emailUsername" name="email.username" placeholder="projects@magnusfamily.co.uk">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="emailPassword" class="form-label">Password / App Password</label>
+                                    <input type="password" class="form-control" id="emailPassword" name="email.password" placeholder="••••••••">
+                                </div>
+                            </div>
+
                             <div class="mb-3">
                                 <label for="smtpServer" class="form-label">SMTP Server</label>
                                 <input type="text" class="form-control" id="smtpServer" name="email.smtp_server">
@@ -262,16 +268,20 @@
                         <h5 class="card-title">Telegram Settings</h5>
                         <p class="card-text">Configure Telegram notification settings.</p>
                         
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            Telegram bot token can only be set through the command-line configuration utility for security reasons.
-                        </div>
-                        
                         <form id="telegramForm">
+                            <div class="mb-3">
+                                <label for="telegramBotToken" class="form-label">Telegram Bot Token</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-key"></i></span>
+                                    <input type="password" class="form-control" id="telegramBotToken" name="telegram.bot_token" placeholder="••••••••">
+                                </div>
+                                <div class="form-text">Your Telegram bot token from @BotFather.</div>
+                            </div>
+
                             <div class="mb-3">
                                 <label for="chatId" class="form-label">Chat ID</label>
                                 <input type="text" class="form-control" id="chatId" name="telegram.chat_id">
-                                <div class="form-text">The chat ID where notifications will be sent. Run the get_telegram_chat_id.py script to get this.</div>
+                                <div class="form-text">The chat ID where notifications will be sent.</div>
                             </div>
                             
                             <div class="mb-3 form-check">
@@ -435,6 +445,31 @@
     
     // Populate configuration forms with loaded data
     function populateConfigForms(data) {
+        // Nuki settings
+        if (data.nuki && data.nuki.api_token) {
+            $('#nukiToken').val(data.nuki.api_token);
+        }
+
+        // Email settings
+        if (data.email) {
+            $('#emailUsername').val(data.email.username || '');
+            if (data.email.password) $('#emailPassword').val(data.email.password);
+            $('#smtpServer').val(data.email.smtp_server || '');
+            $('#smtpPort').val(data.email.smtp_port || '');
+            $('#emailSender').val(data.email.sender || '');
+            $('#emailRecipient').val(data.email.recipient || '');
+            $('#useHtml').prop('checked', data.email.use_html);
+            $('#subjectPrefix').val(data.email.subject_prefix || '');
+        }
+
+        // Telegram settings
+        if (data.telegram) {
+            if (data.telegram.bot_token) $('#telegramBotToken').val(data.telegram.bot_token);
+            $('#chatId').val(data.telegram.chat_id || '');
+            $('#useEmoji').prop('checked', data.telegram.use_emoji);
+            $('#telegramFormat').val(data.telegram.format || 'detailed');
+        }
+
         // General settings
         $('#notificationType').val(data.general.notification_type);
         $('#pollingInterval').val(data.general.polling_interval);
@@ -447,33 +482,6 @@
         
         // Filter settings
         $('#excludedUsers').val(data.filter.excluded_users.join(','));
-        
-        // Set excluded actions checkboxes
-        $('.excluded-action').prop('checked', false);
-        data.filter.excluded_actions.forEach(function(action) {
-            $(`#excludeAction${action}`).prop('checked', true);
-        });
-        updateExcludedActions();
-        
-        // Set excluded triggers checkboxes
-        $('.excluded-trigger').prop('checked', false);
-        data.filter.excluded_triggers.forEach(function(trigger) {
-            $(`#excludeTrigger${trigger}`).prop('checked', true);
-        });
-        updateExcludedTriggers();
-        
-        // Email settings
-        $('#smtpServer').val(data.email.smtp_server);
-        $('#smtpPort').val(data.email.smtp_port);
-        $('#emailSender').val(data.email.sender);
-        $('#emailRecipient').val(data.email.recipient);
-        $('#useHtml').prop('checked', data.email.use_html);
-        $('#subjectPrefix').val(data.email.subject_prefix);
-        
-        // Telegram settings
-        $('#chatId').val(data.telegram.chat_id);
-        $('#useEmoji').prop('checked', data.telegram.use_emoji);
-        $('#telegramFormat').val(data.telegram.format);
         
         // Advanced settings
         $('#maxEventsPerCheck').val(data.advanced.max_events_per_check);
@@ -526,6 +534,8 @@
                 excluded_triggers: $('#excludedTriggers').val()
             },
             email: {
+                username: $('#emailUsername').val(),
+                password: $('#emailPassword').val(),
                 smtp_server: $('#smtpServer').val(),
                 smtp_port: $('#smtpPort').val(),
                 sender: $('#emailSender').val(),
@@ -534,6 +544,7 @@
                 subject_prefix: $('#subjectPrefix').val()
             },
             telegram: {
+                bot_token: $('#telegramBotToken').val(),
                 chat_id: $('#chatId').val(),
                 use_emoji: $('#useEmoji').is(':checked'),
                 format: $('#telegramFormat').val()
