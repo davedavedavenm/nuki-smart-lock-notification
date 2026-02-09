@@ -63,7 +63,7 @@ services:
       - nuki-network
     depends_on:
       nuki-monitor:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 1m

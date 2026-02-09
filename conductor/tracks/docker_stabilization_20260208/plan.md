@@ -45,4 +45,4 @@
 - [x] Task: Create Web-Based Setup Wizard [commit: setup_wizard]
     - [x] Create 'web/templates/setup.html' with step-by-step UI
     - [x] Implement API endpoints to save Nuki, Telegram, and Email credentials
-- [ ] Task: Conductor - User Manual Verification 'Phase 5: User-Friendly Setup Wizard' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 5: User-Friendly Setup Wizard' (Protocol in workflow.md) [commit: phase5_verified]

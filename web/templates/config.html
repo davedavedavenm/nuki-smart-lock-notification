@@ -70,9 +70,20 @@
                     <!-- General Settings -->
                     <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
                         <h5 class="card-title">General Settings</h5>
-                        <p class="card-text">Configure basic system settings.</p>
+                        <p class="card-text">Configure basic system and Nuki API settings.</p>
                         
                         <form id="generalForm">
+                            <div class="mb-4">
+                                <label for="nukiToken" class="form-label">Nuki API Token</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-key"></i></span>
+                                    <input type="password" class="form-control" id="nukiToken" name="nuki.api_token" placeholder="••••••••••••••••">
+                                </div>
+                                <div class="form-text">Your Nuki Web API token. Leave blank to keep existing token.</div>
+                            </div>
+
+                            <hr>
+
                             <div class="mb-3">
                                 <label for="notificationType" class="form-label">Notification Type</label>
                                 <select class="form-select" id="notificationType" name="general.notification_type">
@@ -496,6 +507,9 @@
     function saveConfiguration() {
         // Collect form data
         const configToSave = {
+            nuki: {
+                api_token: $('#nukiToken').val()
+            },
             general: {
                 notification_type: $('#notificationType').val(),
                 polling_interval: $('#pollingInterval').val()

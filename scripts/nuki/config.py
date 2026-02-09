@@ -48,197 +48,119 @@ class ConfigManager:
             logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
             sys.exit(1)
                 
-                # Load configuration files
-                
-                try:
-                
-                    self.config = self._load_config()
-                
-                    self.credentials = self._load_credentials()
-                
-                except (PermissionError, IOError) as e:
-                
-                    logger.critical(f"❌ CRITICAL: Permission error accessing configuration files: {e}")
-                
-                    logger.critical(f"The application cannot read/write to configuration files.")
-                
-                    logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
-                
-                    sys.exit(1)
-                
-                
-                
-                # Initialize settings
-                
-                self._init_settings()
-                
+        # Load configuration files
+        try:
+            self.config = self._load_config()
+            self.credentials = self._load_credentials()
+        except (PermissionError, IOError) as e:
+            logger.critical(f"❌ CRITICAL: Permission error accessing configuration files: {e}")
+            logger.critical(f"The application cannot read/write to configuration files.")
+            logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+            sys.exit(1)
         
-                
-            def _init_settings(self):
-                
-                """Initialize all configuration settings from files and environment"""
-                
-                # Configuration settings
-                
-                self.notification_type = self._get_val('General', 'notification_type', env_name='NUKI_NOTIFICATION_TYPE', fallback='both')
-                
-                self.polling_interval = self._get_val_int('General', 'polling_interval', env_name='NUKI_POLLING_INTERVAL', fallback=60)
-                
-                self.digest_mode = self._get_val_bool('Notification', 'digest_mode', env_name='NUKI_DIGEST_MODE', fallback=False)
-                
-                self.digest_interval = self._get_val_int('Notification', 'digest_interval', env_name='NUKI_DIGEST_INTERVAL', fallback=3600)
-                
-                self.track_all_users = self._get_val_bool('Notification', 'track_all_users', env_name='NUKI_TRACK_ALL_USERS', fallback=True)
-                
-                self.notify_auto_lock = self._get_val_bool('Notification', 'notify_auto_lock', env_name='NUKI_NOTIFY_AUTO_LOCK', fallback=True)
-                
-                self.notify_system_events = self._get_val_bool('Notification', 'notify_system_events', env_name='NUKI_NOTIFY_SYSTEM_EVENTS', fallback=True)
-                
-                
-                
-                # Filter settings
-                
-                self.excluded_users = self._parse_list(self._get_val('Filter', 'excluded_users', env_name='NUKI_EXCLUDED_USERS', fallback=''))
-                
-                self.excluded_actions = self._parse_list(self._get_val('Filter', 'excluded_actions', env_name='NUKI_EXCLUDED_ACTIONS', fallback=''))
-                
-                self.excluded_triggers = self._parse_list(self._get_val('Filter', 'excluded_triggers', env_name='NUKI_EXCLUDED_TRIGGERS', fallback=''))
-                
-                
-                
-                # API settings
-                
-                self.api_token = self._get_val('Nuki', 'api_token', env_name='NUKI_API_TOKEN', is_credential=True, fallback='')
-                
-                self.base_url = "https://api.nuki.io"
-                
-                
-                
-                # Smartlock settings
-                
-                self.smartlock_id = self._get_val('Nuki', 'smartlock_id', env_name='NUKI_SMARTLOCK_ID', fallback='')
-                
-                self.use_explicit_id = self._get_val_bool('Nuki', 'use_explicit_id', env_name='NUKI_USE_EXPLICIT_ID', fallback=False)
-                
-                
-                
-                if self.use_explicit_id and self.smartlock_id:
-                
-                    logger.info(f"Using explicit smartlock ID: {self.smartlock_id}")
-                
-                elif self.use_explicit_id and not self.smartlock_id:
-                
-                    logger.warning("'use_explicit_id' is enabled but no 'smartlock_id' is configured in config.ini!")
-                
-                
-                
-                # Check if API token is set
-                
-                if not self.api_token:
-                
-                    logger.critical("❌ CRITICAL: API token not set or credentials.ini is not readable!")
-                
-                    logger.critical("This may be due to a permission issue with the config directory.")
-                
-                    logger.critical("DIAGNOSTIC: No API token found in credentials.ini")
-                
-                    
-                
-                    # Exit with error code to prevent starting with invalid configuration
-                
-                    if os.environ.get("ALLOW_MISSING_TOKEN", "false").lower() == "true":
-                
-                        logger.warning("ALLOW_MISSING_TOKEN is set. Continuing without API token. Some features will not work.")
-                
-                    else:
-                
-                        sys.exit(1)
-                
-                else:
-                
-                    # Mask token for security while providing useful debugging info
-                
-                    token_len = len(self.api_token)
-                
-                    masked_token = f"{self.api_token[:5]}...{self.api_token[-5:]}" if token_len >= 10 else "***"
-                
-                    logger.info(f"✅ DIAGNOSTIC: API token loaded successfully - {masked_token}")
-                
-                
-                
-                self.headers = {
-                
-                    "Authorization": f"Bearer {self.api_token}",
-                
-                    "Accept": "application/json"
-                
-                }
-                
-                
-                
-                # Email settings
-                
-                self.smtp_server = self._get_val('Email', 'smtp_server', env_name='NUKI_SMTP_SERVER', fallback='')
-                
-                self.smtp_port = self._get_val_int('Email', 'smtp_port', env_name='NUKI_SMTP_PORT', fallback=587)
-                
-                self.email_username = self._get_val('Email', 'username', env_name='NUKI_EMAIL_USERNAME', is_credential=True, fallback='')
-                
-                self.email_password = self._get_val('Email', 'password', env_name='NUKI_EMAIL_PASSWORD', is_credential=True, fallback='')
-                
-                self.email_sender = self._get_val('Email', 'sender', env_name='NUKI_EMAIL_SENDER', fallback='')
-                
-                self.email_recipient = self._get_val('Email', 'recipient', env_name='NUKI_EMAIL_RECIPIENT', fallback='')
-                
-                self.use_html_email = self._get_val_bool('Email', 'use_html', env_name='NUKI_EMAIL_USE_HTML', fallback=True)
-                
-                self.email_subject_prefix = self._get_val('Email', 'subject_prefix', env_name='NUKI_EMAIL_SUBJECT_PREFIX', fallback='Nuki Alert')
-                
-                
-                
-                # Telegram settings
-                
-                self.telegram_bot_token = self._get_val('Telegram', 'bot_token', env_name='NUKI_TELEGRAM_BOT_TOKEN', is_credential=True, fallback='')
-                
-                self.telegram_chat_id = self._get_val('Telegram', 'chat_id', env_name='NUKI_TELEGRAM_CHAT_ID', fallback='')
-                
-                self.telegram_use_emoji = self._get_val_bool('Telegram', 'use_emoji', env_name='NUKI_TELEGRAM_USE_EMOJI', fallback=True)
-                
-                self.telegram_format = self._get_val('Telegram', 'format', env_name='NUKI_TELEGRAM_FORMAT', fallback='detailed')
-                
-                
-                
-                # Advanced settings
-                
-                self.max_events_per_check = self._get_val_int('Advanced', 'max_events_per_check', env_name='NUKI_MAX_EVENTS_PER_CHECK', fallback=5)
-                
-                self.max_historical_events = self._get_val_int('Advanced', 'max_historical_events', env_name='NUKI_MAX_HISTORICAL_EVENTS', fallback=20)
-                
-                self.debug_mode = self._get_val_bool('Advanced', 'debug_mode', env_name='NUKI_DEBUG_MODE', fallback=False)
-                
-                self.user_cache_timeout = self._get_val_int('Advanced', 'user_cache_timeout', env_name='NUKI_USER_CACHE_TIMEOUT', fallback=3600)
-                
-                self.retry_on_failure = self._get_val_bool('Advanced', 'retry_on_failure', env_name='NUKI_RETRY_ON_FAILURE', fallback=True)
-                
-                self.max_retries = self._get_val_int('Advanced', 'max_retries', env_name='NUKI_MAX_RETRIES', fallback=3)
-                
-                self.retry_delay = self._get_val_int('Advanced', 'retry_delay', env_name='NUKI_RETRY_DELAY', fallback=5)
-                
-                
-                
-                # Set debug logging if enabled
-                
-                if self.debug_mode:
-                
-                    logger.setLevel(logging.DEBUG)
-                
-                    logger.debug("Debug logging enabled")
-                
+        # Initialize settings
+        self._init_settings()
+
+    def _init_settings(self):
+        """Initialize all configuration settings from files and environment"""
+        # Configuration settings
+        self.notification_type = self._get_val('General', 'notification_type', env_name='NUKI_NOTIFICATION_TYPE', fallback='both')
+        self.polling_interval = self._get_val_int('General', 'polling_interval', env_name='NUKI_POLLING_INTERVAL', fallback=60)
+        self.digest_mode = self._get_val_bool('Notification', 'digest_mode', env_name='NUKI_DIGEST_MODE', fallback=False)
+        self.digest_interval = self._get_val_int('Notification', 'digest_interval', env_name='NUKI_DIGEST_INTERVAL', fallback=3600)
+        self.track_all_users = self._get_val_bool('Notification', 'track_all_users', env_name='NUKI_TRACK_ALL_USERS', fallback=True)
+        self.notify_auto_lock = self._get_val_bool('Notification', 'notify_auto_lock', env_name='NUKI_NOTIFY_AUTO_LOCK', fallback=True)
+        self.notify_system_events = self._get_val_bool('Notification', 'notify_system_events', env_name='NUKI_NOTIFY_SYSTEM_EVENTS', fallback=True)
         
-                
-            def _get_val(self, section, key, env_name=None, is_credential=False, fallback=None):
-                
+        # Filter settings
+        self.excluded_users = self._parse_list(self._get_val('Filter', 'excluded_users', env_name='NUKI_EXCLUDED_USERS', fallback=''))
+        self.excluded_actions = self._parse_list(self._get_val('Filter', 'excluded_actions', env_name='NUKI_EXCLUDED_ACTIONS', fallback=''))
+        self.excluded_triggers = self._parse_list(self._get_val('Filter', 'excluded_triggers', env_name='NUKI_EXCLUDED_TRIGGERS', fallback=''))
         
+        # API settings
+        self.api_token = self._get_val('Nuki', 'api_token', env_name='NUKI_API_TOKEN', is_credential=True, fallback='')
+        self.base_url = "https://api.nuki.io"
+        
+        # Smartlock settings
+        self.smartlock_id = self._get_val('Nuki', 'smartlock_id', env_name='NUKI_SMARTLOCK_ID', fallback='')
+        self.use_explicit_id = self._get_val_bool('Nuki', 'use_explicit_id', env_name='NUKI_USE_EXPLICIT_ID', fallback=False)
+        
+        if self.use_explicit_id and self.smartlock_id:
+            logger.info(f"Using explicit smartlock ID: {self.smartlock_id}")
+        elif self.use_explicit_id and not self.smartlock_id:
+            logger.warning("'use_explicit_id' is enabled but no 'smartlock_id' is configured in config.ini!")
+        
+        # Check if API token is set
+        if not self.api_token:
+            logger.critical("❌ CRITICAL: API token not set or credentials.ini is not readable!")
+            logger.critical("This may be due to a permission issue with the config directory.")
+            logger.critical("DIAGNOSTIC: No API token found in credentials.ini")
+            
+            # Exit with error code to prevent starting with invalid configuration
+            allow_missing = os.environ.get("ALLOW_MISSING_TOKEN", "false").lower() == "true"
+            if allow_missing:
+                logger.warning("ALLOW_MISSING_TOKEN is set. Continuing without API token. Some features will not work.")
+            else:
+                sys.exit(1)
+        else:
+            # Mask token for security while providing useful debugging info
+            token_len = len(self.api_token)
+            masked_token = f"{self.api_token[:5]}...{self.api_token[-5:]}" if token_len >= 10 else "***"
+            logger.info(f"✅ DIAGNOSTIC: API token loaded successfully - {masked_token}")
+        
+        self.headers = {
+            "Authorization": f"Bearer {self.api_token}",
+            "Accept": "application/json"
+        }
+        
+        # Email settings
+        self.smtp_server = self._get_val('Email', 'smtp_server', env_name='NUKI_SMTP_SERVER', fallback='')
+        self.smtp_port = self._get_val_int('Email', 'smtp_port', env_name='NUKI_SMTP_PORT', fallback=587)
+        self.email_username = self._get_val('Email', 'username', env_name='NUKI_EMAIL_USERNAME', is_credential=True, fallback='')
+        self.email_password = self._get_val('Email', 'password', env_name='NUKI_EMAIL_PASSWORD', is_credential=True, fallback='')
+        self.email_sender = self._get_val('Email', 'sender', env_name='NUKI_EMAIL_SENDER', fallback='')
+        self.email_recipient = self._get_val('Email', 'recipient', env_name='NUKI_EMAIL_RECIPIENT', fallback='')
+        self.use_html_email = self._get_val_bool('Email', 'use_html', env_name='NUKI_EMAIL_USE_HTML', fallback=True)
+        self.email_subject_prefix = self._get_val('Email', 'subject_prefix', env_name='NUKI_EMAIL_SUBJECT_PREFIX', fallback='Nuki Alert')
+        
+        # Telegram settings
+        self.telegram_bot_token = self._get_val('Telegram', 'bot_token', env_name='NUKI_TELEGRAM_BOT_TOKEN', is_credential=True, fallback='')
+        self.telegram_chat_id = self._get_val('Telegram', 'chat_id', env_name='NUKI_TELEGRAM_CHAT_ID', fallback='')
+        self.telegram_use_emoji = self._get_val_bool('Telegram', 'use_emoji', env_name='NUKI_TELEGRAM_USE_EMOJI', fallback=True)
+        self.telegram_format = self._get_val('Telegram', 'format', env_name='NUKI_TELEGRAM_FORMAT', fallback='detailed')
+        
+        # Advanced settings
+        self.max_events_per_check = self._get_val_int('Advanced', 'max_events_per_check', env_name='NUKI_MAX_EVENTS_PER_CHECK', fallback=5)
+        self.max_historical_events = self._get_val_int('Advanced', 'max_historical_events', env_name='NUKI_MAX_HISTORICAL_EVENTS', fallback=20)
+        self.debug_mode = self._get_val_bool('Advanced', 'debug_mode', env_name='NUKI_DEBUG_MODE', fallback=False)
+        self.user_cache_timeout = self._get_val_int('Advanced', 'user_cache_timeout', env_name='NUKI_USER_CACHE_TIMEOUT', fallback=3600)
+        self.retry_on_failure = self._get_val_bool('Advanced', 'retry_on_failure', env_name='NUKI_RETRY_ON_FAILURE', fallback=True)
+        self.max_retries = self._get_val_int('Advanced', 'max_retries', env_name='NUKI_MAX_RETRIES', fallback=3)
+        self.retry_delay = self._get_val_int('Advanced', 'retry_delay', env_name='NUKI_RETRY_DELAY', fallback=5)
+        
+        # Set debug logging if enabled
+        if self.debug_mode:
+            logger.setLevel(logging.DEBUG)
+            logger.debug("Debug logging enabled")
+
+    @property
+    def is_configured(self):
+        """Check if the system has been configured with essential settings"""
+        return bool(self.api_token)
+
+    def reload(self):
+        """Reload configuration and credentials from disk and re-initialize settings"""
+        logger.info("Reloading configuration files and settings")
+        try:
+            self.config = self._load_config()
+            self.credentials = self._load_credentials()
+            self._init_settings()
+            return True
+        except (PermissionError, IOError) as e:
+            logger.critical(f"❌ CRITICAL: Permission error reloading configuration: {e}")
+            return False
+
+    def _get_val(self, section, key, env_name=None, is_credential=False, fallback=None):
         """Get a value with environment variable prioritization"""
         if env_name and os.environ.get(env_name):
             return os.environ.get(env_name)
@@ -283,7 +205,7 @@ class ConfigManager:
     
     def _load_config(self):
         """Load the main configuration file"""
-        config = configparser.ConfigParser()
+        config = configparser.ConfigParser(interpolation=None)
         
         try:
             if os.path.exists(self.config_path):
@@ -308,7 +230,7 @@ class ConfigManager:
         
     def _load_credentials(self):
         """Load the credentials file"""
-        credentials = configparser.ConfigParser()
+        credentials = configparser.ConfigParser(interpolation=None)
         
         try:
             if os.path.exists(self.credentials_path):
@@ -414,34 +336,3 @@ class ConfigManager:
         
         credentials.add_section('Telegram')
         credentials.set('Telegram', 'bot_token', '')
-    
-    @property
-    def is_configured(self):
-        """Check if the system has been configured with essential settings"""
-        return bool(self.api_token)
-
-            def reload(self):
-
-                """Reload configuration and credentials from disk and re-initialize settings"""
-
-                logger.info("Reloading configuration files and settings")
-
-                try:
-
-                    self.config = self._load_config()
-
-                    self.credentials = self._load_credentials()
-
-                    self._init_settings()
-
-                    return True
-
-                except (PermissionError, IOError) as e:
-
-                    logger.critical(f"❌ CRITICAL: Permission error reloading configuration: {e}")
-
-                    return False
-
-        
-
-    

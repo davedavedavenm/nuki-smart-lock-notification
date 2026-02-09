@@ -5,6 +5,10 @@ import json
 import time
 import logging
 from datetime import datetime, timedelta
+
+# Enable lenient mode for web interface to allow setup wizard
+os.environ["ALLOW_MISSING_TOKEN"] = "true"
+
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -646,6 +650,7 @@ def get_config():
 @admin_required
 def update_config():
     """API endpoint to update configuration"""
+    global config, api
     try:
         # Get current config file path
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -669,14 +674,32 @@ def update_config():
         # Get data from request
         data = request.json
         
+        success_count = 0
+        error_count = 0
+        
+        # Handle Nuki API Token separately (credentials.ini)
+        if 'nuki' in data and 'api_token' in data['nuki'] and data['nuki']['api_token']:
+            try:
+                if not config.credentials.has_section('Nuki'):
+                    config.credentials.add_section('Nuki')
+                config.credentials.set('Nuki', 'api_token', data['nuki']['api_token'])
+                config._save_config(config.credentials, config.credentials_path)
+                logger.info("Successfully updated Nuki API token in credentials.ini")
+                success_count += 1
+            except Exception as nuki_error:
+                logger.error(f"Error updating Nuki API token: {nuki_error}")
+                error_count += 1
+
+        # Remove nuki from data so it's not processed by the standard loop (which targets config.ini)
+        if 'nuki' in data:
+            del data['nuki']
+
         # Validate notification type to ensure it's not empty
         if 'general' in data and 'notification_type' in data['general']:
             if not data['general']['notification_type']:
                 data['general']['notification_type'] = 'both'
         
         # Update configuration
-        success_count = 0
-        error_count = 0
         for section, options in data.items():
             for option, value in options.items():
                 # Convert boolean values to strings
@@ -697,7 +720,6 @@ def update_config():
             logger.info(f"Configuration update completed successfully with {success_count} changes")
         
         # Reload configuration
-        global config, api
         config = ConfigManager(parent_dir)
         api = NukiAPI(config)
         
