@@ -66,37 +66,24 @@ A comprehensive notification system for Nuki Smart Lock 4th Generation using a R
    cd nuki-smart-lock-notification
    ```
 
-2. Copy example configuration files:
+2. (Optional) Configure via Environment Variables:
    ```bash
-   cp config/config.ini.example config/config.ini
-   cp config/credentials.ini.example config/credentials.ini
+   cp .env.example .env
+   nano .env
    ```
 
-3. Edit configuration files with your settings:
+3. Set up proper directory permissions:
    ```bash
-   nano config/config.ini
-   nano config/credentials.ini
+   mkdir -p config logs data flask_session
+   chmod -R 775 logs data config flask_session
    ```
 
-4. Set up proper directory permissions for Docker bind mounts:
-   ```bash
-   # Create directories if they don't exist
-   mkdir -p config logs data
-
-   # Set directory permissions (Linux/macOS only)
-   chmod 777 config
-   chmod -R 777 logs data
-   
-   # Set config file permissions (if they exist)
-   chmod 644 config/*.ini
-   ```
-
-5. Build and start Docker containers:
+4. Build and start Docker containers:
    ```bash
    docker compose up -d
    ```
 
-6. Access the web interface at `http://your-pi-ip:5000`
+5. Access the web interface at `http://your-pi-ip:5000`. If it's a first-time installation, you will be automatically redirected to the **Setup Wizard**.
 
 ## Directory Structure
 

@@ -66,39 +66,42 @@ Follow the workflow below for manual deployment and management.
 ## First-time Setup
 
 On first launch, the system will:
-1. Create default configuration files if none exist
-2. Set up necessary directories for persistence
-3. Initialize with default admin credentials (admin/nukiadmin)
-4. Start all required services
+1. Detect if a configuration exists.
+2. If not configured, the Web Interface will guide you through a **Setup Wizard** to enter your Nuki, Telegram, and Email credentials.
+3. Securely save these credentials to the persistent `data/` and `config/` directories.
 
-After deploying, configure your system by accessing:
-```
-http://localhost:5000 (or http://your-device-ip:5000)
-```
+Alternatively, you can configure the system using environment variables:
+
+1. Copy the `.env.example` file to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+2. Edit `.env` with your specific tokens and settings.
+3. Start the containers; they will automatically prioritize these variables.
 
 ## Bind Mount Permissions
 
-The system uses bind mounts to persist data between container restarts. Since the application runs as a non-root user inside the container, you may need to set appropriate permissions on the host directories:
+The system uses bind mounts to persist data. Since the application runs as a non-root user (`nuki`, UID 999), ensure the host directories are writable:
 
 ```bash
-# Create directories if they don't exist
-mkdir -p config logs data
+# Create directories
+mkdir -p config logs data flask_session
 
-# Set permissions to allow the non-root container user to write
-chmod -R 777 logs data
+# Set permissions (Linux/macOS)
+chmod -R 775 config logs data flask_session
+sudo chown -R 999:999 config logs data flask_session
 ```
-
-If you encounter permission errors, see the TROUBLESHOOTING.md file for more detailed solutions.
 
 ## Volume Management and Data Persistence
 
-The Docker setup uses bind mounts to ensure your data persists between container restarts:
+The Docker setup uses standardized paths for persistent data:
 
 ```yaml
 volumes:
-  - ./config:/app/config  # Stores configuration files
-  - ./logs:/app/logs      # Stores application logs
-  - ./data:/app/data      # Stores user data and history
+  - ./config:/app/config  # Read-only configuration (config.ini)
+  - ./data:/app/data      # Persistent state (users.json, activity history)
+  - ./logs:/app/logs      # Application logs
+  - ./flask_session:/app/flask_session # Persistent web sessions
 ```
 
 ### Backup and Restore

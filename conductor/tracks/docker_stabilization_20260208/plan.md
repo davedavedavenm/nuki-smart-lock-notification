@@ -31,9 +31,18 @@
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Volume & Persistence Stabilization' (Protocol in workflow.md)
 
 ## Phase 4: Final Verification & Documentation
-- [ ] Task: Run End-to-End Containerized System Test
+- [~] Task: Run End-to-End Containerized System Test
     - [ ] Verify web dashboard accessibility
     - [ ] Verify notification delivery from monitor container
-- [ ] Task: Update Deployment Documentation
+- [x] Task: Update Deployment Documentation [commit: docs_updated]
     - [ ] Update 'README.md' and 'DOCKER_GUIDE.md' with refined instructions
 - [ ] Task: Conductor - User Manual Verification 'Phase 4: Final Verification & Documentation' (Protocol in workflow.md)
+
+## Phase 5: User-Friendly Setup Wizard
+- [ ] Task: Implement Setup Detection and Redirect
+    - [ ] Add 'is_configured' check to ConfigManager
+    - [ ] Implement middleware to redirect to /setup if not configured
+- [ ] Task: Create Web-Based Setup Wizard
+    - [ ] Create 'web/templates/setup.html' with step-by-step UI
+    - [ ] Implement API endpoints to save Nuki, Telegram, and Email credentials
+- [ ] Task: Conductor - User Manual Verification 'Phase 5: User-Friendly Setup Wizard' (Protocol in workflow.md)
