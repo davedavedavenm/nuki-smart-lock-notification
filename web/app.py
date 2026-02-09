@@ -70,6 +70,17 @@ Session(app)
 def make_session_permanent():
     session.permanent = True
 
+# Check if setup is needed
+@app.before_request
+def check_setup():
+    # Allow access to setup page, setup API, and static files
+    if request.endpoint in ['setup', 'api_setup', 'static', 'health']:
+        return
+    
+    # If not configured, redirect to setup
+    if not config.is_configured:
+        return redirect(url_for('setup'))
+
 # Initialize dark mode as default
 init_app(app)
 
@@ -127,6 +138,14 @@ def agent_access_required(f):
 def index():
     """Dashboard home page"""
     return render_template('index.html')
+
+@app.route('/setup')
+def setup():
+    """First-time setup wizard page"""
+    # If already configured, redirect to index
+    if config.is_configured:
+        return redirect(url_for('index'))
+    return render_template('setup.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -700,6 +719,72 @@ def update_config():
         except Exception as restore_error:
             logger.error(f"Failed to restore backup: {restore_error}")
             
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/setup', methods=['POST'])
+def api_setup():
+    """API endpoint for initial system setup"""
+    # If already configured, prevent further setup via this endpoint
+    if config.is_configured:
+        return jsonify({"error": "System is already configured"}), 403
+        
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+        
+    try:
+        # Update Nuki API Token
+        if 'nuki_token' in data and data['nuki_token']:
+            if not config.credentials.has_section('Nuki'):
+                config.credentials.add_section('Nuki')
+            config.credentials.set('Nuki', 'api_token', data['nuki_token'])
+            
+        # Update Telegram Settings
+        if 'telegram_bot_token' in data and data['telegram_bot_token']:
+            if not config.credentials.has_section('Telegram'):
+                config.credentials.add_section('Telegram')
+            config.credentials.set('Telegram', 'bot_token', data['telegram_bot_token'])
+        if 'telegram_chat_id' in data and data['telegram_chat_id']:
+            if not config.config.has_section('Telegram'):
+                config.config.add_section('Telegram')
+            config.config.set('Telegram', 'chat_id', data['telegram_chat_id'])
+            
+        # Update Email Settings
+        if 'email_username' in data and data['email_username']:
+            if not config.credentials.has_section('Email'):
+                config.credentials.add_section('Email')
+            config.credentials.set('Email', 'username', data['email_username'])
+        if 'email_password' in data and data['email_password']:
+            if not config.credentials.has_section('Email'):
+                config.credentials.add_section('Email')
+            config.credentials.set('Email', 'password', data['email_password'])
+        if 'email_smtp_server' in data and data['email_smtp_server']:
+            if not config.config.has_section('Email'):
+                config.config.add_section('Email')
+            config.config.set('Email', 'smtp_server', data['email_smtp_server'])
+        if 'email_smtp_port' in data and data['email_smtp_port']:
+            if not config.config.has_section('Email'):
+                config.config.add_section('Email')
+            config.config.set('Email', 'smtp_port', str(data['email_smtp_port']))
+        if 'email_sender' in data and data['email_sender']:
+            if not config.config.has_section('Email'):
+                config.config.add_section('Email')
+            config.config.set('Email', 'sender', data['email_sender'])
+        if 'email_recipient' in data and data['email_recipient']:
+            if not config.config.has_section('Email'):
+                config.config.add_section('Email')
+            config.config.set('Email', 'recipient', data['email_recipient'])
+            
+        # Save both files
+        config._save_config(config.config, config.config_path)
+        config._save_config(config.credentials, config.credentials_path)
+        
+        # Reload configuration to apply changes
+        config.reload()
+        
+        return jsonify({"success": True, "message": "Configuration saved successfully"})
+    except Exception as e:
+        logger.error(f"Error during setup: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/stats')

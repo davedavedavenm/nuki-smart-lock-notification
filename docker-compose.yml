@@ -18,6 +18,7 @@ services:
       - DEBUG=false
       - DEFAULT_THEME=dark
       - SECRET_KEY=${SECRET_KEY:-nuki-smart-lock-dashboard-fixed-key}
+      - ALLOW_MISSING_TOKEN=true
     networks:
       - nuki-network
     healthcheck:

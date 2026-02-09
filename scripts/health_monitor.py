@@ -247,6 +247,12 @@ def main():
     # Exit with appropriate code based on status
     if status.get("status") == "healthy":
         sys.exit(0)  # Success
+    elif status.get("status") == "error" and status.get("message") == "No API token found in credentials.ini":
+        if os.environ.get("ALLOW_MISSING_TOKEN", "false").lower() == "true":
+            logger.info("Allowing missing token for health check (ALLOW_MISSING_TOKEN=true)")
+            sys.exit(0)
+        else:
+            sys.exit(2)
     elif status.get("status") == "warning":
         sys.exit(1)  # Warning
     else:

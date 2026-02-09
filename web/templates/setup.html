@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Initial Setup - Nuki Smart Lock{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-magic me-2"></i>Welcome to Nuki Monitor Setup</h4>
+            </div>
+            <div class="card-body p-4">
+                <div id="setupWizard">
+                    <!-- Progress Bar -->
+                    <div class="progress mb-4" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 25%;" id="setupProgress">
+                            Step 1: Nuki API
+                        </div>
+                    </div>
+
+                    <!-- Step 1: Nuki API -->
+                    <div class="setup-step" id="step1">
+                        <h5>Step 1: Connect to Nuki Web API</h5>
+                        <p class="text-muted">To monitor your lock, we need a Nuki Web API token.</p>
+                        <ol class="small text-muted">
+                            <li>Log in to the <a href="https://web.nuki.io/" target="_blank">Nuki Web Dashboard</a>.</li>
+                            <li>Go to <strong>Settings > API</strong>.</li>
+                            <li>Generate a new API token with "View" permissions for Smartlocks and Activity logs.</li>
+                        </ol>
+                        <div class="mb-3">
+                            <label for="nukiToken" class="form-label">Nuki API Token</label>
+                            <input type="password" class="form-control" id="nukiToken" placeholder="Enter your Nuki API token">
+                        </div>
+                        <div class="d-flex justify-content-end">
+                            <button class="btn btn-primary next-step" data-next="2">Next: Telegram <i class="fas fa-arrow-right ms-1"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Telegram -->
+                    <div class="setup-step d-none" id="step2">
+                        <h5>Step 2: Telegram Notifications (Optional)</h5>
+                        <p class="text-muted">Get instant alerts on your phone via Telegram.</p>
+                        <div class="mb-3">
+                            <label for="telegramToken" class="form-label">Telegram Bot Token</label>
+                            <input type="password" class="form-control" id="telegramToken" placeholder="e.g., 123456789:ABCdef...">
+                        </div>
+                        <div class="mb-3">
+                            <label for="telegramChatId" class="form-label">Telegram Chat ID</label>
+                            <input type="text" class="form-control" id="telegramChatId" placeholder="e.g., 987654321">
+                            <div class="form-text">Tip: You can use @userinfobot or similar to find your Chat ID.</div>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <button class="btn btn-outline-secondary prev-step" data-prev="1"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                            <button class="btn btn-primary next-step" data-next="3">Next: Email <i class="fas fa-arrow-right ms-1"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Email -->
+                    <div class="setup-step d-none" id="step3">
+                        <h5>Step 3: Email Alerts (Optional)</h5>
+                        <p class="text-muted">Configure SMTP settings for email notifications.</p>
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <label for="emailSmtp" class="form-label">SMTP Server</label>
+                                <input type="text" class="form-control" id="emailSmtp" placeholder="smtp.gmail.com">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="emailPort" class="form-label">Port</label>
+                                <input type="number" class="form-control" id="emailPort" value="587">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="emailUser" class="form-label">Email / Username</label>
+                            <input type="email" class="form-control" id="emailUser">
+                        </div>
+                        <div class="mb-3">
+                            <label for="emailPass" class="form-label">App Password</label>
+                            <input type="password" class="form-control" id="emailPass">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="emailSender" class="form-label">Sender Address</label>
+                                <input type="email" class="form-control" id="emailSender">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="emailRecipient" class="form-label">Recipient Address</label>
+                                <input type="email" class="form-control" id="emailRecipient">
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <button class="btn btn-outline-secondary prev-step" data-prev="2"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                            <button class="btn btn-primary next-step" data-next="4">Review & Finish <i class="fas fa-check ms-1"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Finish -->
+                    <div class="setup-step d-none" id="step4">
+                        <h5>Step 4: Finalize Configuration</h5>
+                        <p>We are ready to save your configuration and start monitoring.</p>
+                        <div class="alert alert-warning small">
+                            <i class="fas fa-info-circle me-2"></i>
+                            The system will reload once you click "Complete Setup".
+                        </div>
+                        <div class="d-flex justify-content-between mt-4">
+                            <button class="btn btn-outline-secondary prev-step" data-prev="3"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                            <button class="btn btn-success" id="finishBtn">Complete Setup <i class="fas fa-rocket ms-1"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Navigation Logic
+    $('.next-step').click(function() {
+        const next = $(this).data('next');
+        showStep(next);
+    });
+
+    $('.prev-step').click(function() {
+        const prev = $(this).data('prev');
+        showStep(prev);
+    });
+
+    function showStep(step) {
+        $('.setup-step').addClass('d-none');
+        $(`#step${step}`).removeClass('d-none');
+        
+        // Update Progress Bar
+        const percent = (step / 4) * 100;
+        let text = "";
+        switch(step) {
+            case 1: text = "Step 1: Nuki API"; break;
+            case 2: text = "Step 2: Telegram"; break;
+            case 3: text = "Step 3: Email"; break;
+            case 4: text = "Step 4: Finish"; break;
+        }
+        $('#setupProgress').css('width', percent + '%').text(text);
+    }
+
+    // Finish Logic
+    $('#finishBtn').click(function() {
+        $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Saving...');
+        
+        const setupData = {
+            nuki_token: $('#nukiToken').val(),
+            telegram_bot_token: $('#telegramToken').val(),
+            telegram_chat_id: $('#telegramChatId').val(),
+            email_smtp_server: $('#emailSmtp').val(),
+            email_smtp_port: $('#emailPort').val(),
+            email_username: $('#emailUser').val(),
+            email_password: $('#emailPass').val(),
+            email_sender: $('#emailSender').val(),
+            email_recipient: $('#emailRecipient').val()
+        };
+
+        $.ajax({
+            url: '/api/setup',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(setupData),
+            success: function(response) {
+                alert('Setup complete! Redirecting to dashboard...');
+                window.location.href = '/';
+            },
+            error: function(xhr) {
+                alert('Error saving setup: ' + (xhr.responseJSON?.error || 'Unknown error'));
+                $('#finishBtn').prop('disabled', false).html('Complete Setup <i class="fas fa-rocket ms-1"></i>');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

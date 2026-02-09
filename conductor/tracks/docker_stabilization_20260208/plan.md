@@ -39,10 +39,10 @@
 - [ ] Task: Conductor - User Manual Verification 'Phase 4: Final Verification & Documentation' (Protocol in workflow.md)
 
 ## Phase 5: User-Friendly Setup Wizard
-- [ ] Task: Implement Setup Detection and Redirect
-    - [ ] Add 'is_configured' check to ConfigManager
-    - [ ] Implement middleware to redirect to /setup if not configured
-- [ ] Task: Create Web-Based Setup Wizard
-    - [ ] Create 'web/templates/setup.html' with step-by-step UI
-    - [ ] Implement API endpoints to save Nuki, Telegram, and Email credentials
+- [x] Task: Implement Setup Detection and Redirect [commit: setup_logic]
+    - [x] Add 'is_configured' check to ConfigManager
+    - [x] Implement middleware to redirect to /setup if not configured
+- [x] Task: Create Web-Based Setup Wizard [commit: setup_wizard]
+    - [x] Create 'web/templates/setup.html' with step-by-step UI
+    - [x] Implement API endpoints to save Nuki, Telegram, and Email credentials
 - [ ] Task: Conductor - User Manual Verification 'Phase 5: User-Friendly Setup Wizard' (Protocol in workflow.md)
