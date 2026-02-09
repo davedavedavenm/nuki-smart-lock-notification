@@ -468,11 +468,15 @@ def get_status():
             
             # Get current state
             state = lock.get('state', {})
-            state_name = state.get('stateName', 'Unknown')
+            state_name = state.get('stateName')
+            if not state_name:
+                state_code = state.get('state')
+                state_name = api.get_status_description(state_code)
             
             # Get battery info
             battery_critical = state.get('batteryCritical', False)
             battery_charging = state.get('batteryCharging', False)
+            battery_charge = state.get('batteryCharge', 0)
             
             # Create status object
             status = {
@@ -481,6 +485,7 @@ def get_status():
                 'state': state_name,
                 'battery_critical': battery_critical,
                 'battery_charging': battery_charging,
+                'battery_charge': battery_charge,
                 'last_activity': None,
                 'last_user': None
             }
@@ -600,8 +605,27 @@ def config_page():
 def get_config():
     """API endpoint to get configuration"""
     try:
+        # Mask API token for security but allow identifying it
+        token = config.api_token
+        masked_token = ""
+        if token:
+            if len(token) > 10:
+                masked_token = f"{token[:5]}...{token[-5:]}"
+            else:
+                masked_token = "********"
+
+        # Mask sensitive fields
+        email_pass = "********" if config.email_password else ""
+        telegram_token = ""
+        if config.telegram_bot_token:
+            token = config.telegram_bot_token
+            telegram_token = f"{token[:5]}...{token[-5:]}" if len(token) > 10 else "********"
+
         # Get configuration
         config_data = {
+            'nuki': {
+                'api_token': masked_token
+            },
             'general': {
                 'notification_type': config.notification_type,
                 'polling_interval': config.polling_interval
@@ -618,6 +642,8 @@ def get_config():
                 'excluded_triggers': config.excluded_triggers
             },
             'email': {
+                'username': config.email_username,
+                'password': email_pass,
                 'smtp_server': config.smtp_server,
                 'smtp_port': config.smtp_port,
                 'sender': config.email_sender,
@@ -626,6 +652,7 @@ def get_config():
                 'subject_prefix': config.email_subject_prefix
             },
             'telegram': {
+                'bot_token': telegram_token,
                 'chat_id': config.telegram_chat_id,
                 'use_emoji': config.telegram_use_emoji,
                 'format': config.telegram_format
@@ -678,29 +705,70 @@ def update_config():
         error_count = 0
         
         # Handle Nuki API Token separately (credentials.ini)
-        if 'nuki' in data and 'api_token' in data['nuki'] and data['nuki']['api_token']:
+        if 'nuki' in data and 'api_token' in data['nuki'] and data['nuki']['api_token'] and not data['nuki']['api_token'].startswith('***'):
             try:
                 if not config.credentials.has_section('Nuki'):
                     config.credentials.add_section('Nuki')
                 config.credentials.set('Nuki', 'api_token', data['nuki']['api_token'])
-                config._save_config(config.credentials, config.credentials_path)
-                logger.info("Successfully updated Nuki API token in credentials.ini")
+                logger.info("Queued Nuki API token update")
                 success_count += 1
             except Exception as nuki_error:
                 logger.error(f"Error updating Nuki API token: {nuki_error}")
                 error_count += 1
 
-        # Remove nuki from data so it's not processed by the standard loop (which targets config.ini)
-        if 'nuki' in data:
-            del data['nuki']
+        # Handle Email Credentials
+        if 'email' in data:
+            try:
+                if not config.credentials.has_section('Email'):
+                    config.credentials.add_section('Email')
+                if 'username' in data['email'] and data['email']['username']:
+                    config.credentials.set('Email', 'username', data['email']['username'])
+                if 'password' in data['email'] and data['email']['password'] and not data['email']['password'].startswith('***'):
+                    config.credentials.set('Email', 'password', data['email']['password'])
+                success_count += 1
+            except Exception as e:
+                logger.error(f"Error updating email credentials: {e}")
+                error_count += 1
+
+        # Handle Telegram Credentials
+        if 'telegram' in data:
+            try:
+                if not config.credentials.has_section('Telegram'):
+                    config.credentials.add_section('Telegram')
+                if 'bot_token' in data['telegram'] and data['telegram']['bot_token'] and not data['telegram']['bot_token'].startswith('***'):
+                    config.credentials.set('Telegram', 'bot_token', data['telegram']['bot_token'])
+                success_count += 1
+            except Exception as e:
+                logger.error(f"Error updating telegram credentials: {e}")
+                error_count += 1
+
+        # Save credentials.ini if any credential changes were made
+        try:
+            config._save_config(config.credentials, config.credentials_path)
+            logger.info("Successfully updated credentials.ini")
+        except Exception as e:
+            logger.error(f"Failed to save credentials.ini: {e}")
+            error_count += 1
+
+        # Remove sensitive sections from data so they aren't processed by the standard loop
+        if 'nuki' in data: del data['nuki']
+        # Special case: keep non-sensitive parts of email/telegram for standard loop
+        standard_data = data.copy()
+        if 'email' in standard_data:
+            if 'username' in standard_data['email']: del standard_data['email']['username']
+            if 'password' in standard_data['email']: del standard_data['email']['password']
+        if 'telegram' in standard_data:
+            if 'bot_token' in standard_data['telegram']: del standard_data['telegram']['bot_token']
+        
+        # ... validation ...
 
         # Validate notification type to ensure it's not empty
         if 'general' in data and 'notification_type' in data['general']:
             if not data['general']['notification_type']:
                 data['general']['notification_type'] = 'both'
         
-        # Update configuration
-        for section, options in data.items():
+        # Update standard configuration
+        for section, options in standard_data.items():
             for option, value in options.items():
                 # Convert boolean values to strings
                 if isinstance(value, bool):

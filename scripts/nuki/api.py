@@ -27,6 +27,19 @@ class NukiAPI:
             6: "Auto Lock",
             7: "Time Control"
         }
+
+        self.status_map = {
+            0: "Uncalibrated",
+            1: "Locked",
+            2: "Unlocking",
+            3: "Unlocked",
+            4: "Locking",
+            5: "Unlatched",
+            6: "Unlocked (lock 'n' go)",
+            7: "Unlatching",
+            254: "Motor Blocked",
+            255: "Undefined"
+        }
         
         # Initialize user cache
         self.user_cache = {}
@@ -145,6 +158,12 @@ class NukiAPI:
         if trigger in self.trigger_map:
             return self.trigger_map[trigger]
         return "Unknown Trigger"
+
+    def get_status_description(self, status_code):
+        """Get human-readable description of the lock status"""
+        if status_code in self.status_map:
+            return self.status_map[status_code]
+        return "Unknown Status"
     
     def get_smartlocks(self):
         """Get all smartlocks associated with the account"""
