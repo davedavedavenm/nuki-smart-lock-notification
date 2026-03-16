@@ -46,3 +46,10 @@ backups/
 # System files
 .DS_Store
 Thumbs.db
+
+# Flask sessions
+flask_session/
+
+# Runtime data (may contain sensitive info)
+data/last_activity.json
+data/users.json
