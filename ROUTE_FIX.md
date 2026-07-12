@@ -38,7 +38,9 @@ This will ensure that the templates use `users_manage`, which matches the route 
 1. Update the script locally:
    ```bash
    # Edit fix-template.sh
-   cd C:\Users\Dave\OneDrive\Claude\NukiAppProject\consolidated_code
+   # Nextcloud Migration Target: cd D:\Nextcloud\Claude\NukiAppProject\consolidated_code
+   # Legacy OneDrive path: cd C:\Users\Dave\OneDrive\Claude\NukiAppProject\consolidated_code
+   cd D:\Nextcloud\Claude\NukiAppProject\consolidated_code
    git add fix-template.sh
    git commit -m "Fix route mismatch in template script"
    git push origin main

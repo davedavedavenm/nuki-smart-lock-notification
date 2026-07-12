@@ -32,7 +32,9 @@ Fixed a URL routing issue with the users_manage endpoint:
 
 1. For local development:
 ```bash
-cd C:\Users\Dave\OneDrive\Claude\NukiAppProject\consolidated_code
+# Nextcloud Migration Target: cd D:\Nextcloud\Claude\NukiAppProject\consolidated_code
+# Legacy OneDrive path: cd C:\Users\Dave\OneDrive\Claude\NukiAppProject\consolidated_code
+cd D:\Nextcloud\Claude\NukiAppProject\consolidated_code
 git add web/app.py
 git add web/static/css/dark-mode.css
 git add FIXES.md

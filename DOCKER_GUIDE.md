@@ -10,7 +10,7 @@ A simplified deployment script that handles all setup automatically.
 ### Option 2: Manual Deployment
 Follow the workflow below for manual deployment and management.
 
-1. Update files in the local OneDrive folder
+1. Update files in the local Nextcloud folder (Nextcloud Migration: Local path transitions from `C:\Users\Dave\OneDrive\` to `D:\Nextcloud\`, keeping OneDrive references as legacy options)
 2. Push changes to GitHub
 3. Pull changes on the Raspberry Pi
 4. Run the transition or update script
