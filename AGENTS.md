@@ -2,6 +2,10 @@
 
 Notification and dashboard system for Nuki Smart Lock events, with email/Telegram notification paths and optional Docker deployment.
 
+Read [DECISIONS.md](DECISIONS.md) before starting work — settled, closed
+questions (standalone-by-design, live lock safety). Check before proposing
+to change or redo something.
+
 ## Scope
 
 - Python app, web UI, Docker files, install scripts, tests, and docs for Nuki monitoring.
