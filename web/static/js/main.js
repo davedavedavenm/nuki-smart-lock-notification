@@ -28,7 +28,7 @@ function initializeTooltips() {
 // Set current year in footer
 function setFooterYear() {
     const currentYear = new Date().getFullYear();
-    $('.footer .text-muted').text(`Nuki Smart Lock Dashboard © ${currentYear}`);
+    $('.nk-footer-text .nk-footer-year').text(currentYear);
 }
 
 // Set up mobile navigation
@@ -47,9 +47,7 @@ function setupThemeToggle() {
         // Get current theme
         const currentTheme = $('body').hasClass('dark-theme') ? 'dark' : 'light';
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        
-        console.log("Theme toggle clicked, changing from", currentTheme, "to", newTheme);
-        
+
         // Update theme via AJAX
         $.ajax({
             url: '/api/theme',
@@ -58,13 +56,11 @@ function setupThemeToggle() {
             data: JSON.stringify({
                 theme: newTheme
             }),
-            success: function(response) {
-                console.log("Theme updated successfully:", response);
+            success: function() {
                 // Reload page to apply new theme
                 location.reload();
             },
             error: function(xhr, status, error) {
-                console.error('Error updating theme:', error);
                 alert('Failed to update theme preference: ' + error);
             }
         });
@@ -75,6 +71,32 @@ function setupThemeToggle() {
 function formatDateTime(dateStr) {
     const date = new Date(dateStr);
     return date.toLocaleString();
+}
+
+// ---------------------------------------------------------------------------
+// Lock state helpers (shared by dashboard, status, activity and users pages)
+// ---------------------------------------------------------------------------
+
+// True for events that leave the lock SECURE: "Lock", "Lock 'n' Go", "Full Lock".
+// "Unlock", "Lock 'n' Go with unlatch" and "Unlatch" are NOT lock events.
+function nkIsLockEvent(name) {
+    const a = (name || '').toLowerCase();
+    return a.includes('lock') && !a.includes('unlock') && !a.includes('unlatch');
+}
+
+// True when a device STATE means secured (case-insensitive: "Locked").
+function nkIsLockedState(state) {
+    return (state || '').trim().toLowerCase() === 'locked';
+}
+
+// Icon class for an action/state: closed shackle when secured, open otherwise.
+function nkLockIcon(isLocked) {
+    return isLocked ? 'lock' : 'lock-open';
+}
+
+// Colour class: green when secured, red when not.
+function nkLockColor(isLocked) {
+    return isLocked ? 'text-success' : 'text-danger';
 }
 
 // Format date only

@@ -1,68 +1,69 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Single-container entrypoint: permission checks, config bootstrap,
+# then run the monitor loop (background) + gunicorn web UI (foreground).
 set -e
 
-echo "Starting Nuki Monitor..."
+CONFIG_DIR="${CONFIG_DIR:-/app/config}"
+LOGS_DIR="${LOGS_DIR:-/app/logs}"
 
-# Directly check critical permissions before running comprehensive checks
-echo "Performing initial permission checks..."
+echo "[entrypoint] Starting Nuki Smart Lock Notification (single container)"
 
-# Test if credentials.ini is readable
-if [ -f "/app/config/credentials.ini" ] && ! [ -r "/app/config/credentials.ini" ]; then
-    echo "❌ CRITICAL ERROR: Cannot read /app/config/credentials.ini"
-    echo "The container user 'nuki' doesn't have read permissions for this file."
-    echo "Run: chmod 644 config/credentials.ini on your host system."
-    echo "See DOCKER_SETUP.md for detailed instructions on setting the correct permissions."
+# --- Permission sanity checks (fail fast with actionable messages) ---
+if [ -f "$CONFIG_DIR/credentials.ini" ] && ! [ -r "$CONFIG_DIR/credentials.ini" ]; then
+    echo "[entrypoint] ERROR: cannot read $CONFIG_DIR/credentials.ini"
+    echo "[entrypoint] Fix on the host: chmod 644 config/credentials.ini (and ensure UID/GID match)"
+    exit 1
+fi
+if ! [ -w "$LOGS_DIR" ]; then
+    echo "[entrypoint] ERROR: $LOGS_DIR is not writable by the container user"
+    echo "[entrypoint] Fix on the host: chown -R 999:999 logs data config flask_session"
+    exit 1
+fi
+if ! [ -w "$CONFIG_DIR" ]; then
+    echo "[entrypoint] ERROR: $CONFIG_DIR is not writable by the container user"
+    echo "[entrypoint] Fix on the host: chown -R 999:999 config"
     exit 1
 fi
 
-# Test if logs directory is writable
-if ! [ -w "/app/logs" ]; then
-    echo "❌ CRITICAL ERROR: Cannot write to /app/logs directory"
-    echo "The container user 'nuki' doesn't have write permissions for this directory."
-    echo "Run: chmod -R 777 logs on your host system."
-    echo "See DOCKER_SETUP.md for detailed instructions on setting the correct permissions."
-    exit 1
-fi
-
-# Test if config directory is writable (for users.json)
-if ! [ -w "/app/config" ]; then
-    echo "❌ CRITICAL ERROR: Cannot write to /app/config directory"
-    echo "The container user 'nuki' doesn't have write permissions for this directory."
-    echo "Run: chmod 777 config on your host system."
-    echo "See DOCKER_SETUP.md for detailed instructions on setting the correct permissions."
-    exit 1
-fi
-
-# Run comprehensive permission checks
-echo "Checking filesystem permissions..."
-python /app/scripts/check_permissions.py
-if [ $? -ne 0 ]; then
-    echo "❌ ERROR: Permission checks failed. Please fix the permissions and try again."
-    echo "See DOCKER_SETUP.md for detailed instructions on setting the correct permissions."
-    exit 1
-fi
-echo "✅ Permission checks passed"
-
-# Ensure configuration files exist
+# --- Ensure configuration files exist (creates examples if missing) ---
 python /app/scripts/ensure_config.py
-echo "✅ Configuration files verified"
+echo "[entrypoint] Configuration verified"
 
-# Check API health before starting, but don't fail if it doesn't work yet
-echo "Checking Nuki API connection health..."
-python /app/scripts/health_monitor.py || true
-API_STATUS=$?
-
-if [ $API_STATUS -eq 0 ]; then
-    echo "✅ API connection is healthy"
-elif [ $API_STATUS -eq 1 ]; then
-    echo "⚠️ API connection has warnings but will continue"
-else
-    echo "⚠️ API connection status check did not succeed, but we'll continue anyway"
-    echo "This could be due to missing or invalid credentials."
-    echo "Please check config/credentials.ini and make sure it has valid API tokens."
-    echo "The system will still start up, but won't function correctly until credentials are fixed."
+# --- SECRET_KEY: never ship a fixed default ---
+if [ -z "$SECRET_KEY" ]; then
+    SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+    export SECRET_KEY
+    echo "[entrypoint] WARNING: SECRET_KEY not set; generated a random ephemeral key."
+    echo "[entrypoint]          Web sessions will not survive container restarts."
+    echo "[entrypoint]          Set SECRET_KEY in .env for persistent sessions."
 fi
 
-# Start the main application
-echo "Starting Nuki Monitor application..."
-exec "$@"
+# --- Start monitor loop in background ---
+python /app/scripts/nuki_monitor.py &
+MONITOR_PID=$!
+
+shutdown() {
+    echo "[entrypoint] Shutting down..."
+    kill -TERM "$MONITOR_PID" "${WEB_PID:-}" 2>/dev/null || true
+    wait 2>/dev/null || true
+    exit 0
+}
+trap shutdown TERM INT
+
+# --- Start web UI in foreground ---
+GUNICORN_WORKERS="${GUNICORN_WORKERS:-2}"
+gunicorn --bind 0.0.0.0:5000 \
+         --workers "$GUNICORN_WORKERS" \
+         --timeout 60 \
+         --access-logfile - \
+         --error-logfile - \
+         web.app:app &
+WEB_PID=$!
+
+echo "[entrypoint] Monitor (PID $MONITOR_PID) and web UI (PID $WEB_PID) running"
+
+# If either process dies, tear down both so the container restarts cleanly.
+wait -n "$MONITOR_PID" "$WEB_PID"
+STATUS=$?
+echo "[entrypoint] A child process exited (status $STATUS); stopping container"
+shutdown

@@ -12,23 +12,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10"]
-    
+        # 3.11-3.13 are the supported CPython lines as of August 2026
+        python-version: ["3.11", "3.12", "3.13"]
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v7
+
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
-    
+        cache: pip
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        if [ -f requirements-web.txt ]; then pip install -r requirements-web.txt; fi
-        pip install pytest pytest-cov
-    
+        pip install -r requirements-dev.txt
+
+    - name: Scan for committed secrets
+      run: python sanitize_check.py
+
     - name: Test with pytest
-      run: |
-        pytest
+      run: pytest --cov=scripts --cov=web --cov-report=term

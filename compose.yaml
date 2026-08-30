@@ -1,0 +1,44 @@
+# Nuki Smart Lock Notification — single-container deployment (August 2026).
+# One container runs the monitor loop and the web dashboard together.
+# Copy .env.example to .env, fill in your values, then: docker compose up -d
+
+services:
+  nuki:
+    build: .
+    image: nuki-smart-lock-notification:latest
+    container_name: nuki
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${NUKI_WEB_PORT:-5000}:5000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      CONFIG_DIR: /app/config
+      DATA_DIR: /app/data
+      LOGS_DIR: /app/logs
+      SESSION_FILE_DIR: /app/flask_session
+      TZ: ${TZ:-Europe/London}
+      DEBUG: ${DEBUG:-false}
+      DEFAULT_THEME: ${DEFAULT_THEME:-dark}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      # Required for stable web sessions. No insecure default: if unset the
+      # entrypoint generates an ephemeral key at startup.
+      SECRET_KEY: ${SECRET_KEY:-}
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./flask_session:/app/flask_session
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/health',timeout=5).status==200 else 1)"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

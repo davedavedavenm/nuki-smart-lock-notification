@@ -10,11 +10,15 @@ from werkzeug.security import generate_password_hash
 def main():
     parser = argparse.ArgumentParser(description='Reset users database and create admin user')
     parser.add_argument('--base-dir', default='/app', help='Base directory of the application')
-    parser.add_argument('--username', default='admin', help='Admin username')
-    parser.add_argument('--password', default='nukiadmin', help='Admin password')
+    parser.add_argument('--username', required=True, help='Admin username')
+    parser.add_argument('--password', required=True, help='Admin password (no default — choose a strong one)')
+    parser.add_argument('--data-dir', default=None, help='Data directory containing users.json (default: <base-dir>/config)')
     args = parser.parse_args()
-    
-    users_file = os.path.join(args.base_dir, 'config', 'users.json')
+
+    if len(args.password) < 8:
+        parser.error('password must be at least 8 characters')
+
+    users_file = os.path.join(args.data_dir or os.path.join(args.base_dir, 'config'), 'users.json')
     users_dir = os.path.dirname(users_file)
     
     # Create directory if it doesn't exist
@@ -29,7 +33,7 @@ def main():
             'active': True,
             'created_at': datetime.now().isoformat(),
             'last_login': None,
-            'theme': 'light'
+            'theme': 'dark'
         }
     }
     

@@ -37,23 +37,38 @@ Please do not disclose security vulnerabilities publicly until they have been ad
 
 ### Container Security
 
-If using Docker:
-- Containers are configured to run as non-root users
-- Sensitive information is stored in Docker secrets or environment variables
-- Container images are kept updated for security patches
+The Docker deployment (see [DOCKER_GUIDE.md](DOCKER_GUIDE.md)):
+
+- Runs a **single container** as a non-root user (UID/GID 999)
+- Bakes **no secrets into the image** — `.env`, `credentials.ini`, logs,
+  sessions and data are excluded from the build context via `.dockerignore`
+- Requires `SECRET_KEY` to be provided via `.env`; no insecure fixed default
+  exists (an ephemeral key is generated if unset)
+- Publishes only port 5000; front it with an HTTPS reverse proxy if exposed
+- Images are built from `python:3.13-slim` and kept updated
 
 ### User Management
 
-- Passwords are hashed and not stored in plaintext
+- Passwords are hashed and not stored in plaintext (PBKDF2 via Werkzeug)
+- **No default credentials**: a fresh install has no user accounts until you
+  create the first admin in the Setup Wizard; the wizard closes permanently
+  once an account exists (and stays closed if the users file is corrupt —
+  fail closed)
+- **Passkeys (WebAuthn)**: optional phishing-resistant login via
+  fingerprint/face/device PIN, registered per-user from the profile page.
+  Requires a secure context (HTTPS or localhost); passwords remain available
+  as a fallback
 - Proper access controls are implemented for the web interface
-- Session management includes timeouts and secure cookie settings
+- Session management includes timeouts, HttpOnly cookies, and a
+  `WEB_HTTPS=true` opt-in for Secure cookies behind reverse proxies
 
 ## Security Best Practices for Installation
 
-1. Use a dedicated Raspberry Pi user account with appropriate permissions
-2. Restrict access to configuration directories
-3. Keep your Raspberry Pi updated with the latest security patches
-4. Use strong passwords for all components
-5. If exposing the web interface, ensure it's behind a secure reverse proxy
+1. Set a strong, unique `SECRET_KEY` in `.env` before first start
+2. Restrict access to the `config/` directory (it contains live credentials)
+3. Keep the host and the Docker image updated with the latest security patches
+4. Use strong passwords for all web users
+5. If exposing the web interface, put it behind an HTTPS reverse proxy
 6. Enable firewall rules to restrict access to necessary ports only
-7. Use secure communication channels for accessing your Raspberry Pi (SSH keys, not passwords)
+7. Use secure communication channels for host access (SSH keys, not passwords)
+8. Run `python sanitize_check.py` before committing; CI enforces this scan

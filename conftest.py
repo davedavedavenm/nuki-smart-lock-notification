@@ -5,6 +5,8 @@ import pytest
 import json
 from pathlib import Path
 
+from werkzeug.security import generate_password_hash
+
 # Add the project root to the Python path
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
@@ -13,16 +15,18 @@ sys.path.insert(0, os.path.join(project_root, 'web'))
 # Mock data and configs for testing
 @pytest.fixture
 def mock_config_dir():
-    """Create a temporary directory for config files"""
+    """Create a temporary directory with config, logs and data for testing.
+
+    Everything lives inside a temp dir so tests never touch real runtime data.
+    """
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Create config directory
+        # Create directories
         config_dir = os.path.join(temp_dir, 'config')
-        os.makedirs(config_dir, exist_ok=True)
-        
-        # Create logs directory
         logs_dir = os.path.join(temp_dir, 'logs')
-        os.makedirs(logs_dir, exist_ok=True)
-        
+        data_dir = os.path.join(temp_dir, 'data')
+        for d in (config_dir, logs_dir, data_dir):
+            os.makedirs(d, exist_ok=True)
+
         # Create example config files
         with open(os.path.join(config_dir, 'config.ini'), 'w') as f:
             f.write("""
@@ -37,9 +41,9 @@ notify_auto_lock = true
 notify_system_events = true
 
 [Filter]
-excluded_users = 
-excluded_actions = 
-excluded_triggers = 
+excluded_users =
+excluded_actions =
+excluded_triggers =
 
 [Email]
 smtp_server = smtp.example.com
@@ -63,11 +67,11 @@ retry_on_failure = true
 max_retries = 3
 retry_delay = 5
             """)
-            
+
         with open(os.path.join(config_dir, 'credentials.ini'), 'w') as f:
             f.write("""
-[API]
-token = test_token
+[Nuki]
+api_token = test_token
 
 [Email]
 username = test@example.com
@@ -76,12 +80,13 @@ password = test_password
 [Telegram]
 bot_token = test_bot_token
             """)
-            
-        # Create users file
-        with open(os.path.join(config_dir, 'users.json'), 'w') as f:
+
+        # Create users file (in the DATA dir, matching UserDatabase paths)
+        # with a REAL hash so test logins work
+        with open(os.path.join(data_dir, 'users.json'), 'w') as f:
             users = {
                 "admin": {
-                    "password_hash": "pbkdf2:sha256:150000$pSu9azsA$b045ed592b6e72...",
+                    "password_hash": generate_password_hash('nukiadmin', method='pbkdf2:sha256'),
                     "role": "admin",
                     "active": True,
                     "created_at": "2023-01-01T00:00:00",
@@ -90,27 +95,29 @@ bot_token = test_bot_token
                 }
             }
             json.dump(users, f, indent=2)
-            
+
         # Create empty temp_codes file
-        with open(os.path.join(config_dir, 'temp_codes.json'), 'w') as f:
+        with open(os.path.join(data_dir, 'temp_codes.json'), 'w') as f:
             json.dump({}, f, indent=2)
-        
+
         yield temp_dir
 
 @pytest.fixture
 def app(mock_config_dir):
     """Create a test Flask app with a temporary config"""
-    # Set environment variables
+    # Set environment variables BEFORE importing the app so all module-level
+    # singletons (ConfigManager, UserDatabase, ...) bind to the temp dirs
     os.environ['CONFIG_DIR'] = os.path.join(mock_config_dir, 'config')
     os.environ['LOGS_DIR'] = os.path.join(mock_config_dir, 'logs')
-    
+    os.environ['DATA_DIR'] = os.path.join(mock_config_dir, 'data')
+
     # Import the app after setting up environment
     from web.app import app as flask_app
-    
+
     # Configure for testing
     flask_app.config['TESTING'] = True
     flask_app.config['WTF_CSRF_ENABLED'] = False
-    
+
     # Return test client
     with flask_app.test_client() as client:
         with flask_app.app_context():

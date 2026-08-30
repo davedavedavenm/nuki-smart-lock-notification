@@ -3,126 +3,184 @@
 {% block title %}Initial Setup - Nuki Smart Lock{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-8">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0"><i class="fas fa-magic me-2"></i>Welcome to Nuki Monitor Setup</h4>
-            </div>
-            <div class="card-body p-4">
-                <div id="setupWizard">
-                    <!-- Progress Bar -->
-                    <div class="progress mb-4" style="height: 25px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 25%;" id="setupProgress">
-                            Step 1: Nuki API
+<div class="nk-auth-wrap" style="max-width: 720px;">
+    <div class="nk-auth-card">
+        <div class="nk-auth-head">
+            <div class="nk-auth-emblem"><i class="fas fa-magic"></i></div>
+            <h4 class="nk-auth-title">WELCOME TO SETUP</h4>
+            <p class="nk-auth-sub">Five quick steps and your console is live. Each step saves as soon as you continue — you can always come back and fix details later.</p>
+        </div>
+        <div class="nk-auth-body">
+                <div id="setupWizard">                    <!-- Progress -->
+                    <div class="nk-wizard-progress mb-4">
+                        <div class="nk-wizard-progress-label" id="setupProgressLabel">Step 1: Admin Account</div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar" role="progressbar" style="width: 20%;" id="setupProgress" aria-label="Setup progress"></div>
                         </div>
                     </div>
 
-                    <!-- Step 1: Nuki API -->
+                    <!-- Step 1: Admin Account -->
                     <div class="setup-step" id="step1">
-                        <h5>Step 1: Connect to Nuki Web API</h5>
-                        <p class="text-muted">To monitor your lock, we need a Nuki Web API token.</p>
-                        <ol class="small text-muted">
-                            <li>Log in to the <a href="https://web.nuki.io/" target="_blank">Nuki Web Dashboard</a>.</li>
-                            <li>Go to <strong>Settings > API</strong>.</li>
-                            <li>Generate a new API token with "View" permissions for Smartlocks and Activity logs.</li>
-                        </ol>
+                        <h5>Step 1: Create Your Admin Account</h5>
+                        <p class="text-muted">This account gives you full access to the dashboard. There are no default logins — you choose the credentials.</p>
+                        <div class="mb-3">
+                            <label for="adminUsername" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="adminUsername" autocomplete="username" placeholder="e.g., dave" minlength="3">
+                        </div>
+                        <div class="mb-3">
+                            <label for="adminPassword" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="adminPassword" autocomplete="new-password" placeholder="At least 8 characters" minlength="8">
+                        </div>
+                        <div class="mb-3">
+                            <label for="adminPasswordConfirm" class="form-label">Confirm Password</label>
+                            <input type="password" class="form-control" id="adminPasswordConfirm" autocomplete="new-password">
+                        </div>
+                        <div id="stepResult1"></div>
+                        <div class="d-flex justify-content-end">
+                            <button class="btn btn-primary stage-btn" data-stage="admin" data-next="2">Save &amp; Continue <i class="fas fa-arrow-right ms-1"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Nuki API -->
+                    <div class="setup-step d-none" id="step2">
+                        <h5>Step 2: Connect to Nuki Web API</h5>
+                        <p class="text-muted">To monitor your lock, we need a Nuki Web API token. This is what lets the console see lock events.</p>
+                        <div class="nk-help">
+                            <div class="nk-help-title"><i class="fas fa-circle-question me-2"></i>How to get your token (2 minutes)</div>
+                            <ol>
+                                <li>Open the <a href="https://web.nuki.io/" target="_blank" rel="noopener">Nuki Web Dashboard</a> and sign in with your Nuki account.</li>
+                                <li>Click your account icon &rarr; <strong>API</strong> (or go directly to <a href="https://web.nuki.io/pages/settings#/api" target="_blank" rel="noopener">web.nuki.io &rsaquo; Settings &rsaquo; API</a>).</li>
+                                <li>Click <strong>Generate API token</strong>. Give it a name like "Nuki Console".</li>
+                                <li>Under <strong>Permissions / Scopes</strong>, select only <em>read</em> scopes (read smartlock state, read activity logs). A scoped, read-only token is the most secure choice &mdash; it is the least-privilege option Nuki offers and all this console needs for monitoring.</li>
+                                <li>Copy the token and paste it below. It looks like a long random string of letters and numbers.</li>
+                            </ol>
+                            <div class="nk-help-note"><i class="fas fa-lock me-1"></i>The token is validated the moment you continue &mdash; a typo is caught here, not later. It is stored only in <code>config/credentials.ini</code> on your own machine.</div>
+                        </div>
                         <div class="mb-3">
                             <label for="nukiToken" class="form-label">Nuki API Token</label>
-                            <input type="password" class="form-control" id="nukiToken" placeholder="Enter your Nuki API token">
+                            <input type="password" class="form-control" id="nukiToken" autocomplete="off" placeholder="Paste the token from web.nuki.io">
+                            <div class="form-text">Optional now — you can skip and add it later in Configuration.</div>
                         </div>
-                        <div class="d-flex justify-content-end">
-                            <button class="btn btn-primary next-step" data-next="2">Next: Telegram <i class="fas fa-arrow-right ms-1"></i></button>
+                        <div id="stepResult2"></div>
+                        <div class="d-flex justify-content-between">
+                            <button class="btn btn-outline-secondary prev-step" data-prev="1"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                            <div>
+                                <button class="btn btn-outline-secondary me-2 skip-btn" data-stage="nuki" data-next="3">Skip for now</button>
+                                <button class="btn btn-primary stage-btn" data-stage="nuki" data-next="3">Validate &amp; Continue <i class="fas fa-arrow-right ms-1"></i></button>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Step 2: Telegram -->
-                    <div class="setup-step d-none" id="step2">
-                        <h5>Step 2: Telegram Notifications (Optional)</h5>
-                        <p class="text-muted">Get instant alerts on your phone via Telegram.</p>
+                    <!-- Step 3: Telegram -->
+                    <div class="setup-step d-none" id="step3">
+                        <h5>Step 3: Telegram Notifications <span class="badge nk-badge-optional">Optional</span></h5>
+                        <p class="text-muted">Get instant alerts on your phone via Telegram. Skipping is fine — you can add it any time in Notifications settings.</p>
                         <div class="mb-3">
                             <label for="telegramToken" class="form-label">Telegram Bot Token</label>
-                            <input type="password" class="form-control" id="telegramToken" placeholder="e.g., 123456789:ABCdef...">
+                            <input type="password" class="form-control" id="telegramToken" autocomplete="off" placeholder="123456789:AAExample...">
+                            <div class="nk-help">
+                                <div class="nk-help-title"><i class="fas fa-circle-question me-2"></i>What is this? A bot token, from @BotFather</div>
+                                <ol>
+                                    <li>In Telegram, open <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> (the official bot-creation bot).</li>
+                                    <li>Send <code>/newbot</code> and follow the prompts (name and username).</li>
+                                    <li>BotFather replies with a token like <code>123456789:AAH39sk...</code> &mdash; paste it below.</li>
+                                </ol>
+                                <div class="nk-help-note"><i class="fas fa-shield-halved me-1"></i>Anyone with this token can control your bot &mdash; keep it secret.</div>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label for="telegramChatId" class="form-label">Telegram Chat ID</label>
                             <input type="text" class="form-control" id="telegramChatId" placeholder="e.g., 987654321">
-                            <div class="form-text">Tip: You can use @userinfobot or similar to find your Chat ID.</div>
+                            <div class="nk-help">
+                                <div class="nk-help-title"><i class="fas fa-circle-question me-2"></i>Where to find your Chat ID</div>
+                                <ol>
+                                    <li>Press <em>Start</em> in your new bot's chat &mdash; a bot can only message people who contacted it first.</li>
+                                    <li>Message <a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a> and it replies with your numeric <strong>Id</strong>.</li>
+                                    <li>Enter that number below. For a group, add the bot to the group and use the group's (negative) ID.</li>
+                                </ol>
+                                <div class="nk-help-note"><i class="fas fa-terminal me-1"></i>Alternatively, after setup: <code>docker exec -it nuki python scripts/get_telegram_chat_id.py</code></div>
+                            </div>
                         </div>
+                        <div id="stepResult3"></div>
                         <div class="d-flex justify-content-between">
-                            <button class="btn btn-outline-secondary prev-step" data-prev="1"><i class="fas fa-arrow-left me-1"></i> Back</button>
-                            <button class="btn btn-primary next-step" data-next="3">Next: Email <i class="fas fa-arrow-right ms-1"></i></button>
+                            <button class="btn btn-outline-secondary prev-step" data-prev="2"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                            <div>
+                                <button class="btn btn-outline-secondary me-2 skip-btn" data-stage="telegram" data-next="4">Skip for now</button>
+                                <button class="btn btn-primary stage-btn" data-stage="telegram" data-next="4">Save &amp; Continue <i class="fas fa-arrow-right ms-1"></i></button>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Step 3: Email -->
-                    <div class="setup-step d-none" id="step3">
-                        <h5>Step 3: Email Alerts (Optional)</h5>
-                        <p class="text-muted">Configure SMTP settings for email notifications.</p>
+                    <!-- Step 4: Email -->
+                    <div class="setup-step d-none" id="step4">
+                        <h5>Step 4: Email Alerts <span class="badge nk-badge-optional">Optional</span></h5>
+                        <p class="text-muted">Configure SMTP settings for email notifications. Skipping is fine.</p>
                         <div class="row">
                             <div class="col-md-8 mb-3">
                                 <label for="emailSmtp" class="form-label">SMTP Server</label>
                                 <input type="text" class="form-control" id="emailSmtp" placeholder="smtp.gmail.com">
+                                <div class="form-text">Gmail: <code>smtp.gmail.com</code> &middot; Outlook: <code>smtp.office365.com</code> &middot; iCloud: <code>smtp.mail.me.com</code> &middot; Purelymail: <code>smtp.purelymail.com</code></div>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="emailPort" class="form-label">Port</label>
                                 <input type="number" class="form-control" id="emailPort" value="587">
+                                <div class="form-text">587 (STARTTLS) works for most providers.</div>
                             </div>
                         </div>
                         <div class="mb-3">
                             <label for="emailUser" class="form-label">Email / Username</label>
-                            <input type="email" class="form-control" id="emailUser">
+                            <input type="email" class="form-control" id="emailUser" autocomplete="off" placeholder="you@example.com">
+                            <div class="form-text">The mailbox the console logs in to for sending alerts.</div>
                         </div>
                         <div class="mb-3">
                             <label for="emailPass" class="form-label">App Password</label>
-                            <input type="password" class="form-control" id="emailPass">
+                            <input type="password" class="form-control" id="emailPass" autocomplete="new-password">
+                            <div class="nk-help">
+                                <div class="nk-help-title"><i class="fas fa-circle-question me-2"></i>An app password, not your normal password</div>
+                                <p class="mb-1">Most providers no longer allow apps to log in with your regular password. Generate a dedicated one:</p>
+                                <ul>
+                                    <li><strong>Gmail:</strong> enable 2-Step Verification, then create one at <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a>.</li>
+                                    <li><strong>Outlook / Microsoft 365:</strong> app password from your Microsoft account security settings.</li>
+                                    <li><strong>Purelymail:</strong> manage credentials in the Purelymail web portal under account settings.</li>
+                                    <li><strong>Other providers:</strong> look for "app password" or "SMTP password" in their security settings.</li>
+                                </ul>
+                            </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="emailSender" class="form-label">Sender Address</label>
-                                <input type="email" class="form-control" id="emailSender">
+                                <input type="email" class="form-control" id="emailSender" placeholder="you@example.com">
+                                <div class="form-text">Usually the same as the username above.</div>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="emailRecipient" class="form-label">Recipient Address</label>
-                                <input type="email" class="form-control" id="emailRecipient">
+                                <input type="email" class="form-control" id="emailRecipient" placeholder="alerts@yourdomain.com">
+                                <div class="form-text">Where lock alerts should arrive. More recipients can be added later.</div>
                             </div>
                         </div>
+                        <div id="stepResult4"></div>
                         <div class="d-flex justify-content-between">
-                            <button class="btn btn-outline-secondary prev-step" data-prev="2"><i class="fas fa-arrow-left me-1"></i> Back</button>
-                            <button class="btn btn-primary next-step" data-next="4">Review & Finish <i class="fas fa-check ms-1"></i></button>
-                        </div>
-                    </div>
-
-                    <!-- Step 4: Finish -->
-                    <div class="setup-step d-none" id="step4">
-                        <h5>Step 4: Finalize Configuration</h5>
-                        <p>We are ready to save your configuration and start monitoring.</p>
-                        
-                        <div class="card bg-light mb-4">
-                            <div class="card-body">
-                                <h6 class="card-title text-primary"><i class="fas fa-lock me-2"></i>Default Login Credentials</h6>
-                                <p class="card-text mb-1">Once setup is complete, use these details to log in:</p>
-                                <ul class="mb-0">
-                                    <li><strong>Username:</strong> admin</li>
-                                    <li><strong>Password:</strong> nukiadmin</li>
-                                </ul>
-                                <div class="form-text mt-2 text-danger small">
-                                    <i class="fas fa-exclamation-triangle me-1"></i> Please change your password immediately after logging in.
-                                </div>
+                            <button class="btn btn-outline-secondary prev-step" data-prev="3"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                            <div>
+                                <button class="btn btn-outline-secondary me-2 skip-btn" data-stage="email" data-next="5">Skip for now</button>
+                                <button class="btn btn-primary stage-btn" data-stage="email" data-next="5">Save &amp; Continue <i class="fas fa-arrow-right ms-1"></i></button>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="alert alert-info small">
-                            <i class="fas fa-info-circle me-2"></i>
-                            The system will reload once you click "Complete Setup".
+                    <!-- Step 5: Finish -->
+                    <div class="setup-step d-none" id="step5">
+                        <h5>Step 5: All Done</h5>
+                        <p>Everything you entered has been saved. The monitor picks up your settings automatically &mdash; no restart needed. You are already logged in as your new admin.</p>
+                        <div class="alert alert-success small">
+                            <i class="fas fa-circle-check me-2"></i>
+                            Anything skipped or flagged with a warning can be fixed later in <strong>Notifications</strong> or <strong>Admin &rsaquo; System Config</strong>.
                         </div>
-                        <div class="d-flex justify-content-between mt-4">
-                            <button class="btn btn-outline-secondary prev-step" data-prev="3"><i class="fas fa-arrow-left me-1"></i> Back</button>
-                            <button class="btn btn-success" id="finishBtn">Complete Setup <i class="fas fa-rocket ms-1"></i></button>
+                        <div id="stepResult5"></div>
+                        <div class="d-flex justify-content-end mt-4">
+                            <button class="btn btn-success" id="finishBtn">Go to Dashboard <i class="fas fa-arrow-right ms-1"></i></button>
                         </div>
                     </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -131,63 +189,119 @@
 {% block scripts %}
 <script>
 $(document).ready(function() {
-    // Navigation Logic
-    $('.next-step').click(function() {
-        const next = $(this).data('next');
-        showStep(next);
-    });
+    const startStage = {{ setup_stage or 1 }};
+    showStep(startStage, true);
 
     $('.prev-step').click(function() {
-        const prev = $(this).data('prev');
-        showStep(prev);
+        showStep($(this).data('prev'));
     });
 
-    function showStep(step) {
-        $('.setup-step').addClass('d-none');
-        $(`#step${step}`).removeClass('d-none');
-        
-        // Update Progress Bar
-        const percent = (step / 4) * 100;
-        let text = "";
-        switch(step) {
-            case 1: text = "Step 1: Nuki API"; break;
-            case 2: text = "Step 2: Telegram"; break;
-            case 3: text = "Step 3: Email"; break;
-            case 4: text = "Step 4: Finish"; break;
-        }
-        $('#setupProgress').css('width', percent + '%').text(text);
+    function stepLabel(step) {
+        return {
+            1: "Step 1: Admin Account",
+            2: "Step 2: Nuki API",
+            3: "Step 3: Telegram (optional)",
+            4: "Step 4: Email (optional)",
+            5: "Step 5: Done"
+        }[step] || ("Step " + step);
     }
 
-    // Finish Logic
-    $('#finishBtn').click(function() {
-        $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Saving...');
-        
-        const setupData = {
-            nuki_token: $('#nukiToken').val(),
-            telegram_bot_token: $('#telegramToken').val(),
-            telegram_chat_id: $('#telegramChatId').val(),
-            email_smtp_server: $('#emailSmtp').val(),
-            email_smtp_port: $('#emailPort').val(),
-            email_username: $('#emailUser').val(),
-            email_password: $('#emailPass').val(),
-            email_sender: $('#emailSender').val(),
-            email_recipient: $('#emailRecipient').val()
-        };
+    function showStep(step, initial) {
+        // Client-side validation only guards leaving step 1 with empty fields;
+        // everything else is validated by the server and nothing is lost.
+        if (!initial && step > 1) {
+            const username = $('#adminUsername').val().trim();
+            const pass = $('#adminPassword').val();
+            if (step === 2) {
+                if (username.length < 3) { return stepError(1, 'Please choose a username (min. 3 characters).'); }
+                if (pass.length < 8) { return stepError(1, 'Please choose a password of at least 8 characters.'); }
+                if (pass !== $('#adminPasswordConfirm').val()) { return stepError(1, 'Passwords do not match.'); }
+            }
+        }
+
+        $('.setup-step').addClass('d-none');
+        $('#step' + step).removeClass('d-none');
+        $('#setupProgress').css('width', (step / 5) * 100 + '%');
+        $('#setupProgressLabel').text(stepLabel(step));
+    }
+
+    function stepError(step, msg) {
+        $('#stepResult' + step).html(
+            '<div class="alert alert-danger small py-2 mb-2"><i class="fas fa-triangle-exclamation me-1"></i>' +
+            $('<span>').text(msg).html() + '</div>');
+    }
+
+    function stepInfo(step, html) {
+        $('#stepResult' + step).html(html);
+    }
+
+    function validationEntry(name, result) {
+        if (!result) return '';
+        let icon = 'fa-circle-question text-muted';
+        if (result.valid === true) icon = 'fa-circle-check text-success';
+        else if (result.valid === false) icon = 'fa-triangle-exclamation text-warning';
+        return '<li class="list-group-item py-2"><i class="fas ' + icon + ' me-2"></i><strong>' + name + '</strong>: ' +
+            $('<span>').text(result.detail).html() + '</li>';
+    }
+
+    function submitStage(stage, nextStep, btn) {
+        const original = btn.html();
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Saving...');
+
+        const payload = {stage: stage};
+        if (stage === 'admin') {
+            payload.admin_username = $('#adminUsername').val().trim();
+            payload.admin_password = $('#adminPassword').val();
+            payload.admin_password_confirm = $('#adminPasswordConfirm').val();
+        } else if (stage === 'nuki') {
+            payload.nuki_token = $('#nukiToken').val().trim();
+        } else if (stage === 'telegram') {
+            payload.telegram_bot_token = $('#telegramToken').val().trim();
+            payload.telegram_chat_id = $('#telegramChatId').val().trim();
+        } else if (stage === 'email') {
+            payload.email_smtp_server = $('#emailSmtp').val().trim();
+            payload.email_smtp_port = $('#emailPort').val();
+            payload.email_username = $('#emailUser').val().trim();
+            payload.email_password = $('#emailPass').val();
+            payload.email_sender = $('#emailSender').val().trim();
+            payload.email_recipient = $('#emailRecipient').val().trim();
+        }
 
         $.ajax({
             url: '/api/setup',
             method: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify(setupData),
+            data: JSON.stringify(payload),
             success: function(response) {
-                alert('Setup complete! Redirecting to dashboard...');
-                window.location.href = '/';
+                btn.prop('disabled', false).html(original);
+                const step = nextStep - 1;
+                if (response.validation && Object.keys(response.validation).length) {
+                    let html = '<ul class="list-group mb-2">';
+                    html += validationEntry('Nuki API', response.validation.nuki);
+                    html += validationEntry('Telegram', response.validation.telegram);
+                    html += '</ul>';
+                    if (response.message) html += '<div class="text-muted small mb-1">' + $('<span>').text(response.message).html() + '</div>';
+                    stepInfo(step, html);
+                } else if (response.message) {
+                    stepInfo(step, '<div class="text-success small mb-1"><i class="fas fa-check me-1"></i>' + $('<span>').text(response.message).html() + '</div>');
+                }
+                showStep(nextStep);
             },
             error: function(xhr) {
-                alert('Error saving setup: ' + (xhr.responseJSON?.error || 'Unknown error'));
-                $('#finishBtn').prop('disabled', false).html('Complete Setup <i class="fas fa-rocket ms-1"></i>');
+                btn.prop('disabled', false).html(original);
+                // Nothing is cleared — the user just fixes the field and retries
+                stepError(step, (xhr.responseJSON && xhr.responseJSON.error) || 'Could not save — check your connection and try again.');
             }
         });
+    }
+
+    $('.stage-btn').click(function() { submitStage($(this).data('stage'), $(this).data('next'), $(this)); });
+    $('.skip-btn').click(function() { submitStage($(this).data('stage'), $(this).data('next'), $(this)); });
+
+    $('#finishBtn').click(function() {
+        $.post('/api/setup', JSON.stringify({stage: 'done'}), function() {
+            window.location.href = '/';
+        }).fail(function() { window.location.href = '/'; });
     });
 });
 </script>

@@ -310,7 +310,7 @@
         $('#totalEvents').text(data.total_events);
         
         // Lock events
-        const lockEvents = data.by_action.find(item => item.name.toLowerCase().includes('lock') && !item.name.toLowerCase().includes('unlock'));
+        const lockEvents = data.by_action.find(item => nkIsLockEvent(item.name));
         $('#lockEvents').text(lockEvents ? lockEvents.count : 0);
         
         // Unlock events
@@ -346,8 +346,8 @@
                 datasets: [{
                     label: 'Activities',
                     data: userData.map(item => item.count),
-                    backgroundColor: '#4e73df',
-                    borderColor: '#4e73df',
+                    backgroundColor: '#f59e0b',
+                    borderColor: '#f59e0b',
                     borderWidth: 1
                 }]
             },
@@ -383,14 +383,14 @@
         
         // Colors based on action type
         const colors = actionData.map(item => {
-            if (item.name.toLowerCase().includes('lock') && !item.name.toLowerCase().includes('unlock')) {
-                return '#1cc88a'; // Green for lock
+            if (nkIsLockEvent(item.name)) {
+                return '#34d399'; // Green for lock
             } else if (item.name.toLowerCase().includes('unlock')) {
                 return '#e74a3b'; // Red for unlock
             } else if (item.name.toLowerCase().includes('unlatch')) {
                 return '#f6c23e'; // Yellow for unlatch
             } else {
-                return '#4e73df'; // Blue for others
+                return '#f59e0b'; // Blue for others
             }
         });
         
@@ -456,14 +456,14 @@
                 datasets: [{
                     label: 'Activities',
                     data: hourData,
-                    backgroundColor: 'rgba(78, 115, 223, 0.05)',
-                    borderColor: '#4e73df',
+                    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                    borderColor: '#f59e0b',
                     borderWidth: 2,
-                    pointBackgroundColor: '#4e73df',
-                    pointBorderColor: '#4e73df',
+                    pointBackgroundColor: '#f59e0b',
+                    pointBorderColor: '#f59e0b',
                     pointHoverRadius: 5,
-                    pointHoverBackgroundColor: '#4e73df',
-                    pointHoverBorderColor: '#4e73df',
+                    pointHoverBackgroundColor: '#f59e0b',
+                    pointHoverBorderColor: '#f59e0b',
                     pointHitRadius: 10,
                     pointBorderWidth: 2,
                     fill: true
@@ -516,8 +516,8 @@
                 datasets: [{
                     label: 'Activities',
                     data: dayData,
-                    backgroundColor: '#36b9cc',
-                    borderColor: '#36b9cc',
+                    backgroundColor: '#60a5fa',
+                    borderColor: '#60a5fa',
                     borderWidth: 1
                 }]
             },

@@ -8,7 +8,7 @@ to change or redo something.
 
 ## Scope
 
-- Python app, web UI, Docker files, install scripts, tests, and docs for Nuki monitoring.
+- Python app, web UI, Docker files (single-container compose), tests, and docs for Nuki monitoring.
 - Do not commit `.env`, Nuki API tokens, notification credentials, logs, or local Flask/session data.
 
 ## MCPProxy / Tool Surfaces
@@ -19,8 +19,8 @@ to change or redo something.
 - Nango surfaces are not primary unless the task explicitly involves email/calendar/Notion/GitHub proof. Pick the correct account before any write.
 - Appwrite is not part of this repo.
 
-### Signed-in Edge Browser (Windows MCPProxy only)
-For authenticated-browser tasks (the web UI, signed-in sites), use the MCPProxy upstream `playwright-edge` — Microsoft's official Playwright Extension attached to the live Edge `Default` profile (`David M` / `davidm@live.co.uk`). **This route exists only on the Windows MCPProxy (`http://127.0.0.1:8080/mcp`) — khpi5 has no signed-in browser route.** Never use Edge debugging mode, port 9222, or profile clones. Canonical runbook: `C:\Users\Dave\repos\windows\mcpproxy\signed-in-edge-automation.md`; prove health with `Test-SignedInEdgeAutomation.ps1 -RequireLiveProof` before first use (operational, full gate + authenticated identity readback verified 2026-08-30). Core rule 2 stands: never perform live lock-affecting actions via any browser or MCP surface unless the user explicitly asks.
+- **Signed-in Edge Browser (Windows MCPProxy only)**
+For authenticated-browser tasks (the web UI, signed-in sites), use the MCPProxy upstream `playwright-edge` — Microsoft's official Playwright Extension attached to the live signed-in Edge `Default` profile. **This route exists only on the Windows MCPProxy (`http://127.0.0.1:8080/mcp`) — khpi5 has no signed-in browser route.** Never use Edge debugging mode, port 9222, or profile clones. The canonical runbook lives in the `windows` repo at `mcpproxy/signed-in-edge-automation.md`; prove health with `Test-SignedInEdgeAutomation.ps1 -RequireLiveProof` before first use. Core rule 2 stands: never perform live lock-affecting actions via any browser or MCP surface unless the user explicitly asks.
 
 ## Core Rules
 

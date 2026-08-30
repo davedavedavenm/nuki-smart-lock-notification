@@ -51,11 +51,11 @@ If you have an idea for an enhancement, please open an issue with:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/nuki-smart-lock-notification-system.git
-cd nuki-smart-lock-notification-system
+git clone https://github.com/davedavedavenm/nuki-smart-lock-notification.git
+cd nuki-smart-lock-notification
 ```
 
-2. Set up a virtual environment:
+2. Set up a virtual environment (Python 3.11+):
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -63,36 +63,44 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 3. Install dependencies:
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
-4. Create example config files:
+4. Run the tests:
 ```bash
-mkdir -p config
+pytest
+```
+
+5. For a local (non-Docker) run, create the config files:
+```bash
 cp config/config.ini.example config/config.ini
 cp config/credentials.ini.example config/credentials.ini
 ```
-
-5. Customize the config files with your own settings.
+Then customize them with your own settings. In Docker this is unnecessary —
+the container bootstraps config on first start.
 
 ## Testing
 
 Before submitting a pull request, please test your changes:
 
-1. Run the sanitization check:
+1. Run the test suite:
+```bash
+pytest
+```
+
+2. Run the sanitization check (secrets scan):
 ```bash
 python sanitize_check.py
 ```
 
-2. Test the core functionality:
+3. Test the container end-to-end:
 ```bash
-python scripts/nuki_monitor.py
+docker compose up -d --build
+curl http://localhost:5000/health
 ```
 
-3. Test the web interface (if applicable):
-```bash
-python web/app.py
-```
+CI runs `pytest` on Python 3.11–3.13, the secrets scan, and a Docker build on
+every push to `main`.
 
 ## Style Guide
 

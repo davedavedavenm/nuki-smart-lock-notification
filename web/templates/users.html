@@ -338,7 +338,7 @@
             
             // Show up to 5 most recent activities
             userActivity.slice(0, 5).forEach(function(activity) {
-                const actionClass = activity.action.toLowerCase().includes('lock') ? 'text-success' : 'text-danger';
+                const actionClass = nkLockColor(nkIsLockEvent(activity.action));
                 
                 const row = `
                     <tr>
@@ -396,8 +396,8 @@
                 datasets: [{
                     label: 'Activity Count',
                     data: chartData.map(item => item.count),
-                    backgroundColor: '#4e73df',
-                    borderColor: '#4e73df',
+                    backgroundColor: '#f59e0b',
+                    borderColor: '#f59e0b',
                     borderWidth: 1
                 }]
             },

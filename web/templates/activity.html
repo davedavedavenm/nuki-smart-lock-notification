@@ -324,8 +324,8 @@
         
         // Display data
         displayData.forEach(function(activity) {
-            const actionClass = activity.action.toLowerCase().includes('lock') ? 'text-success' : 'text-danger';
-            const iconClass = activity.action.toLowerCase().includes('lock') ? 'lock' : 'lock-open';
+            const actionClass = nkLockColor(nkIsLockEvent(activity.action));
+            const iconClass = nkLockIcon(nkIsLockEvent(activity.action));
             
             tbody.append(`
                 <tr>

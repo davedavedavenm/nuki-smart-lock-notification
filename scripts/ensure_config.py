@@ -86,35 +86,57 @@ def ensure_config_files():
     # Ensure config directory exists
     os.makedirs(config_dir, exist_ok=True)
     
-    # List of required configuration files and their example templates
+    # List of required configuration files and how they are bootstrapped
     required_files = {
         'config.ini': 'config.ini.example',
-        'credentials.ini': 'credentials.ini.example'
+        # credentials.ini is created empty — never seed placeholder secrets,
+        # so a fresh install lands in the setup wizard
+        'credentials.ini': None
     }
     
     for config_file, example_file in required_files.items():
         config_path = os.path.join(config_dir, config_file)
-        example_path = os.path.join(config_dir, example_file)
+        example_path = os.path.join(config_dir, example_file) if example_file else None
         
         # If the config file doesn't exist but the example does, copy it
-        if not os.path.exists(config_path) and os.path.exists(example_path):
+        if not os.path.exists(config_path) and example_path and os.path.exists(example_path):
             try:
                 shutil.copy(example_path, config_path)
                 logger.info(f"Created {config_file} from example template")
-                
-                # Set secure permissions for credentials file
-                if config_file == 'credentials.ini':
-                    try:
-                        os.chmod(config_path, 0o640)
-                        logger.info(f"Set secure permissions for {config_file}")
-                    except Exception as e:
-                        logger.warning(f"Could not set permissions for {config_file}: {e}")
             except (PermissionError, IOError) as e:
                 logger.error(f"Error creating {config_file} due to permission issue: {e}")
                 logger.error("This may be due to the container user not having write permissions to the config directory.")
                 logger.error("See TROUBLESHOOTING.md for information on fixing permission issues.")
             except Exception as e:
                 logger.error(f"Error creating {config_file}: {e}")
+        
+        # Create credentials.ini as an empty template (no placeholder secrets)
+        if not os.path.exists(config_path) and config_file == 'credentials.ini':
+            try:
+                credentials = configparser.ConfigParser(interpolation=None)
+                credentials.add_section('Nuki')
+                credentials.set('Nuki', 'api_token', '')
+                credentials.add_section('Email')
+                credentials.set('Email', 'username', '')
+                credentials.set('Email', 'password', '')
+                credentials.add_section('Telegram')
+                credentials.set('Telegram', 'bot_token', '')
+                with open(config_path, 'w') as f:
+                    credentials.write(f)
+                logger.info(f"Created empty {config_file}")
+            except (PermissionError, IOError) as e:
+                logger.error(f"Error creating {config_file} due to permission issue: {e}")
+                logger.error("See TROUBLESHOOTING.md for information on fixing permission issues.")
+            except Exception as e:
+                logger.error(f"Error creating {config_file}: {e}")
+        
+        # Set secure permissions for credentials file
+        if config_file == 'credentials.ini' and os.path.exists(config_path):
+            try:
+                os.chmod(config_path, 0o600)
+                logger.info(f"Set secure permissions for {config_file}")
+            except Exception as e:
+                logger.warning(f"Could not set permissions for {config_file}: {e}")
         
         # Verify the file exists now
         if not os.path.exists(config_path):

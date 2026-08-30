@@ -1,44 +1,127 @@
 {% extends "base.html" %}
 
-{% block title %}Login - Nuki Dashboard{% endblock %}
+{% block title %}Login - Nuki Console{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6 col-lg-4">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white text-center">
-                <h4><i class="fas fa-lock me-2"></i>Nuki Dashboard Login</h4>
-            </div>
-            <div class="card-body">
-                {% if error %}
-                <div class="alert alert-danger">{{ error }}</div>
-                {% endif %}
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-user"></i></span>
-                            <input type="text" class="form-control" id="username" name="username" required autofocus>
-                        </div>
+<div class="nk-auth-wrap">
+    <div class="nk-auth-card">
+        <div class="nk-auth-head">
+            <div class="nk-auth-emblem"><i class="fas fa-lock"></i></div>
+            <h4 class="nk-auth-title">NUKI CONSOLE</h4>
+            <p class="nk-auth-sub">Secure access to your smart lock dashboard</p>
+        </div>
+        <div class="nk-auth-body">
+            {% if error %}
+            <div class="alert alert-danger py-2"><i class="fas fa-triangle-exclamation me-2"></i>{{ error }}</div>
+            {% endif %}
+            <form method="POST">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-user"></i></span>
+                        <input type="text" class="form-control" id="username" name="username" required autofocus autocomplete="username">
                     </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-key"></i></span>
-                            <input type="password" class="form-control" id="password" name="password" required>
-                        </div>
+                </div>
+                <div class="mb-4">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-key"></i></span>
+                        <input type="password" class="form-control" id="password" name="password" required autocomplete="current-password">
                     </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-sign-in-alt me-2"></i>Login
-                        </button>
-                    </div>
-                </form>
-            </div>
-            <div class="card-footer text-center text-muted">
-                <small>Secure access to your Nuki Smart Lock Dashboard</small>
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-unlock me-2"></i>Unlock Console
+                    </button>
+                </div>
+            </form>
+
+            <div class="nk-divider"><span>or</span></div>
+
+            <div class="d-grid">
+                <button type="button" class="btn btn-outline-primary nk-passkey-btn d-none" id="passkeyBtn">
+                    <i class="fas fa-fingerprint me-2"></i>Sign in with a passkey
+                </button>
+                <p class="nk-passkey-hint d-none" id="passkeyHint">
+                    <i class="fas fa-circle-info me-1"></i>Passkeys require HTTPS (or localhost access).
+                </p>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // WebAuthn only exists in secure contexts (HTTPS or localhost)
+    const secure = window.isSecureContext && window.PublicKeyCredential;
+    const btn = $('#passkeyBtn');
+    const hint = $('#passkeyHint');
+    if (window.PublicKeyCredential) {
+        btn.removeClass('d-none');
+    } else {
+        hint.removeClass('d-none');
+    }
+
+    btn.on('click', async function() {
+        btn.prop('disabled', true);
+        try {
+            const begin = await fetch('/api/passkeys/auth/begin', {method: 'POST'});
+            const options = await begin.json();
+            if (!begin.ok) { throw new Error(options.error || 'Could not start passkey login'); }
+
+            const publicKey = {
+                challenge: base64urlToBytes(options.publicKey.challenge),
+                rpId: options.publicKey.rpId,
+                userVerification: options.publicKey.userVerification || 'preferred',
+                timeout: options.publicKey.timeout || 60000
+            };
+
+            const credential = await navigator.credentials.get({publicKey});
+            const assertion = serializeAssertion(credential);
+
+            const finish = await fetch('/api/passkeys/auth/finish', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(assertion)
+            });
+            const result = await finish.json();
+            if (!finish.ok) { throw new Error(result.error || 'Passkey login failed'); }
+            window.location.href = result.redirect || '/';
+        } catch (err) {
+            if (err.name !== 'NotAllowedError') {
+                console.error(err);
+            }
+            btn.prop('disabled', false);
+        }
+    });
+
+    function base64urlToBytes(value) {
+        const pad = '='.repeat((4 - (value.length % 4)) % 4);
+        const raw = atob(value.replace(/-/g, '+').replace(/_/g, '/') + pad);
+        return Uint8Array.from(raw, c => c.charCodeAt(0));
+    }
+
+    function b64url(buf) {
+        return btoa(String.fromCharCode(...new Uint8Array(buf)))
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function serializeAssertion(credential) {
+        const r = credential.response;
+        return {
+            id: credential.id,
+            rawId: credential.id,
+            type: credential.type,
+            response: {
+                clientDataJSON: b64url(r.clientDataJSON),
+                authenticatorData: b64url(r.authenticatorData),
+                signature: b64url(r.signature),
+                userHandle: r.userHandle ? b64url(r.userHandle) : null
+            }
+        };
+    }
+});
+</script>
 {% endblock %}

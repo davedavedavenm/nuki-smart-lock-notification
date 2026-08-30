@@ -1,159 +1,500 @@
-/* Custom styles for Nuki Dashboard */
+/* ==========================================================================
+   Nuki Smart Lock Console — design system
+   Aesthetic: precision hardware console. Quiet panels, hairline borders,
+   warm amber accent, monospaced data. Dark palette lives in dark-mode.css.
+   ========================================================================== */
 
-/* Body and general styles */
+:root {
+    /* Bootstrap variable alignment so utility classes follow the brand */
+    --bs-primary: #d97706;
+    --bs-primary-rgb: 217, 119, 6;
+    --bs-body-font-family: 'IBM Plex Sans', sans-serif;
+
+    --nk-font-display: 'Chakra Petch', sans-serif;
+    --nk-font-body: 'IBM Plex Sans', sans-serif;
+    --nk-font-mono: 'IBM Plex Mono', monospace;
+
+    /* Light palette (default); dark-mode.css overrides for dark sessions */
+    --nk-bg: #f4f2ee;
+    --nk-bg-glow: rgba(245, 158, 11, 0.06);
+    --nk-panel: #ffffff;
+    --nk-panel-2: #faf9f7;
+    --nk-border: rgba(24, 30, 38, 0.12);
+    --nk-border-strong: rgba(24, 30, 38, 0.22);
+    --nk-text: #1c232c;
+    --nk-text-muted: #6b7480;
+    --nk-accent: #d97706;
+    --nk-accent-hover: #b45309;
+    --nk-accent-soft: rgba(217, 119, 6, 0.12);
+    --nk-on-accent: #ffffff;
+    --nk-ok: #0f8a5f;
+    --nk-warn: #d97706;
+    --nk-danger: #c23b22;
+    --nk-nav-bg: rgba(255, 255, 255, 0.92);
+    --nk-nav-text: #3a434e;
+    --nk-shadow: 0 1px 2px rgba(24, 30, 38, 0.06), 0 8px 24px rgba(24, 30, 38, 0.07);
+    --nk-radius: 10px;
+}
+
+/* ---------- Base ---------- */
+
 body {
-    background-color: #f8f9fc;
-    font-family: 'Nunito', sans-serif;
+    background-color: var(--nk-bg);
+    background-image:
+        radial-gradient(ellipse 80% 40% at 50% -10%, var(--nk-bg-glow), transparent),
+        linear-gradient(rgba(128, 128, 128, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(128, 128, 128, 0.035) 1px, transparent 1px);
+    background-size: auto, 44px 44px, 44px 44px;
+    color: var(--nk-text);
+    font-family: var(--nk-font-body);
+    min-height: 100vh;
+    transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-/* Navbar customization */
-.navbar-brand {
-    font-weight: bold;
-    letter-spacing: 0.5px;
+h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
+    font-family: var(--nk-font-display);
+    font-weight: 600;
+    letter-spacing: 0.01em;
 }
 
-/* Card customization */
+.nk-mono, code, pre {
+    font-family: var(--nk-font-mono);
+}
+
+a { color: var(--nk-accent); }
+a:hover { color: var(--nk-accent-hover); }
+
+/* ---------- Navbar ---------- */
+
+.nk-navbar {
+    background: var(--nk-nav-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--nk-border);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+}
+
+.nk-navbar .nav-link {
+    color: var(--nk-nav-text);
+    font-weight: 500;
+    font-size: 0.925rem;
+    border-radius: 8px;
+    padding: 0.45rem 0.8rem !important;
+    margin: 0 0.1rem;
+    white-space: nowrap; /* keep the bar on one line — no overlap with content */
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+/* Tighten the bar between the lg breakpoint and full width so labels fit */
+@media (min-width: 992px) and (max-width: 1399.98px) {
+    .nk-navbar .nav-link {
+        font-size: 0.85rem;
+        padding: 0.4rem 0.55rem !important;
+    }
+    .nk-brand-text { font-size: 0.95rem; }
+    .nk-brand-sub { display: none; }
+    .nk-badge-role { display: none; }
+}
+
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    .nk-navbar .nav-link {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.45rem !important;
+        margin: 0;
+    }
+    .nk-theme-toggle { margin-right: 0.1rem; padding: 0.25rem 0.45rem; }
+}
+
+.nk-navbar .nav-link:hover { color: var(--nk-text); background: var(--nk-accent-soft); }
+.nk-navbar .nav-link.active {
+    color: var(--nk-accent);
+    background: var(--nk-accent-soft);
+    box-shadow: inset 0 -2px 0 var(--nk-accent);
+}
+
+/* Brand */
+.nk-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: var(--nk-font-display);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--nk-text) !important;
+}
+
+.nk-brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(145deg, var(--nk-accent), var(--nk-accent-hover));
+    color: var(--nk-on-accent);
+    font-size: 0.9rem;
+    box-shadow: 0 2px 8px var(--nk-accent-soft);
+}
+
+.nk-brand-text { font-size: 1.05rem; }
+.nk-brand-sub {
+    font-weight: 500;
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--nk-text-muted);
+    margin-left: 0.45rem;
+}
+
+.nk-theme-toggle {
+    color: var(--nk-nav-text);
+    border: 1px solid var(--nk-border);
+    border-radius: 8px;
+    padding: 0.3rem 0.55rem;
+    margin-right: 0.4rem;
+    background: transparent;
+    transition: all 0.15s ease;
+}
+
+.nk-theme-toggle:hover { color: var(--nk-accent); border-color: var(--nk-accent); }
+
+.nk-badge-role {
+    background: var(--nk-accent-soft);
+    color: var(--nk-accent);
+    font-family: var(--nk-font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid var(--nk-accent-soft);
+}
+
+/* ---------- Panels / Cards ---------- */
+
 .card {
-    border: none;
-    border-radius: 0.5rem;
-    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
-    transition: all 0.3s ease;
+    background: var(--nk-panel);
+    border: 1px solid var(--nk-border);
+    border-radius: var(--nk-radius);
+    box-shadow: var(--nk-shadow);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 0.5rem 2rem 0 rgba(58, 59, 69, 0.2);
+    border-color: var(--nk-border-strong);
+    box-shadow: 0 1px 2px rgba(24, 30, 38, 0.06), 0 10px 28px rgba(24, 30, 38, 0.1);
 }
 
 .card-header {
-    border-top-left-radius: 0.5rem !important;
-    border-top-right-radius: 0.5rem !important;
-    font-weight: bold;
+    background: var(--nk-panel-2);
+    border-bottom: 1px solid var(--nk-border);
+    font-family: var(--nk-font-display);
+    font-weight: 600;
+    letter-spacing: 0.02em;
 }
 
-/* Primary color customization */
-.bg-primary {
-    background-color: #4e73df !important;
+.card-header.bg-primary,
+.card-header.bg-dark,
+.card-header.bg-secondary {
+    background: var(--nk-panel-2) !important;
+    color: var(--nk-text) !important;
+    border-bottom: 1px solid var(--nk-border);
 }
+
+.card-footer { background: var(--nk-panel-2); border-top: 1px solid var(--nk-border); }
+
+/* ---------- Buttons ---------- */
+
+.btn { font-weight: 600; border-radius: 8px; }
 
 .btn-primary {
-    background-color: #4e73df;
-    border-color: #4e73df;
+    background: var(--nk-accent);
+    border-color: var(--nk-accent);
+    color: var(--nk-on-accent);
 }
 
-.btn-primary:hover {
-    background-color: #2e59d9;
-    border-color: #2653d4;
+.btn-primary:hover, .btn-primary:focus {
+    background: var(--nk-accent-hover);
+    border-color: var(--nk-accent-hover);
+    color: var(--nk-on-accent);
 }
 
-/* Lock status indicators */
-.lock-status-locked {
-    color: #1cc88a;
-    font-size: 2rem;
+.btn-primary:disabled { background: var(--nk-accent); border-color: var(--nk-accent); opacity: 0.6; }
+.btn-outline-primary { color: var(--nk-accent); border-color: var(--nk-accent); }
+.btn-outline-primary:hover { background: var(--nk-accent); border-color: var(--nk-accent); color: var(--nk-on-accent); }
+.btn-outline-secondary { color: var(--nk-text-muted); border-color: var(--nk-border-strong); }
+.btn-success { background: var(--nk-ok); border-color: var(--nk-ok); }
+.btn-success:hover { background: color-mix(in srgb, var(--nk-ok) 85%, black); border-color: color-mix(in srgb, var(--nk-ok) 85%, black); }
+
+/* ---------- Forms ---------- */
+
+.form-control, .form-select {
+    background: var(--nk-panel);
+    border-color: var(--nk-border-strong);
+    color: var(--nk-text);
+    border-radius: 8px;
 }
 
-.lock-status-unlocked {
-    color: #e74a3b;
-    font-size: 2rem;
+.form-control:focus, .form-select:focus {
+    background: var(--nk-panel);
+    border-color: var(--nk-accent);
+    box-shadow: 0 0 0 0.2rem var(--nk-accent-soft);
+    color: var(--nk-text);
 }
 
-.lock-status-unlatch {
-    color: #f6c23e;
-    font-size: 2rem;
+.form-control::placeholder { color: var(--nk-text-muted); opacity: 0.7; }
+.input-group-text { background: var(--nk-panel-2); border-color: var(--nk-border-strong); color: var(--nk-text-muted); }
+
+/* ---------- Tables ---------- */
+
+.table { color: var(--nk-text); --bs-table-bg: transparent; }
+.table > :not(caption) > * > * { background-color: transparent; color: var(--nk-text); }
+thead th {
+    font-family: var(--nk-font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--nk-text-muted);
+    border-bottom: 1px solid var(--nk-border-strong) !important;
 }
 
-/* Activity log styles */
-.activity-item {
-    border-left: 4px solid #4e73df;
-    padding-left: 1rem;
-    margin-bottom: 1rem;
+/* ---------- Status indicators ---------- */
+
+.lock-status-locked { color: var(--nk-ok); font-size: 2rem; }
+.lock-status-unlocked { color: var(--nk-danger); font-size: 2rem; }
+.lock-status-unlatch { color: var(--nk-warn); font-size: 2rem; }
+
+.badge.bg-success { background: var(--nk-ok) !important; }
+.badge.bg-danger { background: var(--nk-danger) !important; }
+.badge.bg-warning { background: var(--nk-warn) !important; color: #fff !important; }
+
+/* ---------- Progress (setup wizard) ---------- */
+
+.nk-wizard-progress-label {
+    font-family: var(--nk-font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--nk-accent);
+    margin-bottom: 0.5rem;
 }
 
-.activity-item-lock {
-    border-left-color: #1cc88a;
+.progress {
+    background: var(--nk-panel-2);
+    border: 1px solid var(--nk-border);
+    border-radius: 999px;
 }
 
-.activity-item-unlock {
-    border-left-color: #e74a3b;
+.progress-bar { background: var(--nk-accent); transition: width 0.35s ease; }
+
+/* ---------- Alerts ---------- */
+
+.alert-info {
+    background: var(--nk-accent-soft);
+    border-color: var(--nk-accent);
+    color: var(--nk-text);
 }
 
-.activity-item-unlatch {
-    border-left-color: #f6c23e;
+/* ---------- Setup & Login hero panels ---------- */
+
+.nk-auth-wrap { max-width: 560px; margin: 2.5rem auto 0; }
+
+.nk-auth-card {
+    background: var(--nk-panel);
+    border: 1px solid var(--nk-border);
+    border-radius: 14px;
+    box-shadow: var(--nk-shadow);
+    overflow: hidden;
 }
 
-/* Footer styles */
-.footer {
-    background-color: #f8f9fc;
-    border-top: 1px solid #e3e6f0;
+.nk-auth-head {
+    padding: 2rem 2rem 1.25rem;
+    text-align: center;
+    border-bottom: 1px solid var(--nk-border);
+    background:
+        radial-gradient(ellipse 70% 90% at 50% -30%, var(--nk-accent-soft), transparent);
 }
 
-/* Table customizations */
-.table thead th {
-    background-color: #f8f9fc;
-    border-top: none;
-    font-weight: bold;
+.nk-auth-emblem {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: linear-gradient(145deg, var(--nk-accent), var(--nk-accent-hover));
+    color: var(--nk-on-accent);
+    font-size: 1.4rem;
+    margin-bottom: 0.9rem;
+    box-shadow: 0 6px 20px var(--nk-accent-soft);
 }
 
-/* Badge customizations */
-.badge {
-    padding: 0.5em 0.75em;
+.nk-auth-title { font-family: var(--nk-font-display); font-weight: 700; letter-spacing: 0.04em; margin: 0; }
+.nk-auth-sub { color: var(--nk-text-muted); font-size: 0.9rem; margin: 0.35rem 0 0; }
+.nk-auth-body { padding: 1.75rem 2rem 2rem; }
+
+/* Setup wizard steps */
+.setup-step h5 { letter-spacing: 0.02em; margin-bottom: 0.75rem; }
+.setup-step .form-text a { font-weight: 500; }
+
+.nk-badge-optional {
+    background: var(--nk-accent-soft);
+    color: var(--nk-accent);
+    font-family: var(--nk-font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    vertical-align: middle;
+    border: 1px solid var(--nk-accent-soft);
+}
+
+/* Inline help blocks in the wizard */
+.nk-help {
+    background: var(--nk-panel-2);
+    border: 1px solid var(--nk-border);
+    border-left: 3px solid var(--nk-accent);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    margin: 0.5rem 0 0.35rem;
+    font-size: 0.875rem;
+}
+
+.nk-help-title {
+    font-family: var(--nk-font-display);
     font-weight: 600;
-    letter-spacing: 0.5px;
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
 }
 
-/* Custom animations */
-@keyframes pulse {
-    0% {
-        box-shadow: 0 0 0 0 rgba(78, 115, 223, 0.7);
-    }
-    70% {
-        box-shadow: 0 0 0 10px rgba(78, 115, 223, 0);
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(78, 115, 223, 0);
-    }
+.nk-help ol, .nk-help ul { margin: 0 0 0.25rem; padding-left: 1.25rem; }
+.nk-help li { margin-bottom: 0.25rem; }
+.nk-help code {
+    background: var(--nk-accent-soft);
+    color: var(--nk-accent);
+    padding: 0.05rem 0.3rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
 }
 
-.pulse-animation {
-    animation: pulse 2s infinite;
+.nk-help-note {
+    color: var(--nk-text-muted);
+    font-size: 0.8rem;
+    margin-top: 0.4rem;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .card {
-        margin-bottom: 1rem;
-    }
-    
-    .card:hover {
-        transform: none;
-    }
+/* Login divider */
+.nk-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1.25rem 0;
+    color: var(--nk-text-muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
 }
 
-/* Utility classes */
-.text-xs {
-    font-size: 0.7rem;
+.nk-divider::before, .nk-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--nk-border);
 }
 
-.text-lg {
-    font-size: 1.2rem;
+.nk-passkey-hint { color: var(--nk-text-muted); font-size: 0.8rem; text-align: center; margin: 0.5rem 0 0; }
+
+#validationResults .list-group-item {
+    background: var(--nk-panel-2);
+    border-color: var(--nk-border);
+    font-size: 0.9rem;
 }
 
-.font-weight-bold {
-    font-weight: bold;
+/* ---------- Footer ---------- */
+
+.nk-footer {
+    margin-top: 4rem;
+    padding: 1.4rem 0 1.8rem;
+    border-top: 1px solid var(--nk-border);
+    background: var(--nk-panel-2);
 }
 
-.border-left-primary {
-    border-left: 4px solid #4e73df;
+.nk-footer-text { color: var(--nk-text-muted); font-size: 0.85rem; letter-spacing: 0.03em; }
+.nk-footer-lock { color: var(--nk-accent); margin-right: 0.35rem; }
+.nk-footer-sep { margin: 0 0.4rem; opacity: 0.5; }
+
+/* ---------- Misc ---------- */
+
+.dropdown-menu {
+    background: var(--nk-panel);
+    border-color: var(--nk-border-strong);
+    border-radius: 10px;
+    box-shadow: var(--nk-shadow);
 }
 
-.border-left-success {
-    border-left: 4px solid #1cc88a;
+.dropdown-item { color: var(--nk-text); }
+.dropdown-item:hover, .dropdown-item:focus { background: var(--nk-accent-soft); color: var(--nk-accent); }
+
+.list-group-item { background: var(--nk-panel); border-color: var(--nk-border); color: var(--nk-text); }
+.modal-content { background: var(--nk-panel); border-color: var(--nk-border); border-radius: 12px; }
+
+/* Tabs: readable inactive labels, amber active underline */
+.nav-tabs { border-bottom-color: var(--nk-border-strong); }
+.nav-tabs .nav-link {
+    color: var(--nk-text-muted);
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-weight: 500;
 }
 
-.border-left-danger {
-    border-left: 4px solid #e74a3b;
+.nav-tabs .nav-link:hover {
+    color: var(--nk-text);
+    border-color: transparent;
+    background: transparent;
 }
 
-.border-left-warning {
-    border-left: 4px solid #f6c23e;
+.nav-tabs .nav-link.active {
+    color: var(--nk-accent);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--nk-accent);
+}
+
+/* Themed form controls & spinners (replace Bootstrap default blue) */
+.form-check-input { background-color: var(--nk-panel-2); border-color: var(--nk-border-strong); }
+.form-check-input:checked {
+    background-color: var(--nk-accent);
+    border-color: var(--nk-accent);
+}
+
+.spinner-border.text-primary { color: var(--nk-accent) !important; }
+
+/* Bootstrap 'light' buttons read as bright white blocks on dark panels */
+.btn-light {
+    background: var(--nk-panel-2);
+    border-color: var(--nk-border-strong);
+    color: var(--nk-text);
+}
+
+.btn-light:hover, .btn-light:focus {
+    background: var(--nk-accent-soft);
+    border-color: var(--nk-accent);
+    color: var(--nk-accent);
+}
+
+/* Disabled inputs (e.g. username on profile) */
+.form-control:disabled, .form-control[readonly] {
+    background: var(--nk-panel-2);
+    color: var(--nk-text-muted);
+    opacity: 1;
+}
+
+::selection { background: var(--nk-accent); color: var(--nk-on-accent); }
+
+/* Motion: single orchestrated entrance */
+.card, .nk-auth-card { animation: nk-rise 0.4s ease both; }
+@keyframes nk-rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
 }

@@ -27,27 +27,20 @@ The module integrates with the existing Nuki notification system without requiri
 
 ## Installation
 
-1. Install the security module files:
+The security module ships inside the single-container image (`security/` is
+copied into the image by the Dockerfile) — no manual file placement needed.
+
+1. Enable the module in the configuration (via the web UI Configuration page,
+   or):
 
 ```bash
-# Copy security module files
-mkdir -p /root/nukiweb/scripts/security
-cp security_monitor.py /root/nukiweb/scripts/security/
-cp security_alerter.py /root/nukiweb/scripts/security/
-cp __init__.py /root/nukiweb/scripts/security/
+docker exec -it nuki python scripts/configure.py update --section Security --option enabled --value true
 ```
 
-2. Update the configuration:
+2. Restart the container:
 
 ```bash
-# Add security section to config
-/root/nukiweb/scripts/configure.py update --section Security --option enabled --value true
-```
-
-3. Restart the notification service:
-
-```bash
-systemctl restart nuki-monitor.service
+docker compose restart
 ```
 
 ## Configuration

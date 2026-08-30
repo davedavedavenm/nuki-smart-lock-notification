@@ -224,7 +224,7 @@ For more details, see the [SECURITY.md](SECURITY.md) file.
 
 ## Docker Deployment Guidelines
 
-For detailed information about Docker deployment, including important information about container permissions and bind mounts, please refer to the [DOCKER_SETUP.md](DOCKER_SETUP.md) document.
+For detailed information about Docker deployment, including important information about container permissions and bind mounts, please refer to the [DOCKER_GUIDE.md](DOCKER_GUIDE.md) document.
 
 ### Important: Host Directory Permissions for Docker
 
@@ -279,7 +279,7 @@ If you're using Docker and see errors like:
 - No notifications despite correct configuration
 - Containers crash or restart repeatedly
 
-This indicates a permission issue with the Docker bind mounts. Follow the steps in [DOCKER_SETUP.md](DOCKER_SETUP.md) to fix these issues.
+This indicates a permission issue with the Docker bind mounts. Follow the steps in [DOCKER_GUIDE.md](DOCKER_GUIDE.md) to fix these issues.
 
 ### Web interface not working
 

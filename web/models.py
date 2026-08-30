@@ -11,20 +11,30 @@ class UserDatabase:
         """Initialize the database with a data directory"""
         self.data_dir = data_dir
         self.users_file = os.path.join(self.data_dir, 'users.json')
+        self.load_error = None
         self.users = self._load_users()
-        
-        # Create default admin user if no users exist
-        if not self.users:
-            self.add_user('admin', 'nukiadmin', 'admin', True)
-    
+        # NOTE: no default user is created automatically. The first admin
+        # account is created by the setup wizard (POST /api/setup), so a
+        # fresh deployment never has known default credentials.
+
     def _load_users(self):
-        """Load users from the users file"""
+        """Load users from the users file.
+
+        A MISSING file means a fresh install (empty database). A CORRUPT file
+        must fail closed: load_error is set and users_exist() reports True so
+        the setup wizard cannot be re-opened by an attacker by truncating the
+        users file.
+        """
         if os.path.exists(self.users_file):
             try:
                 with open(self.users_file, 'r') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, IOError) as e:
-                print(f"Error loading users: {e}")
+                    data = json.load(f)
+                if not isinstance(data, dict):
+                    raise ValueError('users.json must contain a JSON object')
+                return data
+            except (json.JSONDecodeError, ValueError, OSError) as e:
+                print(f"Error loading users file {self.users_file}: {e}")
+                self.load_error = f"users.json is corrupt: {e}"
                 return {}
         return {}
     
@@ -148,6 +158,14 @@ class UserDatabase:
     def user_exists(self, username):
         """Check if a user exists"""
         return username in self.users
+
+    def users_exist(self):
+        """Check if any user account exists.
+
+        Returns True too when the users file is corrupt (fail closed) so the
+        setup wizard stays locked for a running system.
+        """
+        return bool(self.users) or self.load_error is not None
 
 class User:
     """User class for Flask-Login compatibility"""

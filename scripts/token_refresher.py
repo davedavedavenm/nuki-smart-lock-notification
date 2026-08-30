@@ -186,8 +186,8 @@ def main():
         print("\n🔄 RECOMMENDED NEXT STEPS:")
         print("1. If running in Docker:")
         print("   - Run 'docker compose down && docker compose up -d'")
-        print("2. If running as a service:")
-        print("   - Run 'systemctl restart nuki-monitor.service'")
+        print("2. If running outside Docker:")
+        print("   - Restart the monitor and web processes")
         
     except Exception as e:
         print(f"\n❌ Error saving token: {e}")

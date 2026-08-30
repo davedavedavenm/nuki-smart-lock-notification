@@ -1,0 +1,26 @@
+# Keep secrets and local state out of the build context
+.env
+config/credentials.ini
+config/config.ini
+config/users.json
+config/temp_codes.json
+flask_session/
+logs/
+data/
+backups/
+
+# Git, CI, docs and tests are not needed in the image
+.git/
+.github/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+tests/
+conftest.py
+docs/
+*.md
+!LICENSE
+
+# Legacy scripts (kept for reference, never shipped)
+*.bat
+*.service

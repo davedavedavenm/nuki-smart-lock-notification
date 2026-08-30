@@ -1,270 +1,168 @@
-# Docker Setup for Nuki Smart Lock Notification System
+# Docker Deployment Guide
 
-This guide explains how to deploy and manage the Nuki Smart Lock notification system using Docker containers, making it portable across various platforms.
+This is the canonical deployment guide for the Nuki Smart Lock Notification
+System (single-container layout, updated August 2026).
 
-## Deployment Options
+## Architecture
 
-### Option 1: One-click Deployment (Coming Soon)
-A simplified deployment script that handles all setup automatically.
+Everything runs in **one container** started by one Compose service:
 
-### Option 2: Manual Deployment
-Follow the workflow below for manual deployment and management.
+| Process | Role |
+| --- | --- |
+| `scripts/nuki_monitor.py` | Polls the Nuki Web API, filters events, sends email/Telegram notifications |
+| `gunicorn` (Flask `web.app:app`) | Web dashboard on port 5000 |
 
-1. Update files in the local Nextcloud folder (Nextcloud Migration: Local path transitions from `C:\Users\Dave\OneDrive\` to `D:\Nextcloud\`, keeping OneDrive references as legacy options)
-2. Push changes to GitHub
-3. Pull changes on the Raspberry Pi
-4. Run the transition or update script
+The entrypoint (`docker-entrypoint.sh`) performs permission checks, bootstraps
+the configuration files, then supervises both processes. If either process
+exits, the container stops and Docker restarts it (`restart: unless-stopped`).
+`init: true` reaps zombie processes.
 
-## Deployment on Different Platforms
+### Files
 
-### Linux (Raspberry Pi, Ubuntu, etc.)
-1. Install Docker and Docker Compose:
-   ```bash
-   curl -sSL https://get.docker.com | sh
-   sudo apt-get install -y docker-compose
-   ```
-2. Clone the repository and deploy:
-   ```bash
-   git clone https://github.com/davedavedavenm/nuki-smart-lock-notification.git
-   cd nuki-smart-lock-notification
-   
-   # Create directories and set permissions (important for bind mounts)
-   mkdir -p config logs data
-   chmod -R 777 logs data
-   
-   # Start the containers
-   docker compose up -d
-   ```
+- `compose.yaml` — the Compose service (no deprecated `version:` key)
+- `Dockerfile` — Python 3.13 slim base, non-root user, healthcheck
+- `docker-entrypoint.sh` — bootstrap + supervision
+- `.dockerignore` — keeps secrets and local state out of the build context
 
-### Windows
-1. Install Docker Desktop from [Docker Hub](https://www.docker.com/products/docker-desktop/)
-2. Clone the repository using Git or download as ZIP
-3. Create necessary directories before starting containers:
-   ```cmd
-   mkdir config logs data
-   ```
-4. Open Command Prompt in the repository folder:
-   ```cmd
-   docker compose up -d
-   ```
+## Prerequisites
 
-### macOS
-1. Install Docker Desktop from [Docker Hub](https://www.docker.com/products/docker-desktop/)
-2. Clone the repository:
-   ```bash
-   git clone https://github.com/davedavedavenm/nuki-smart-lock-notification.git
-   cd nuki-smart-lock-notification
-   
-   # Create directories
-   mkdir -p config logs data
-   chmod -R 777 logs data
-   
-   # Start containers
-   docker compose up -d
-   ```
+- Docker Engine + Compose plugin v2.24 or newer (`docker compose version`)
+- A Nuki Web API token (https://web.nuki.io/ → Account → API)
+- The host UID/GID for the runtime user is **999** (see Permissions below)
 
-## First-time Setup
-
-On first launch, the system will:
-1. Detect if a configuration exists.
-2. If not configured, the Web Interface will guide you through a **Setup Wizard** to enter your Nuki, Telegram, and Email credentials.
-3. Securely save these credentials to the persistent `data/` and `config/` directories.
-
-Alternatively, you can configure the system using environment variables:
-
-1. Copy the `.env.example` file to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-2. Edit `.env` with your specific tokens and settings.
-3. Start the containers; they will automatically prioritize these variables.
-
-## Bind Mount Permissions
-
-The system uses bind mounts to persist data. Since the application runs as a non-root user (`nuki`, UID 999), ensure the host directories are writable:
+## Quick Start
 
 ```bash
-# Create directories
-mkdir -p config logs data flask_session
+git clone https://github.com/davedavedavenm/nuki-smart-lock-notification.git
+cd nuki-smart-lock-notification
+cp .env.example .env
+# Edit .env — set SECRET_KEY (python3 -c "import secrets; print(secrets.token_hex(32))")
+docker compose up -d --build
+```
 
-# Set permissions (Linux/macOS)
-chmod -R 775 config logs data flask_session
+Open `http://<host-ip>:5000/`. First run walks you through the Setup Wizard:
+
+1. **Admin account** — choose your own username and password (no defaults exist)
+2. **Nuki API token** — entered and validated live against the Nuki Web API
+3. **Telegram** (optional) — bot token + chat ID, bot token validated
+4. **Email** (optional) — SMTP settings
+5. **Save** — credentials are written to `config/credentials.ini` (chmod 600, owned by the container user) and you land on the login page
+
+The monitor loop picks up the new token automatically; no restart needed.
+
+## Volumes (bind mounts)
+
+| Host path | Container path | Contents |
+| --- | --- | --- |
+| `./config` | `/app/config` | `config.ini`, `credentials.ini`, `users.json`, `temp_codes.json` |
+| `./data` | `/app/data` | Activity history |
+| `./logs` | `/app/logs` | Monitor and web logs |
+| `./flask_session` | `/app/flask_session` | Server-side web sessions |
+
+All persistent state lives on the host — you can `docker compose down`, pull
+updates and `up -d` again without losing anything.
+
+## Permissions
+
+The container runs as the non-root user `nuki` (UID/GID **999**). The mounted
+host directories must be writable by that UID:
+
+```bash
+mkdir -p config logs data flask_session
 sudo chown -R 999:999 config logs data flask_session
 ```
 
-## Volume Management and Data Persistence
+The entrypoint fails fast with an actionable message if permissions are wrong,
+rather than crash-looping.
 
-The Docker setup uses standardized paths for persistent data:
+## Environment Variables
 
-```yaml
-volumes:
-  - ./config:/app/config  # Read-only configuration (config.ini)
-  - ./data:/app/data      # Persistent state (users.json, activity history)
-  - ./logs:/app/logs      # Application logs
-  - ./flask_session:/app/flask_session # Persistent web sessions
-```
+All `NUKI_*` variables from [.env.example](.env.example) are supported and take
+priority over `config/config.ini` / `config/credentials.ini` values.
 
-### Backup and Restore
+Key variables:
 
-**Backup your data:**
-```bash
-# Create a backup of all directories
-tar czf nuki-backup.tar.gz config logs data
-```
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SECRET_KEY` | *(none — required)* | Flask session signing key. Without it an ephemeral key is generated and sessions don't survive restarts |
+| `NUKI_WEB_PORT` | `5000` | Host port for the dashboard |
+| `TZ` | `Europe/London` | Container timezone |
+| `GUNICORN_WORKERS` | `2` | Web worker count |
+| `NUKI_POLLING_INTERVAL` | `60` | Seconds between Nuki API polls |
+| `NUKI_NOTIFICATION_TYPE` | `both` | `both`, `telegram`, `email`, or `none` |
+| `WEB_HTTPS` | `false` | Set `true` when behind an HTTPS reverse proxy — enables secure session cookies and passkey logins |
+| `DEBUG` | `false` | Debug mode |
 
-**Restore from backup:**
-```bash
-# Restore from backup file
-tar xzf nuki-backup.tar.gz
-```
+## Operations
 
-## Security Considerations
-
-### HTTPS Setup
-
-For production use, enable HTTPS:
-
-1. **Using Nginx Reverse Proxy (Recommended)**
-   - Install Nginx and Certbot
-   - Configure a reverse proxy to your Docker container
-   - Set up automatic SSL with Let's Encrypt
-
-2. **Direct HTTPS Configuration**
-   - Generate SSL certificates
-   - Mount certificates into the container
-   - Update environment variables:
-     ```yaml
-     environment:
-       - ENABLE_HTTPS=true
-       - SSL_CERT_PATH=/app/ssl/cert.pem
-       - SSL_KEY_PATH=/app/ssl/key.pem
-     ```
-
-### Secure Password Management
-
-On first login, immediately change the default admin password (admin/nukiadmin) to a strong, unique password.
-
-### Network Isolation
-
-Use Docker's network features to isolate your containers:
-
-```yaml
-networks:
-  nuki-network:
-    driver: bridge
-    internal: false  # Set to true to prevent containers from accessing internet
-```
-
-## Advanced Configuration
-
-### Environment Variables
-
-All features can be customized through environment variables:
-
-```yaml
-environment:
-  # General settings
-  - TZ=Europe/London                     # Set your timezone
-  - LOG_LEVEL=INFO                       # Logging level (DEBUG, INFO, WARNING, ERROR)
-  
-  # Web interface settings
-  - WEB_PORT=5000                        # Web interface port
-  - SESSION_TIMEOUT=3600                 # Session timeout in seconds
-  - ENABLE_HTTPS=false                   # Enable HTTPS
-  
-  # Notification settings
-  - NOTIFICATION_TYPE=both               # Email, telegram, or both
-  - POLLING_INTERVAL=60                  # API polling interval
-  - DIGEST_MODE=false                    # Enable digest mode
-  
-  # Security settings
-  - FAILED_ATTEMPT_THRESHOLD=3           # Failed attempt threshold
-  - SECURITY_ALERT_PRIORITY=high         # Security alert priority
-```
-
-### Docker Compose Extensions
-
-For advanced setups, use Docker Compose profiles and extensions:
+### Logs
 
 ```bash
-# Run with monitoring profile only
-docker compose --profile monitoring up -d
-
-# Run with web interface profile only
-docker compose --profile web up -d
+docker logs -f nuki              # stdout/stderr (rotated: 3 x 10 MB)
+tail -f logs/nuki_monitor.log    # monitor log file
+tail -f logs/nuki_web.log        # web log file
 ```
 
-## Routine Management
-
-### Common Commands
-
-- **Check status**:
-  ```bash
-  docker compose ps
-  ```
-
-- **View logs**:
-  ```bash
-  docker compose logs
-  # Follow logs in real-time
-  docker compose logs -f
-  ```
-
-- **Stop the system**:
-  ```bash
-  docker compose down
-  ```
-
-- **Start the system**:
-  ```bash
-  docker compose up -d
-  ```
-
-- **Restart a specific service**:
-  ```bash
-  docker compose restart nuki-monitor
-  docker compose restart nuki-web
-  ```
-
-### Updating the System
+### Health
 
 ```bash
-# Pull latest version
+docker compose ps                # health status
+curl http://localhost:5000/health
+```
+
+The healthcheck (every 60s) hits `/health` inside the container.
+
+### Updating
+
+```bash
 git pull
-
-# Rebuild and restart
-docker compose down
-docker compose build --no-cache
-docker compose up -d
+docker compose up -d --build
 ```
 
-## Troubleshooting
-
-### Common Issues
-
-1. **Web Interface Not Accessible**
-   - Check if containers are running: `docker compose ps`
-   - Verify port mapping: `docker compose port nuki-web 5000`
-   - Check container logs: `docker compose logs nuki-web`
-
-2. **Configuration Not Saving**
-   - Check directory permissions: `ls -la config logs data`
-   - Verify config file exists: `docker compose exec nuki-web ls -la /app/config`
-
-3. **No Notifications Being Sent**
-   - Check credentials: `docker compose exec nuki-monitor cat /app/config/credentials.ini`
-   - Verify API connectivity: `docker compose logs nuki-monitor | grep "API"`
-
-4. **Permission Denied Errors**
-   - See TROUBLESHOOTING.md for detailed solutions to permission issues
-
-### Container Health Checks
+### Restarting
 
 ```bash
-docker inspect --format='{{json .State.Health}}' nuki-monitor
-docker inspect --format='{{json .State.Health}}' nuki-web
+docker compose restart
 ```
 
-## Contributing
+### Entering the container
 
-Improvements to the Docker setup are welcome! Please submit pull requests to our GitHub repository.
+```bash
+docker exec -it nuki bash
+```
+
+### Backups
+
+Stop writes, then copy the state directories:
+
+```bash
+docker compose stop
+tar czf nuki-backup-$(date +%F).tar.gz config data
+docker compose start
+```
+
+`credentials.ini` in the backup contains live secrets — store the archive
+securely.
+
+### Rotating the Nuki API token
+
+Either use the web UI (Configuration) or:
+
+```bash
+docker exec -it nuki python scripts/token_manager.py
+docker compose restart
+```
+
+## Security Notes
+
+- The image never bakes in secrets; `.env`, `config/credentials.ini`, logs,
+  sessions and data are excluded from the build context via `.dockerignore`
+- Compose sets **no default `SECRET_KEY`** — a fixed default would let anyone
+  forge session cookies, so it is intentionally required
+- The container runs as non-root; only port 5000 is published (bind it to
+  `127.0.0.1:5000:5000` in `compose.yaml` if you front it with a reverse proxy)
+- **Passkeys (WebAuthn)**: users can register passkeys on their profile page
+  and sign in with fingerprint/face/device PIN instead of a password. Browsers
+  only allow this over HTTPS (or localhost) — set `WEB_HTTPS=true` in `.env`
+  when running behind an HTTPS reverse proxy so secure session cookies are set
+- See [SECURITY.md](SECURITY.md) for the full security policy

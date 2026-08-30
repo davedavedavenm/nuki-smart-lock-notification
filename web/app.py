@@ -24,6 +24,7 @@ from scripts.nuki.utils import ActivityTracker
 from web.models import UserDatabase, User
 from web.temp_codes import TemporaryCodeDatabase
 from web.dark_mode import init_app
+from web import passkeys as pk
 
 # Configure logging with fallback to console if file logging fails
 log_handlers = []
@@ -63,7 +64,7 @@ app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))  # Use persistent 
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_FILE_DIR'] = os.environ.get('SESSION_FILE_DIR', os.path.join(parent_dir, 'flask_session'))
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Longer session lifetime
-app.config['SESSION_COOKIE_SECURE'] = False  # Allow session on http for development
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('WEB_HTTPS', 'false').lower() == 'true'  # set WEB_HTTPS=true behind an HTTPS reverse proxy
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Security best practice
 
 # Initialize Flask-Session
@@ -77,16 +78,24 @@ def make_session_permanent():
 # Check if setup is needed
 @app.before_request
 def check_setup():
-    # Allow access to setup page, setup API, and static files
-    if request.endpoint in ['setup', 'api_setup', 'static', 'health']:
+    # Allow access to setup page, setup API, static files, and the health
+    # endpoint (used by the Docker healthcheck) regardless of setup state
+    if request.endpoint in ['setup', 'api_setup', 'static', 'health', 'health_check']:
         return
-    
-    # If not configured, redirect to setup
-    if not config.is_configured:
+
+    # Fresh install (no user accounts yet): walk the user through setup
+    if not user_db.users_exist():
         return redirect(url_for('setup'))
 
 # Initialize dark mode as default
 init_app(app)
+
+# Static asset cache-busting: bump when CSS/JS change so browsers fetch fresh
+ASSET_VERSION = '20260830.2'
+
+@app.context_processor
+def inject_asset_version():
+    return {'asset_version': ASSET_VERSION}
 
 # Provide common template variables
 @app.context_processor
@@ -145,11 +154,17 @@ def index():
 
 @app.route('/setup')
 def setup():
-    """First-time setup wizard page"""
-    # If already configured, redirect to index
-    if config.is_configured:
-        return redirect(url_for('index'))
-    return render_template('setup.html')
+    """First-time setup wizard page.
+
+    Fresh installs start at stage 1. Because each stage saves immediately,
+    an in-progress setup can be resumed (session-scoped) after a refresh.
+    """
+    if not user_db.users_exist():
+        return render_template('setup.html', setup_stage=session.get('setup_stage', 1))
+    # Users exist: only the session that created the admin may resume the wizard
+    if session.get('setup_stage'):
+        return render_template('setup.html', setup_stage=session.get('setup_stage'))
+    return redirect(url_for('index'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -185,6 +200,116 @@ def logout():
     session.pop('theme', None)
     flash('You were logged out')
     return redirect(url_for('login'))
+
+# ---------------------------------------------------------------------------
+# Passkey (WebAuthn) support
+# ---------------------------------------------------------------------------
+
+@app.route('/api/passkeys', methods=['GET'])
+@login_required
+def passkey_list():
+    """List the current user's registered passkeys."""
+    user = user_db.get_user(session['username'])
+    keys = [
+        {"id": k["id"], "name": k.get("name", "Passkey"), "created_at": k.get("created_at")}
+        for k in pk.get_passkeys(user)
+    ]
+    return jsonify({"passkeys": keys, "secure_context": request.is_secure or request.host.startswith(('localhost', '127.0.0.1'))})
+
+
+@app.route('/api/passkeys/register/begin', methods=['POST'])
+@login_required
+def passkey_register_begin():
+    """Start passkey registration for the logged-in user."""
+    user = user_db.get_user(session['username'])
+    if user is None:
+        return jsonify({"error": "User not found"}), 404
+    try:
+        options, state = pk.begin_registration(user, session['username'], pk.rp_from_request(request))
+        session['passkey_reg_state'] = state
+        return jsonify(options)
+    except Exception as e:
+        logger.error(f"Passkey registration begin failed: {e}")
+        return jsonify({"error": "Could not start passkey registration"}), 500
+
+
+@app.route('/api/passkeys/register/finish', methods=['POST'])
+@login_required
+def passkey_register_finish():
+    """Verify and store a newly registered passkey."""
+    state = session.pop('passkey_reg_state', None)
+    if not state:
+        return jsonify({"error": "No registration in progress"}), 400
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    user = user_db.get_user(session['username'])
+    try:
+        credential_id, attested = pk.complete_registration(
+            state, data, pk.rp_from_request(request)
+        )
+        name = (data.get('name') or 'Passkey').strip()[:40]
+        pk.add_passkey(user, credential_id, attested, name=name)
+        if not user_db._save_users():
+            return jsonify({"error": "Could not save passkey"}), 500
+        logger.info(f"Passkey registered for user {session['username']}")
+        return jsonify({"success": True, "message": "Passkey registered"})
+    except Exception as e:
+        logger.error(f"Passkey registration failed: {e}")
+        return jsonify({"error": "Passkey registration failed"}), 400
+
+
+@app.route('/api/passkeys/<credential_id>', methods=['DELETE'])
+@login_required
+def passkey_delete(credential_id):
+    """Remove one of the current user's passkeys."""
+    user = user_db.get_user(session['username'])
+    if pk.remove_passkey(user, credential_id):
+        user_db._save_users()
+        return jsonify({"success": True})
+    return jsonify({"error": "Passkey not found"}), 404
+
+
+@app.route('/api/passkeys/auth/begin', methods=['POST'])
+def passkey_auth_begin():
+    """Start a usernameless passkey login ceremony."""
+    try:
+        options, state = pk.begin_authentication(user_db, pk.rp_from_request(request))
+        session['passkey_auth_state'] = state
+        return jsonify(options)
+    except Exception as e:
+        logger.error(f"Passkey auth begin failed: {e}")
+        return jsonify({"error": "Could not start passkey login"}), 500
+
+
+@app.route('/api/passkeys/auth/finish', methods=['POST'])
+def passkey_auth_finish():
+    """Verify an assertion and log the user in."""
+    state = session.pop('passkey_auth_state', None)
+    if not state:
+        return jsonify({"error": "No login in progress"}), 400
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    try:
+        username = pk.complete_authentication(state, data, user_db, pk.rp_from_request(request))
+    except Exception as e:
+        logger.warning(f"Passkey login failed: {e}")
+        return jsonify({"error": "Passkey login failed"}), 401
+
+    user = user_db.get_user(username)
+    if not user or not user.get('active', True):
+        return jsonify({"error": "Account is disabled"}), 401
+
+    session['logged_in'] = True
+    session['username'] = username
+    session['role'] = user.get('role', 'user')
+    session['theme'] = user.get('theme', 'dark')
+    user['last_login'] = datetime.now().isoformat()
+    user_db._save_users()
+    logger.info(f"User {username} logged in with passkey")
+    return jsonify({"success": True, "redirect": url_for('index')})
+
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
@@ -365,15 +490,17 @@ def get_activity():
         # Get locks
         locks = api.get_smartlocks()
         if not locks:
-            return jsonify({"error": "No smartlocks found"}), 404
-        
+            # No locks visible (e.g. token not yet configured) — return a
+            # clean empty state instead of an error
+            return jsonify([])
+
         all_activity = []
-        
+
         # Get activity for each lock
         for lock in locks:
             lock_id = lock.get('smartlockId')
             lock_name = lock.get('name', 'Unknown Lock')
-            
+
             # Get activity logs
             activity = api.get_smartlock_logs(lock_id, limit=limit)
             
@@ -458,8 +585,10 @@ def get_status():
         # Get locks
         locks = api.get_smartlocks()
         if not locks:
-            return jsonify({"error": "No smartlocks found"}), 404
-        
+            # No locks visible (e.g. token not yet configured) — return a
+            # clean empty state instead of an error
+            return jsonify([])
+
         # Process lock information
         lock_status = []
         for lock in locks:
@@ -811,70 +940,187 @@ def update_config():
             
         return jsonify({"error": str(e)}), 500
 
+def _validate_nuki_token(token):
+    """Read-only validation of a Nuki Web API token (GET /smartlocks)."""
+    try:
+        import requests as _requests
+        resp = _requests.get(
+            "https://api.nuki.io/smartlock",
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return {"valid": True, "detail": "Token accepted by Nuki Web API"}
+        if resp.status_code == 401:
+            return {"valid": False, "detail": "Nuki rejected this token (401 Unauthorized)"}
+        return {"valid": False, "detail": f"Nuki API returned HTTP {resp.status_code}"}
+    except Exception as e:
+        return {"valid": None, "detail": f"Could not reach Nuki API: {e}"}
+
+
+def _validate_telegram_token(token):
+    """Read-only validation of a Telegram bot token (getMe)."""
+    if not token:
+        return None
+    try:
+        import requests as _requests
+        resp = _requests.get(f"https://api.telegram.org/bot{token}/getMe", timeout=10)
+        payload = resp.json() if resp.status_code == 200 else {}
+        if payload.get("ok"):
+            bot_name = payload.get("result", {}).get("username", "bot")
+            return {"valid": True, "detail": f"Bot verified: @{bot_name}"}
+        return {"valid": False, "detail": "Telegram rejected this bot token"}
+    except Exception as e:
+        return {"valid": None, "detail": f"Could not reach Telegram: {e}"}
+
+
+def _persist_config_files():
+    """Write config.ini and credentials.ini to disk, credentials locked to 0600."""
+    config._save_config(config.config, config.config_path)
+    config._save_config(config.credentials, config.credentials_path)
+    try:
+        os.chmod(config.credentials_path, 0o600)
+    except OSError:
+        pass
+
+
 @app.route('/api/setup', methods=['POST'])
 def api_setup():
-    """API endpoint for initial system setup"""
-    # If already configured, prevent further setup via this endpoint
-    if config.is_configured:
-        return jsonify({"error": "System is already configured"}), 403
-        
+    """Staged setup API — each stage validates and saves IMMEDIATELY so a
+    mistake never loses previously entered details.
+
+    Stages:
+      admin    -> create the first admin account and log in (required)
+      nuki     -> save + live-validate the Nuki API token (recommended)
+      telegram -> save Telegram credentials (optional)
+      email    -> save email/SMTP settings (optional)
+
+    Telegram and email are explicitly optional: posting an empty payload to
+    those stages just advances the wizard.
+    """
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
-        
+
+    stage = data.get('stage', '')
+    validation = {}
+
     try:
-        # Update Nuki API Token
-        if 'nuki_token' in data and data['nuki_token']:
-            if not config.credentials.has_section('Nuki'):
-                config.credentials.add_section('Nuki')
-            config.credentials.set('Nuki', 'api_token', data['nuki_token'])
-            
-        # Update Telegram Settings
-        if 'telegram_bot_token' in data and data['telegram_bot_token']:
-            if not config.credentials.has_section('Telegram'):
-                config.credentials.add_section('Telegram')
-            config.credentials.set('Telegram', 'bot_token', data['telegram_bot_token'])
-        if 'telegram_chat_id' in data and data['telegram_chat_id']:
-            if not config.config.has_section('Telegram'):
-                config.config.add_section('Telegram')
-            config.config.set('Telegram', 'chat_id', data['telegram_chat_id'])
-            
-        # Update Email Settings
-        if 'email_username' in data and data['email_username']:
-            if not config.credentials.has_section('Email'):
-                config.credentials.add_section('Email')
-            config.credentials.set('Email', 'username', data['email_username'])
-        if 'email_password' in data and data['email_password']:
-            if not config.credentials.has_section('Email'):
-                config.credentials.add_section('Email')
-            config.credentials.set('Email', 'password', data['email_password'])
-        if 'email_smtp_server' in data and data['email_smtp_server']:
-            if not config.config.has_section('Email'):
-                config.config.add_section('Email')
-            config.config.set('Email', 'smtp_server', data['email_smtp_server'])
-        if 'email_smtp_port' in data and data['email_smtp_port']:
-            if not config.config.has_section('Email'):
-                config.config.add_section('Email')
-            config.config.set('Email', 'smtp_port', str(data['email_smtp_port']))
-        if 'email_sender' in data and data['email_sender']:
-            if not config.config.has_section('Email'):
-                config.config.add_section('Email')
-            config.config.set('Email', 'sender', data['email_sender'])
-        if 'email_recipient' in data and data['email_recipient']:
-            if not config.config.has_section('Email'):
-                config.config.add_section('Email')
-            config.config.set('Email', 'recipient', data['email_recipient'])
-            
-        # Save both files
-        config._save_config(config.config, config.config_path)
-        config._save_config(config.credentials, config.credentials_path)
-        
-        # Reload configuration to apply changes
-        config.reload()
-        
-        return jsonify({"success": True, "message": "Configuration saved successfully"})
+        # ---------------------------------------------------------------
+        # Stage 1: admin account (the only required stage)
+        # ---------------------------------------------------------------
+        if stage == 'admin':
+            if user_db.users_exist():
+                if session.get('setup_stage'):
+                    # Resume: this session already created the admin
+                    return jsonify({"success": True, "stage": session['setup_stage'],
+                                    "message": "Admin account already created"})
+                return jsonify({"error": "Setup already completed"}), 403
+
+            admin_username = (data.get('admin_username') or '').strip()
+            admin_password = data.get('admin_password') or ''
+            admin_confirm = data.get('admin_password_confirm') or ''
+
+            if not admin_username or len(admin_username) < 3:
+                return jsonify({"error": "Admin username is required (min. 3 characters)"}), 400
+            if len(admin_password) < 8:
+                return jsonify({"error": "Admin password must be at least 8 characters"}), 400
+            if admin_password != admin_confirm:
+                return jsonify({"error": "Passwords do not match"}), 400
+
+            if not user_db.add_user(admin_username, admin_password, role='admin', active=True):
+                return jsonify({"error": "Could not create the admin account"}), 500
+
+            # Log the user in immediately and remember wizard progress
+            session['logged_in'] = True
+            session['username'] = admin_username
+            session['role'] = 'admin'
+            session['theme'] = 'dark'
+            session['setup_stage'] = 2
+            logger.info(f"Setup: admin account '{admin_username}' created")
+
+            return jsonify({"success": True, "stage": 2,
+                            "message": "Admin account created — details are saved. You can safely continue."})
+
+        # ---------------------------------------------------------------
+        # Stages 2-4: require the session that started setup
+        # ---------------------------------------------------------------
+        if not session.get('logged_in') or not session.get('setup_stage'):
+            return jsonify({"error": "Setup session not active"}), 401
+
+        if stage == 'nuki':
+            token = (data.get('nuki_token') or '').strip()
+            if token:
+                if not config.credentials.has_section('Nuki'):
+                    config.credentials.add_section('Nuki')
+                config.credentials.set('Nuki', 'api_token', token)
+                _persist_config_files()
+                config.reload()
+                validation['nuki'] = _validate_nuki_token(token)
+            else:
+                # Optional: allow continuing without a token (can add later)
+                validation['nuki'] = {"valid": None, "detail": "Skipped — no token entered yet"}
+            session['setup_stage'] = 3
+            return jsonify({"success": True, "stage": 3, "validation": validation,
+                            "message": "Nuki token saved. You can fix it any time in Configuration."})
+
+        if stage == 'telegram':
+            bot_token = (data.get('telegram_bot_token') or '').strip()
+            chat_id = (data.get('telegram_chat_id') or '').strip()
+            if bot_token:
+                if not config.credentials.has_section('Telegram'):
+                    config.credentials.add_section('Telegram')
+                config.credentials.set('Telegram', 'bot_token', bot_token)
+            if chat_id:
+                if not config.config.has_section('Telegram'):
+                    config.config.add_section('Telegram')
+                config.config.set('Telegram', 'chat_id', chat_id)
+            if bot_token or chat_id:
+                _persist_config_files()
+                config.reload()
+                if bot_token:
+                    validation['telegram'] = _validate_telegram_token(bot_token)
+            else:
+                validation['telegram'] = {"valid": None, "detail": "Skipped — you can add Telegram later in Notifications"}
+            session['setup_stage'] = 4
+            return jsonify({"success": True, "stage": 4, "validation": validation,
+                            "message": "Telegram settings saved."})
+
+        if stage == 'email':
+            fields = {
+                'email_username': ('credentials', 'Email', 'username'),
+                'email_password': ('credentials', 'Email', 'password'),
+                'email_smtp_server': ('config', 'Email', 'smtp_server'),
+                'email_smtp_port': ('config', 'Email', 'smtp_port'),
+                'email_sender': ('config', 'Email', 'sender'),
+                'email_recipient': ('config', 'Email', 'recipient'),
+            }
+            provided = False
+            for key, (target, section, name) in fields.items():
+                value = (data.get(key) or '').strip()
+                if not value:
+                    continue
+                provided = True
+                store = config.credentials if target == 'credentials' else config.config
+                if not store.has_section(section):
+                    store.add_section(section)
+                store.set(section, name, value)
+            if provided:
+                _persist_config_files()
+                config.reload()
+            else:
+                validation['email'] = {"valid": None, "detail": "Skipped — you can add email later in Notifications"}
+            session['setup_stage'] = 5
+            return jsonify({"success": True, "stage": 5, "validation": validation,
+                            "message": "Email settings saved."})
+
+        if stage == 'done':
+            session.pop('setup_stage', None)
+            return jsonify({"success": True, "message": "Setup complete"})
+
+        return jsonify({"error": f"Unknown setup stage: {stage}"}), 400
     except Exception as e:
-        logger.error(f"Error during setup: {e}")
+        logger.error(f"Error during setup stage '{stage}': {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/stats')
@@ -894,15 +1140,20 @@ def get_stats():
         # Get locks
         locks = api.get_smartlocks()
         if not locks:
-            return jsonify({"error": "No smartlocks found"}), 404
-        
+            # No locks visible (e.g. token not yet configured) — return a
+            # clean empty statistics payload instead of an error
+            return jsonify({
+                "by_user": [], "by_action": [], "by_hour": {}, "by_day": {},
+                "total_events": 0
+            })
+
         all_activity = []
-        
+
         # Get activity for each lock
         for lock in locks:
             lock_id = lock.get('smartlockId')
             lock_name = lock.get('name', 'Unknown Lock')
-            
+
             # Get activity logs (get more data for stats)
             activity = api.get_smartlock_logs(lock_id, limit=100)
             
@@ -1332,14 +1583,12 @@ def apply_theme_and_filter(response):
     
     return response
 
-# Main entry point
+# Development entry point (the container runs gunicorn instead).
+# NOTE: no default user is created here — the first admin account comes from
+# the Setup Wizard at /setup on first run.
 if __name__ == '__main__':
-    # Create logger directory if it doesn't exist
-    os.makedirs(os.path.join(parent_dir, "logs"), exist_ok=True)
-    
-    # Ensure the users.json file exists and has the admin user
-    if not user_db.get_user('admin'):
-        user_db.add_user('admin', 'nukiadmin', 'admin', True)
-    
-    # Run the app
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(
+        debug=os.environ.get('DEBUG', 'false').lower() == 'true',
+        host=os.environ.get('WEB_HOST', '127.0.0.1'),
+        port=int(os.environ.get('WEB_PORT', '5000')),
+    )

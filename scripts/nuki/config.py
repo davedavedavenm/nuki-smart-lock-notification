@@ -36,16 +36,16 @@ class ConfigManager:
             except PermissionError as e:
                 logger.critical(f"❌ CRITICAL: Permission denied creating config directory {config_dir}")
                 logger.critical(f"The application does not have write permissions to create the directory.")
-                logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+                logger.critical(f"See DOCKER_GUIDE.md for details on setting correct permissions.")
                 sys.exit(1)
             except Exception as e:
                 logger.critical(f"❌ CRITICAL: Failed to create config directory {config_dir}: {e}")
-                logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+                logger.critical(f"See DOCKER_GUIDE.md for details on setting correct permissions.")
                 sys.exit(1)
         elif not os.access(config_dir, os.W_OK):
             logger.critical(f"❌ CRITICAL: Config directory {config_dir} is not writable")
             logger.critical(f"The application needs write access to this directory for users.json")
-            logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+            logger.critical(f"See DOCKER_GUIDE.md for details on setting correct permissions.")
             sys.exit(1)
                 
         # Load configuration files
@@ -55,7 +55,7 @@ class ConfigManager:
         except (PermissionError, IOError) as e:
             logger.critical(f"❌ CRITICAL: Permission error accessing configuration files: {e}")
             logger.critical(f"The application cannot read/write to configuration files.")
-            logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+            logger.critical(f"See DOCKER_GUIDE.md for details on setting correct permissions.")
             sys.exit(1)
         
         # Initialize settings
@@ -145,8 +145,15 @@ class ConfigManager:
 
     @property
     def is_configured(self):
-        """Check if the system has been configured with essential settings"""
-        return bool(self.api_token)
+        """Check if the system has been configured with essential settings.
+
+        Placeholder values copied from the example template do not count as
+        configuration — a fresh install must land in the setup wizard.
+        """
+        token = self.api_token or ''
+        if not token or token.upper().startswith('YOUR_'):
+            return False
+        return True
 
     def reload(self):
         """Reload configuration and credentials from disk and re-initialize settings"""
@@ -220,7 +227,7 @@ class ConfigManager:
         except PermissionError as e:
             logger.critical(f"❌ CRITICAL: Permission error with config file: {e}")
             logger.critical(f"Make sure {os.path.basename(self.config_path)} has the correct permissions (chmod 644)")
-            logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+            logger.critical(f"See DOCKER_GUIDE.md for details on setting correct permissions.")
             raise
         except Exception as e:
             logger.error(f"Error loading config file: {e}")
@@ -252,7 +259,7 @@ class ConfigManager:
         except PermissionError as e:
             logger.critical(f"❌ CRITICAL: Permission error with credentials file: {e}")
             logger.critical(f"Make sure {os.path.basename(self.credentials_path)} has the correct permissions (chmod 644)")
-            logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+            logger.critical(f"See DOCKER_GUIDE.md for details on setting correct permissions.")
             raise
         except Exception as e:
             logger.error(f"Error loading credentials file: {e}")
@@ -279,7 +286,7 @@ class ConfigManager:
         except PermissionError as e:
             logger.critical(f"❌ CRITICAL: Permission error saving configuration: {e}")
             logger.critical(f"Make sure the container has write access to the config directory.")
-            logger.critical(f"See DOCKER_SETUP.md for details on setting correct permissions.")
+            logger.critical(f"See DOCKER_GUIDE.md for details on setting correct permissions.")
             return False
         except Exception as e:
             logger.error(f"Error saving configuration to {file_path}: {e}")

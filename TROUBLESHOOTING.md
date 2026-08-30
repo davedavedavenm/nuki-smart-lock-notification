@@ -1,98 +1,94 @@
-# Troubleshooting Docker Deployment
+# Troubleshooting
 
-This document addresses common issues with the Docker deployment of the Nuki Smart Lock Notification System.
+Common issues with the single-container Docker deployment. For general
+deployment steps see [DOCKER_GUIDE.md](DOCKER_GUIDE.md).
 
-## Common Issues and Solutions
+## Container fails to start: permission errors
 
-### Docker Container Health Check Failures
+The container runs as user `nuki` (UID/GID 999). If the entrypoint reports:
 
-If the nuki-monitor container fails to start with a health check issue:
-
-1. **Check Permissions**:
-   ```bash
-   # Set proper permissions on host system
-   chmod -R 777 logs data
-   chmod 777 config
-   chmod 666 config/config.ini config/credentials.ini
-   ```
-
-2. **Check API Credentials**:
-   - Ensure the `config/credentials.ini` file has your actual Nuki API token
-   - Make sure the token is valid (not expired)
-   - If needed, generate a new token through the Nuki Web API
-
-3. **Run the Troubleshooting Script**:
-   ```bash
-   ./troubleshoot.sh
-   ```
-
-### Missing Configuration Files
-
-If necessary configuration files are missing:
-
-1. **Copy Example Files**:
-   ```bash
-   cp config/config.ini.example config/config.ini
-   cp config/credentials.ini.example config/credentials.ini
-   ```
-
-2. **Edit the Files**:
-   ```bash
-   nano config/config.ini       # Set general configuration
-   nano config/credentials.ini  # Add your API tokens
-   ```
-
-### Deploying Changes
-
-After making changes to configuration or code:
-
-1. **Rebuild and Restart Containers**:
-   ```bash
-   docker compose down
-   docker compose build --no-cache
-   docker compose up -d
-   ```
-
-2. **Check Logs**:
-   ```bash
-   docker compose logs -f
-   ```
-
-## Testing API Connection
-
-You can manually test the API connection:
-
-```bash
-docker compose exec nuki-monitor python /app/scripts/health_monitor.py
+```
+ERROR: /app/config is not writable by the container user
 ```
 
-## Completely Resetting the System
-
-If you need to start fresh:
+Fix ownership on the host:
 
 ```bash
-# Stop all containers
-docker compose down
+mkdir -p config logs data flask_session
+sudo chown -R 999:999 config logs data flask_session
+```
 
-# Remove all data (caution: this deletes all logs and cached data)
-sudo rm -rf logs/* data/*
+Then `docker compose up -d`.
 
-# Keep your configuration
-# If you want to reset configuration too, run:
-# sudo rm -rf config/*
+## API Authentication Failed (401 Unauthorized)
 
-# Rebuild from scratch
-docker compose build --no-cache
+- Your Nuki API token has expired or been revoked
+- Rotate it in the web UI (Configuration), or:
+  ```bash
+  docker exec -it nuki python scripts/token_manager.py
+  docker compose restart
+  ```
+
+## No notifications despite correct configuration
+
+- Check the monitor log: `tail -f logs/nuki_monitor.log`
+- Verify filters in `config/config.ini` (`[Filter]` section) are not excluding
+  your events
+- Verify `[Telegram]` / `[Email]` settings; test the API token with:
+  ```bash
+  docker exec -it nuki python scripts/verify_token.py
+  ```
+
+## Web interface not reachable
+
+- Container running and healthy?
+  ```bash
+  docker compose ps
+  curl http://localhost:5000/health
+  ```
+- Wrong port? `NUKI_WEB_PORT` in `.env` maps the host port (default 5000)
+- Check web logs: `docker logs nuki` and `logs/nuki_web.log`
+
+## Web sessions lost on every restart
+
+You did not set `SECRET_KEY` in `.env`, so an ephemeral key is generated each
+start. Add a persistent key:
+
+```bash
+python3 -c "import secrets; print(secrets.token_hex(32))"
+# paste into SECRET_KEY= in .env, then:
 docker compose up -d
 ```
 
-## Getting Logs for Support
+## Passkey option not showing / not working
 
-If you need to share logs for troubleshooting:
+Passkeys (WebAuthn) only work in a **secure context**:
+
+- `http://localhost:5000` — works
+- `http://<lan-ip>:5000` — browsers block WebAuthn here; the passkey option is hidden by design
+- Behind an HTTPS reverse proxy — set `WEB_HTTPS=true` in `.env` so secure
+  cookies are used, and the passkey option appears
+
+Password login always remains available regardless.
+
+## Monitor or web process crashed
+
+The entrypoint stops the whole container if either process dies, so Docker
+restarts everything cleanly. Investigate with:
 
 ```bash
-docker compose logs nuki-monitor > monitor_logs.txt
-docker compose logs nuki-web > web_logs.txt
+docker logs nuki
 ```
 
-These files can be shared with support channels for assistance.
+`docker inspect nuki --format '{{json .State.Health}}'` shows recent
+healthcheck output.
+
+## Resetting everything (start fresh)
+
+```bash
+docker compose down
+rm -rf config/* data/* logs/* flask_session/*
+docker compose up -d --build
+```
+
+⚠️ This deletes all users, configuration and history.

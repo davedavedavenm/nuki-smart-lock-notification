@@ -13,11 +13,11 @@ Both files are located in the `config` directory.
 
 ## Configuration Tool
 
-The system includes a configuration utility that makes it easy to set up:
+The system includes a configuration utility that makes it easy to set up.
+With the Docker deployment, run it inside the container:
 
 ```bash
-cd /root/nukiweb/scripts
-sudo ../venv/bin/python configure.py
+docker exec -it nuki python scripts/configure.py
 ```
 
 This interactive tool will guide you through the configuration process.
@@ -129,10 +129,9 @@ password = your-password
 
 After creating your bot:
 
-1. Run the helper script:
+1. Run the helper script (Docker deployment):
    ```bash
-   cd /root/nukiweb/scripts
-   sudo ../venv/bin/python get_telegram_chat_id.py
+   docker exec -it nuki python scripts/get_telegram_chat_id.py
    ```
 2. Enter your bot token when prompted
 3. Follow the instructions to start a chat with your bot
@@ -144,7 +143,7 @@ After creating your bot:
 The web interface has additional configuration options:
 
 1. Access the web interface at `http://your-pi-ip:5000`
-2. Log in with the default admin account or create a new account
+2. Log in with the admin account you created in the Setup Wizard
 3. Go to the "Configuration" page
 4. Adjust settings as needed
 5. Save changes
@@ -171,9 +170,9 @@ To set notification preferences:
 
 For enhanced security:
 
-1. Secure the `credentials.ini` file:
+1. Secure the `credentials.ini` file (it lives on the host in `./config/`):
    ```bash
-   sudo chmod 600 /root/nukiweb/config/credentials.ini
+   chmod 600 config/credentials.ini
    ```
 
 2. Use HTTPS for the web interface (recommended for internet-facing installations):
@@ -235,15 +234,14 @@ This will produce more detailed log output.
 
 ## Applying Configuration Changes
 
-After changing configuration:
+After changing configuration (Docker deployment):
 
-1. Restart the services:
+1. Restart the container:
    ```bash
-   sudo systemctl restart nuki-monitor.service
-   sudo systemctl restart nuki-web.service
+   docker compose restart
    ```
 
 2. Check the logs to verify the changes took effect:
    ```bash
-   tail -f /root/nukiweb/logs/nuki_monitor.log
+   tail -f logs/nuki_monitor.log
    ```

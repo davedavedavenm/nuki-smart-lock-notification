@@ -80,7 +80,7 @@ def print_permission_fix_instructions():
     print("")
     print("# If config files exist, ensure they're readable")
     print("chmod 644 config/config.ini config/credentials.ini")
-    print("\nSee DOCKER_SETUP.md and TROUBLESHOOTING.md for more information.")
+    print("\nSee DOCKER_GUIDE.md and TROUBLESHOOTING.md for more information.")
     print("=" * 80 + "\n")
 
 def check_all_permissions():
