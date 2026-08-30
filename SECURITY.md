@@ -6,11 +6,20 @@ We currently support the following versions of the Nuki Smart Lock Notification 
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.x.x   | :white_check_mark: |
+| 2.x.x   | :white_check_mark: |
+| 1.x.x   | :x:                |
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability within this project, please send an email to [YOUR_EMAIL]. All security vulnerabilities will be promptly addressed.
+**Please do not open a public GitHub issue for security vulnerabilities.**
+
+Report vulnerabilities privately via GitHub:
+
+1. Go to the repository's **Security** tab
+2. Click **"Report a vulnerability"** (private vulnerability reporting)
+
+Alternatively, open a GitHub issue asking for a private contact channel —
+without including any vulnerability details. Reports are reviewed promptly.
 
 Please include the following information in your report:
 

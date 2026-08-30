@@ -35,6 +35,10 @@ This file contains general configuration settings:
 notification_type = both         ; Options: email, telegram, both
 polling_interval = 60            ; Check interval in seconds
 
+[Nuki]
+smartlock_id =                   ; Optional: pin a specific lock (see below)
+use_explicit_id = false          ; false = monitor every lock on the account
+
 [Notification]
 digest_mode = false              ; Send digest instead of immediate notifications
 digest_interval = 3600           ; Digest interval in seconds
@@ -70,6 +74,10 @@ max_retries = 3                  ; Maximum retry attempts
 retry_delay = 5                  ; Delay between retries in seconds
 ```
 
+By default the console monitors **every lock on your Nuki account**. If you
+only want one lock, set `use_explicit_id = true` and put the lock's numeric
+ID in `smartlock_id` (the ID is shown on the Lock Status page once connected).
+
 ### credentials.ini
 
 This file contains sensitive credentials:
@@ -92,8 +100,13 @@ bot_token = YOUR_TELEGRAM_BOT_TOKEN
 
 1. Log in to the [Nuki Web Dashboard](https://web.nuki.io/)
 2. Go to "Account" > "API"
-3. Generate a new API token
+3. Generate a new API token and select **read-only scopes** (smartlock state
+   and activity logs) — the console only monitors, so a scoped read-only
+   token is the most secure choice
 4. Add the token to your `credentials.ini` file
+
+> Tip: environment variables (e.g. `NUKI_API_TOKEN` in `.env`) take priority
+> over `credentials.ini` values.
 
 ### Email Configuration
 
@@ -142,7 +155,7 @@ After creating your bot:
 
 The web interface has additional configuration options:
 
-1. Access the web interface at `http://your-pi-ip:5000`
+1. Access the web interface at `http://<host-ip>:5000`
 2. Log in with the admin account you created in the Setup Wizard
 3. Go to the "Configuration" page
 4. Adjust settings as needed
@@ -150,20 +163,21 @@ The web interface has additional configuration options:
 
 ### User Management
 
-To configure user accounts:
+Dashboard users are managed by admins:
 
 1. Log in as an administrator
-2. Go to the "Users" page
+2. Go to **Admin → User Management**
 3. Add new users or modify existing ones
-4. Assign appropriate roles (admin or user)
+4. Assign the appropriate role: `admin` (full access) or `agent` (temporary
+   codes only — see [management_agency.md](management_agency.md))
 
-### Notification Preferences
+### Notification Settings
 
-To set notification preferences:
+Notification behaviour is configured by admins:
 
-1. Log in to your account
+1. Log in as an administrator
 2. Go to the "Notifications" page
-3. Configure your personal notification preferences
+3. Choose the notification method, enable/disable event types, and set filters
 4. Save changes
 
 ## Security Configuration

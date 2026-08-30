@@ -139,6 +139,18 @@ docker logs nuki
 └── docker-entrypoint.sh   # Permission checks + process supervision
 ```
 
+## Documentation
+
+| Document | What it covers |
+| --- | --- |
+| [DOCKER_GUIDE.md](DOCKER_GUIDE.md) | Deploying, configuring, operating, backing up (start here) |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Permissions, 401s, passkeys, sessions, resets |
+| [docs/configuration.md](docs/configuration.md) | Every config file and setting explained |
+| [docs/management_agency.md](docs/management_agency.md) | Agent accounts and temporary access codes |
+| [SECURITY.md](SECURITY.md) | Security model and how to report vulnerabilities |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup and running the tests |
+| [DECISIONS.md](DECISIONS.md) | Settled design decisions and their reasoning |
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). In short: `pip install -r requirements-dev.txt`, then `pytest`. CI runs the tests plus a secrets scan on Python 3.11–3.13.

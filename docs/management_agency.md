@@ -1,26 +1,25 @@
-# Management Agency Access Documentation
+# Agent Access (Temporary Codes) Documentation
 
-This document outlines the implementation of the Management Agency functionality in the Nuki Smart Lock Notification System.
+This document describes the Agent functionality in the Nuki Smart Lock Notification System — letting a trusted person (a cleaner, a property manager, a family member) create temporary access codes for the Nuki Smart Lock without giving them full administrator access.
 
 ## Overview
 
-The Management Agency feature allows designated users to create temporary access codes for the Nuki Smart Lock without having full administrator privileges. This feature is useful for property management agencies who need to provide temporary access to maintenance workers, cleaners, etc.
+The Agent feature allows designated users to create temporary access codes for the Nuki Smart Lock without having full administrator privileges. This is useful for property management agencies who need to provide temporary access to maintenance workers, cleaners, etc.
 
 ## Features
 
-- **Role-Based Access Control**: New 'agency' role added to the user system
+- **Role-Based Access Control**: The `agent` role can manage temporary codes and view basic lock information
 - **Temporary Code Management**: Create, view, and delete temporary access codes
-- **Isolated Permissions**: Agency users can only manage codes they created
+- **Isolated Permissions**: Agent users can only manage codes they created
 - **Expiration Handling**: Automatic expiration and cleanup of expired codes
 - **Audit Trail**: Records of who created each code and when
 
 ## User Roles
 
-The system now supports three user roles:
+The system supports two user roles:
 
-1. **Admin** - Full access to all system features
-2. **Agency** - Can create and manage temporary codes only
-3. **User** - Standard user with view-only access (cannot create codes)
+1. **Admin** — Full access to all system features, created during the Setup Wizard
+2. **Agent** — Can view lock status and create/manage temporary codes only (admins create agent accounts via **Admin → Create Agent User**)
 
 ## Technical Implementation
 
@@ -48,7 +47,7 @@ Temporary codes are stored in a JSON file (`temp_codes.json`) with the following
 #### GET /api/temp-codes
 Returns all temporary codes visible to the current user.
 - Admin users see all codes
-- Agency users see only codes they created
+- Agent users see only codes they created
 
 #### POST /api/temp-codes
 Creates a new temporary code.
@@ -65,18 +64,18 @@ Request body:
 #### DELETE /api/temp-codes/{code_id}
 Deletes a temporary code.
 - Admin users can delete any code
-- Agency users can only delete codes they created
+- Agent users can only delete codes they created
 
 ### Security Considerations
 
-1. **Data Isolation**: Agency users can only view and manage codes they created
+1. **Data Isolation**: Agent users can only view and manage codes they created
 2. **API Restrictions**: Permission checks on all API endpoints
 3. **Audit Trail**: All code creation and deletion actions are logged
 4. **Automatic Cleanup**: Expired codes are automatically marked as inactive
 
 ## User Interface
 
-The temporary code management interface is available to both admin and agency users via the "Temporary Codes" link in the main navigation.
+The temporary code management interface is available to both admin and agent users via the "Temporary Codes" link in the main navigation.
 
 ### Creating Codes
 1. Navigate to the Temporary Codes page
@@ -94,23 +93,22 @@ The temporary code management interface is available to both admin and agency us
 
 ## For Administrators
 
-### Creating Agency Users
-As an administrator, you can create new agency users:
+### Creating Agent Users
+As an administrator, you can create new agent users:
 
-1. Go to Admin → Create Agency User
-2. Fill out the form with the agency user's details:
+1. Go to Admin → Create Agent User
+2. Fill out the form with the agent user's details:
    - Username
-   - Email
    - Password
-3. Click "Create Agency User"
+3. Click "Create Agent User" and share the credentials with that person securely
 
 ## Docker Deployment
 
-The implementation uses Docker volumes to ensure data persistence:
+All data persists on the host through bind mounts (see [DOCKER_GUIDE.md](../DOCKER_GUIDE.md)):
 
-- `config-volume`: Configuration files
-- `logs-volume`: Log files
-- `data-volume`: Data files including temporary codes
+- `./config` — configuration files
+- `./data` — data files including temporary codes
+- `./logs` — application logs
 
 ## Maintenance
 
