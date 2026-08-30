@@ -108,6 +108,11 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {% if request.path == url_for('backup_page') %}active{% endif %}" href="{{ url_for('backup_page') }}">
+                                    <i class="fas fa-database me-1"></i>Backup &amp; Restore
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {% if request.path == url_for('create_agency_user') %}active{% endif %}" href="{{ url_for('create_agency_user') }}">
                                     <i class="fas fa-user-tie me-1"></i>Create Agent User
                                 </a>

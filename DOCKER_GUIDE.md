@@ -134,7 +134,13 @@ docker exec -it nuki bash
 
 ### Backups
 
-Stop writes, then copy the state directories:
+**In-app (recommended):** as an admin, go to **Admin → Backup & Restore**.
+Export downloads a JSON bundle of settings, users, temporary codes and — if
+you tick *include secrets* — credentials. Restore accepts the same file with
+per-section selection and automatically keeps timestamped `.backup-*` copies
+of any file it replaces. Secret exports are sensitive: store them encrypted.
+
+**Manual (file-level):** stop writes, then copy the state directories:
 
 ```bash
 docker compose stop

@@ -16,23 +16,33 @@
                         <label for="username" class="form-label">Username</label>
                         <input type="text" class="form-control" id="username" value="{{ session.username }}" disabled>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="currentPassword" class="form-label">Current Password</label>
-                        <input type="password" class="form-control" id="currentPassword" required>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="newPassword" class="form-label">New Password</label>
-                        <input type="password" class="form-control" id="newPassword" required>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="confirmPassword" class="form-label">Confirm New Password</label>
-                        <input type="password" class="form-control" id="confirmPassword" required>
-                        <div id="passwordMismatchError" class="text-danger d-none">
-                            Passwords do not match
+
+                    <div id="passwordSection">
+                        <div class="mb-3">
+                            <label for="currentPassword" class="form-label">Current Password</label>
+                            <input type="password" class="form-control" id="currentPassword" autocomplete="current-password">
                         </div>
+
+                        <div class="mb-3">
+                            <label for="newPassword" class="form-label">New Password</label>
+                            <input type="password" class="form-control" id="newPassword" autocomplete="new-password">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="confirmPassword" class="form-label">Confirm New Password</label>
+                            <input type="password" class="form-control" id="confirmPassword" autocomplete="new-password">
+                            <div id="passwordMismatchError" class="text-danger d-none">
+                                Passwords do not match
+                            </div>
+                        </div>
+                        <div id="passwordRemovedNotice" class="alert alert-warning small d-none">
+                            <i class="fas fa-circle-info me-1"></i>
+                            Your password has been removed. Sign in with your passkey from now on.
+                            An admin can re-enable password sign-in for this account.
+                        </div>
+                        <button type="button" class="btn btn-outline-danger btn-sm mb-3 d-none" id="removePasswordBtn">
+                            <i class="fas fa-trash-alt me-1"></i>Remove my password (passkey-only)
+                        </button>
                     </div>
                     
                     <div class="mb-3">
@@ -165,7 +175,38 @@
         });
     }
 
-    // ------------------------- Passkeys -------------------------
+    // ------------------------- Password removal -------------------------
+
+    function refreshPasswordUi() {
+        $.getJSON('/api/profile/password-status', function(data) {
+            if (!data.has_password) {
+                $('#passwordRemovedNotice').removeClass('d-none');
+                $('#removePasswordBtn').addClass('d-none');
+                $('#currentPassword, #newPassword, #confirmPassword').prop('disabled', true);
+                $('#saveProfile').prop('disabled', true);
+            } else if (data.passkey_count > 0) {
+                $('#removePasswordBtn').removeClass('d-none');
+            }
+        });
+    }
+
+    $('#removePasswordBtn').click(function() {
+        if (!confirm('Remove your password? You will only be able to sign in with your passkey.')) return;
+        $.ajax({
+            url: '/api/profile',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({action: 'remove_password'}),
+            success: function(resp) {
+                refreshPasswordUi();
+            },
+            error: function(xhr) {
+                alert(xhr.responseJSON?.error || 'Failed to remove password');
+            }
+        });
+    });
+
+    $(document).ready(function() { refreshPasswordUi(); });
 
     function b64url(buf) {
         return btoa(String.fromCharCode(...new Uint8Array(buf)))

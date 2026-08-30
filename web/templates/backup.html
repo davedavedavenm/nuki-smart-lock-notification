@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Backup &amp; Restore - Nuki Console{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-download me-1"></i>
+                Export
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    Download a JSON snapshot of your settings: notification config, users,
+                    and optional credentials. Keep secret exports safe — they contain everything
+                    needed to take over this console.
+                </p>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="includeSecrets">
+                    <label class="form-check-label" for="includeSecrets">
+                        Include secrets
+                        <div class="form-text">Needed to fully restore on another machine. Without it, credentials are masked and cannot be restored.</div>
+                    </label>
+                </div>
+                <button class="btn btn-primary" id="exportBtn">
+                    <i class="fas fa-download me-1"></i>Download backup
+                </button>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-upload me-1"></i>
+                Restore
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    Import a previously exported backup file. Only the sections you select are
+                    replaced. The current files are backed up automatically (a
+                    <code>.backup-&lt;timestamp&gt;</code> copy is kept next to each file).
+                </p>
+                <div class="mb-3">
+                    <label for="importFile" class="form-label">Backup file (.json)</label>
+                    <input type="file" class="form-control" id="importFile" accept=".json,application/json">
+                </div>
+                <div class="mb-3 nk-import-sections">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="secConfig" checked>
+                        <label class="form-check-label" for="secConfig">General settings (config.ini)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="secCredentials">
+                        <label class="form-check-label" for="secCredentials">Credentials (credentials.ini — requires secrets in the backup)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="secUsers">
+                        <label class="form-check-label" for="secUsers">Dashboard users (replaces the current user list)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="secTempCodes">
+                        <label class="form-check-label" for="secTempCodes">Temporary codes</label>
+                    </div>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="confirmImport">
+                    <label class="form-check-label" for="confirmImport">
+                        I understand the selected sections will be <strong>overwritten</strong>
+                    </label>
+                </div>
+                <div id="importResult" class="mb-3"></div>
+                <button class="btn btn-danger" id="importBtn">
+                    <i class="fas fa-upload me-1"></i>Restore selected sections
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    $('#exportBtn').click(function() {
+        const includeSecrets = $('#includeSecrets').is(':checked');
+        if (includeSecrets && !confirm('This download contains passwords, tokens and passkey data in plain text. Store it securely. Continue?')) {
+            return;
+        }
+        window.location.href = '/api/admin/backup/export?include_secrets=' + includeSecrets;
+    });
+
+    $('#importBtn').click(function() {
+        const box = $('#importResult');
+        const fileInput = document.getElementById('importFile');
+        if (!fileInput.files.length) {
+            box.html('<div class="alert alert-warning small">Choose a backup file first.</div>');
+            return;
+        }
+        if (!$('#confirmImport').is(':checked')) {
+            box.html('<div class="alert alert-warning small">Tick the confirmation checkbox to continue.</div>');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function() {
+            let backup;
+            try {
+                backup = JSON.parse(reader.result);
+            } catch (e) {
+                box.html('<div class="alert alert-danger small">That file is not valid JSON.</div>');
+                return;
+            }
+
+            $.ajax({
+                url: '/api/admin/backup/import',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    confirm: true,
+                    backup: backup,
+                    sections: {
+                        config: $('#secConfig').is(':checked'),
+                        credentials: $('#secCredentials').is(':checked'),
+                        users: $('#secUsers').is(':checked'),
+                        temp_codes: $('#secTempCodes').is(':checked')
+                    }
+                }),
+                success: function(resp) {
+                    box.html('<div class="alert alert-success small mb-0"><i class="fas fa-check me-1"></i>' + $('<span>').text(resp.message).html() + '</div>');
+                },
+                error: function(xhr) {
+                    box.html('<div class="alert alert-danger small">' + $('<span>').text(xhr.responseJSON?.error || 'Import failed').html() + '</div>');
+                }
+            });
+        };
+        reader.readAsText(fileInput.files[0]);
+    });
+});
+</script>
+{% endblock %}

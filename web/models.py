@@ -4,9 +4,18 @@ import time
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 
+# Authentication policy: which sign-in methods a user may use.
+DEFAULT_AUTH = {'password': True, 'passkey': 'optional'}
+PASSKEY_POLICIES = ('optional', 'required', 'disabled')
+
+
+def _default_auth():
+    return dict(DEFAULT_AUTH)
+
+
 class UserDatabase:
     """Simple file-based user database"""
-    
+
     def __init__(self, data_dir):
         """Initialize the database with a data directory"""
         self.data_dir = data_dir
@@ -59,21 +68,128 @@ class UserDatabase:
         """Add a new user or update existing user"""
         if not username or not password:
             return False
-            
+
         # Validate role (default to agent if invalid role provided)
         if role not in ['admin', 'agent']:
             role = 'agent'
-            
+
         self.users[username] = {
             'password_hash': generate_password_hash(password, method='pbkdf2:sha256'),
             'role': role,
             'active': active,
             'created_at': datetime.now().isoformat(),
             'last_login': None,
-            'theme': 'dark'  # Default theme - dark mode
+            'theme': 'dark',  # Default theme - dark mode
+            'auth': _default_auth(),
         }
-        
+
         return self._save_users()
+
+    # ------------------------------------------------------------------
+    # Authentication policy (per-user password / passkey settings)
+    # ------------------------------------------------------------------
+
+    def get_auth(self, username):
+        """Return the auth policy for a user, normalised."""
+        user = self.get_user(username)
+        if not user:
+            return None
+        auth = user.get('auth')
+        if not isinstance(auth, dict):
+            auth = _default_auth()
+        policy = {
+            'password': bool(auth.get('password', True) and user.get('password_hash')),
+            'passkey': auth.get('passkey', 'optional'),
+        }
+        if policy['passkey'] not in PASSKEY_POLICIES:
+            policy['passkey'] = 'optional'
+        return policy
+
+    def _user_has_passkey(self, username):
+        user = self.get_user(username) or {}
+        return bool(user.get('passkeys'))
+
+    def _user_can_log_in(self, username):
+        """True if the user still has at least one usable sign-in method."""
+        user = self.get_user(username) or {}
+        auth = self.get_auth(username)
+        if auth is None:
+            return False
+        if auth['password'] and user.get('password_hash'):
+            return True
+        if auth['passkey'] != 'disabled' and self._user_has_passkey(username):
+            return True
+        return False
+
+    def _snapshot(self, username):
+        user = self.users[username]
+        return {'auth': dict(user.get('auth', {})), 'password_hash': user.get('password_hash')}
+
+    def _restore(self, username, snapshot):
+        self.users[username]['auth'] = snapshot['auth']
+        self.users[username]['password_hash'] = snapshot['password_hash']
+
+    def _admin_with_working_login_exists(self):
+        """True if at least one active admin retains a usable sign-in method."""
+        for name, data in self.users.items():
+            if data.get('role') != 'admin' or not data.get('active', True):
+                continue
+            auth = self.get_auth(name)
+            if auth['password'] and data.get('password_hash'):
+                return True
+            if auth['passkey'] != 'disabled' and data.get('passkeys'):
+                return True
+        return False
+
+    def set_password_enabled(self, username, enabled):
+        """Enable or disable (remove) password sign-in for a user."""
+        user = self.get_user(username)
+        if not user:
+            return False, 'User not found'
+
+        if enabled:
+            # Re-enabling requires an actual password; admin must set one via
+            # the password update flow first.
+            if not user.get('password_hash'):
+                return False, 'No password is stored for this user — set a new password first'
+            user.setdefault('auth', _default_auth())['password'] = True
+        else:
+            snapshot = self._snapshot(username)
+            user.setdefault('auth', _default_auth())['password'] = False
+            user['password_hash'] = None  # password removed entirely
+            if not self._admin_with_working_login_exists():
+                self._restore(username, snapshot)
+                return False, 'Refused: this change would leave no admin able to sign in'
+
+        if not self._save_users():
+            return False, 'Failed to save users file'
+        return True, None
+
+    def set_passkey_policy(self, username, policy):
+        """Set the passkey policy: optional, required or disabled."""
+        user = self.get_user(username)
+        if not user:
+            return False, 'User not found'
+        if policy not in PASSKEY_POLICIES:
+            return False, 'Invalid passkey policy'
+
+        snapshot = self._snapshot(username)
+        user.setdefault('auth', _default_auth())['passkey'] = policy
+        if policy == 'disabled' and not self._admin_with_working_login_exists():
+            self._restore(username, snapshot)
+            return False, 'Refused: this change would leave no admin able to sign in'
+        if policy == 'disabled' and not self._user_can_log_in(username):
+            self._restore(username, snapshot)
+            return False, 'Cannot disable passkeys: this user would have no way to sign in'
+
+        if not self._save_users():
+            return False, 'Failed to save users file'
+        return True, None
+
+    def remove_password(self, username):
+        """Alias with clearer intent: disable password and drop the hash."""
+        ok, err = self.set_password_enabled(username, False)
+        return ok, err
     
     def get_user(self, username):
         """Get a user by username"""
@@ -84,11 +200,14 @@ class UserDatabase:
         user = self.get_user(username)
         if not user:
             return False
-            
+
         if not user.get('active', True):
             return False
-            
-        if check_password_hash(user.get('password_hash', ''), password):
+
+        if not user.get('password_hash'):
+            return False  # password sign-in removed for this account
+
+        if check_password_hash(user['password_hash'], password):
             # Update last login time
             self.users[username]['last_login'] = datetime.now().isoformat()
             self._save_users()
@@ -144,15 +263,18 @@ class UserDatabase:
         return self._save_users()
     
     def get_all_users(self):
-        """Get all users"""
+        """Get all users with management metadata"""
         users_list = []
         for username, data in self.users.items():
             user = data.copy()
             user['username'] = username
             # Don't expose password hash
-            user.pop('password_hash', None)
+            has_password = bool(user.pop('password_hash', None))
+            user['has_password'] = has_password
+            user['passkey_count'] = len(user.get('passkeys', []))
+            user['auth'] = self.get_auth(username)
             users_list.append(user)
-        
+
         return users_list
     
     def user_exists(self, username):

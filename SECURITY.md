@@ -67,6 +67,10 @@ The Docker deployment (see [DOCKER_GUIDE.md](DOCKER_GUIDE.md)):
   fingerprint/face/device PIN, registered per-user from the profile page.
   Requires a secure context (HTTPS or localhost); passwords remain available
   as a fallback
+- **Per-user sign-in policies**: admins can require or disable passwords and
+  passkeys per user, including removing passwords entirely for passkey-only
+  accounts. Guards prevent changes that would leave any admin without a way
+  to sign in
 - Proper access controls are implemented for the web interface
 - Session management includes timeouts, HttpOnly cookies, and a
   `WEB_HTTPS=true` opt-in for Secure cookies behind reverse proxies

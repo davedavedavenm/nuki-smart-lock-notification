@@ -24,9 +24,9 @@
                                 <th>Username</th>
                                 <th>Role</th>
                                 <th>Status</th>
+                                <th>Sign-in</th>
                                 <th>Last Login</th>
                                 <th>Created</th>
-                                <th>Theme</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -61,7 +61,7 @@
                     <div class="mb-3">
                         <label for="newRole" class="form-label">Role</label>
                         <select class="form-select" id="newRole" required>
-                            <option value="user">User</option>
+                            <option value="agent">Agent (temporary codes only)</option>
                             <option value="admin">Admin</option>
                         </select>
                     </div>
@@ -101,7 +101,7 @@
                     <div class="mb-3">
                         <label for="editRole" class="form-label">Role</label>
                         <select class="form-select" id="editRole" required>
-                            <option value="user">User</option>
+                            <option value="agent">Agent (temporary codes only)</option>
                             <option value="admin">Admin</option>
                         </select>
                     </div>
@@ -186,32 +186,83 @@
     function displayUsers(users) {
         const tableBody = $('#usersTableBody');
         tableBody.empty();
-        
+
         users.forEach(function(user) {
             const lastLogin = user.last_login ? new Date(user.last_login).toLocaleString() : 'Never';
             const created = user.created_at ? new Date(user.created_at).toLocaleString() : 'Unknown';
-            
+
             const row = $('<tr>');
             row.append($('<td>').text(user.username));
             row.append($('<td>').text(user.role));
-            row.append($('<td>').html(user.active ? 
-                '<span class="badge bg-success">Active</span>' : 
+            row.append($('<td>').html(user.active ?
+                '<span class="badge bg-success">Active</span>' :
                 '<span class="badge bg-secondary">Inactive</span>'));
+
+            // --- Sign-in cell: password + passkey policy ---
+            const signIn = $('<td>');
+            const pwdBadge = user.has_password
+                ? '<span class="badge bg-success me-1"><i class="fas fa-key me-1"></i>Password</span>'
+                : '<span class="badge bg-secondary me-1"><i class="fas fa-ban me-1"></i>No password</span>';
+            signIn.append(pwdBadge);
+
+            const passkeySel = $('<select>')
+                .addClass('form-select form-select-sm d-inline-block w-auto ms-1')
+                .attr('title', 'Passkey policy')
+                .append('<option value="optional">Passkeys: optional</option>')
+                .append('<option value="required">Passkeys: required</option>')
+                .append('<option value="disabled">Passkeys: disabled</option>')
+                .val(user.auth ? user.auth.passkey : 'optional');
+            passkeySel.change(function() {
+                setAuthPolicy(user.username, {passkey: passkeySel.val()});
+            });
+            signIn.append(passkeySel);
+
+            if (user.passkey_count) {
+                signIn.append(' <span class="badge bg-info text-dark ms-1">' + user.passkey_count + ' key' + (user.passkey_count > 1 ? 's' : '') + '</span>');
+            }
+
+            const pwdToggle = $('<button>')
+                .addClass('btn btn-sm btn-outline-secondary ms-1')
+                .attr('title', user.has_password ? 'Remove password (passkey becomes the only sign-in)' : 'Re-allow password (set one in Edit first)')
+                .html(user.has_password ? '<i class="fas fa-trash-alt"></i>' : '<i class="fas fa-check"></i>')
+                .click(function() {
+                    const enabling = !user.has_password;
+                    if (!enabling && !confirm('Remove the password for "' + user.username + '"? They will only be able to sign in with a passkey.')) return;
+                    setAuthPolicy(user.username, {password: enabling});
+                });
+            signIn.append(pwdToggle);
+            row.append(signIn);
+
             row.append($('<td>').text(lastLogin));
             row.append($('<td>').text(created));
-            row.append($('<td>').text(user.theme || 'Light'));
-            
+
             const actionsCell = $('<td>');
             const editButton = $('<button>')
                 .addClass('btn btn-sm btn-primary me-1')
                 .html('<i class="fas fa-edit"></i>')
                 .attr('title', 'Edit User')
                 .click(function() { editUser(user); });
-            
+
             actionsCell.append(editButton);
             row.append(actionsCell);
-            
+
             tableBody.append(row);
+        });
+    }
+
+    function setAuthPolicy(username, policy) {
+        $.ajax({
+            url: '/api/users/manage/' + encodeURIComponent(username) + '/auth-policy',
+            method: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify(policy),
+            success: function() {
+                loadUsers();
+            },
+            error: function(xhr) {
+                alert(xhr.responseJSON?.error || 'Failed to update sign-in policy');
+                loadUsers();
+            }
         });
     }
     

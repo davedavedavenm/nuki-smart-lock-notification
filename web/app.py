@@ -181,14 +181,29 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        
-        if user_db.authenticate(username, password):
+
+        user = user_db.get_user(username)
+        auth = user_db.get_auth(username) if user else None
+
+        # Pass the secret check FIRST, so policy messages only ever appear for
+        # someone who already proved the password — wrong passwords always get
+        # the same generic error (no username enumeration).
+        if user and auth and user_db.authenticate(username, password) and (
+            not auth['password'] or (auth['passkey'] == 'required' and user.get('passkeys'))
+        ):
+            if auth['passkey'] == 'required' and user.get('passkeys'):
+                error = 'This account requires passkey sign-in'
+            elif not user.get('password_hash'):
+                error = 'Password sign-in is not set up for this account — use your passkey'
+            else:
+                error = 'Password sign-in is disabled for this account — use your passkey'
+        elif user and user_db.authenticate(username, password):
             user_data = user_db.get_user(username)
             session['logged_in'] = True
             session['username'] = username
             session['role'] = user_data.get('role', 'user')
             session['theme'] = user_data.get('theme', 'dark')
-            
+
             flash('You were successfully logged in')
             next_page = request.args.get('next')
             if next_page:
@@ -196,7 +211,7 @@ def login():
             return redirect(url_for('index'))
         else:
             error = 'Invalid credentials'
-            
+
     return render_template('login.html', error=error)
 
 @app.route('/logout')
@@ -212,6 +227,17 @@ def logout():
 # ---------------------------------------------------------------------------
 # Passkey (WebAuthn) support
 # ---------------------------------------------------------------------------
+
+@app.route('/api/profile/password-status', methods=['GET'])
+@login_required
+def profile_password_status():
+    """Whether the current user still has a password, and how many passkeys."""
+    user = user_db.get_user(session['username'])
+    return jsonify({
+        "has_password": bool(user and user.get('password_hash')),
+        "passkey_count": len(pk.get_passkeys(user)) if user else 0,
+    })
+
 
 @app.route('/api/passkeys', methods=['GET'])
 @login_required
@@ -308,6 +334,9 @@ def passkey_auth_finish():
     user = user_db.get_user(username)
     if not user or not user.get('active', True):
         return jsonify({"error": "Account is disabled"}), 401
+    auth = user_db.get_auth(username)
+    if auth and auth['passkey'] == 'disabled':
+        return jsonify({"error": "Passkey sign-in is disabled for this account"}), 401
 
     session['logged_in'] = True
     session['username'] = username
@@ -335,10 +364,22 @@ def update_profile():
         current_password = data.get('current_password')
         new_password = data.get('new_password')
         theme = data.get('theme')
-        
+        action = data.get('action')
+
         # Get current user
         username = session.get('username')
-        
+
+        # Remove own password (only possible when a passkey exists)
+        if action == 'remove_password':
+            auth = user_db.get_auth(username)
+            if not user_db.get_user(username).get('passkeys'):
+                return jsonify({"error": "Register a passkey first — removing the password would leave no way to sign in"}), 400
+            ok, err = user_db.set_password_enabled(username, False)
+            if not ok:
+                return jsonify({"error": err}), 400
+            logger.info(f"Password removed for user: {username}")
+            return jsonify({"success": True, "message": "Password removed — sign in with your passkey from now on"})
+
         # Verify current password
         if current_password and new_password:
             if not user_db.authenticate(username, current_password):
@@ -407,9 +448,9 @@ def add_user():
         data = request.json
         username = data.get('username')
         password = data.get('password')
-        role = data.get('role', 'user')
+        role = data.get('role', 'agent')
         active = data.get('active', True)
-        
+
         if not username or not password:
             return jsonify({"error": "Username and password are required"}), 400
         
@@ -435,7 +476,7 @@ def update_user(username):
         role = data.get('role')
         active = data.get('active')
         theme = data.get('theme')
-        
+
         if not user_db.user_exists(username):
             return jsonify({"error": "User not found"}), 404
         
@@ -478,6 +519,207 @@ def delete_user(username):
             return jsonify({"error": "Failed to delete user"}), 500
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/users/manage/<username>/auth-policy', methods=['PUT'])
+@admin_required
+def set_auth_policy(username):
+    """Set per-user sign-in policy: password on/off, passkey optional/required/disabled.
+
+    Guards refuse changes that would leave a user — or every admin — without
+    a working sign-in method.
+    """
+    try:
+        data = request.json or {}
+        if not user_db.user_exists(username):
+            return jsonify({"error": "User not found"}), 404
+
+        if 'password' in data:
+            ok, err = user_db.set_password_enabled(username, bool(data['password']))
+            if not ok:
+                return jsonify({"error": err}), 400
+            logger.info(f"Password sign-in {'enabled' if data['password'] else 'disabled'} for {username}")
+
+        if 'passkey' in data:
+            ok, err = user_db.set_passkey_policy(username, data['passkey'])
+            if not ok:
+                return jsonify({"error": err}), 400
+            logger.info(f"Passkey policy for {username}: {data['passkey']}")
+
+        return jsonify({"success": True, "auth": user_db.get_auth(username)})
+    except Exception as e:
+        logger.error(f"Error updating auth policy for {username}: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Backup & restore (admin): export/import of configuration, credentials,
+# users and temporary codes.
+# ---------------------------------------------------------------------------
+
+@app.route('/admin/backup')
+@admin_required
+def backup_page():
+    """Backup & restore page"""
+    return render_template('backup.html')
+
+
+@app.route('/api/admin/backup/export', methods=['GET'])
+@admin_required
+def backup_export():
+    """Download a JSON bundle of configuration and (optionally) secrets.
+
+    include_secrets=false masks credential values — safe for support/sharing.
+    include_secrets=true produces a full migration backup. Both are logged.
+    """
+    try:
+        include_secrets = request.args.get('include_secrets', 'false').lower() == 'true'
+
+        def ini_to_dict(parser):
+            return {s: dict(parser.items(s)) for s in parser.sections()}
+
+        def mask(d):
+            return {k: {kk: ('***' if vv else vv) for kk, vv in v.items()} for k, v in d.items()}
+
+        users_export = {}
+        for username, u in user_db.users.items():
+            u_copy = json.loads(json.dumps(u))  # deep copy
+            if not include_secrets:
+                u_copy.pop('password_hash', None)
+                u_copy.pop('passkeys', None)
+                u_copy.pop('user_handle', None)
+            users_export[username] = u_copy
+
+        bundle = {
+            "export_version": 1,
+            "app": "nuki-smart-lock-notification",
+            "exported_at": datetime.now().isoformat(),
+            "include_secrets": include_secrets,
+            "config": ini_to_dict(config.config),
+            "credentials": ini_to_dict(config.credentials) if include_secrets else mask(ini_to_dict(config.credentials)),
+            "users": users_export,
+            "temp_codes": temp_code_db._load_codes() if hasattr(temp_code_db, '_load_codes') else {},
+        }
+
+        logger.info(f"Backup export by {session.get('username')} (include_secrets={include_secrets})")
+        resp = jsonify(bundle)
+        resp.headers['Content-Disposition'] = 'attachment; filename=nuki-backup.json'
+        return resp
+    except Exception as e:
+        logger.error(f"Backup export failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin/backup/import', methods=['POST'])
+@admin_required
+def backup_import():
+    """Import a backup bundle. Applies only selected sections, backs up the
+    current files first, and refuses imports that would lock every admin out.
+    """
+    try:
+        data = request.get_json()
+        if not data or not isinstance(data, dict):
+            return jsonify({"error": "No valid backup data provided"}), 400
+        if not data.get('confirm'):
+            return jsonify({"error": "Missing confirmation — importing overwrites the selected settings"}), 400
+
+        bundle = data.get('backup')
+        if not isinstance(bundle, dict) or 'config' not in bundle and 'credentials' not in bundle and 'users' not in bundle:
+            return jsonify({"error": "This does not look like a Nuki backup file"}), 400
+        if bundle.get('app') != 'nuki-smart-lock-notification':
+            return jsonify({"error": "Backup was not created by this application"}), 400
+
+        sections = data.get('sections', {})
+        applied = []
+
+        # --- users section: validate BEFORE touching anything ---
+        if sections.get('users') and isinstance(bundle.get('users'), dict):
+            incoming = bundle['users']
+            if not incoming or not any(
+                u.get('role') == 'admin' and (u.get('password_hash') or u.get('passkeys'))
+                for u in incoming.values()
+            ):
+                return jsonify({"error": "Refused: the imported users contain no admin with a sign-in method"}), 400
+            if session.get('username') not in incoming:
+                return jsonify({"error": "Refused: the import would remove your own account"}), 400
+
+        # --- backup current state ---
+        stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        backups = {}
+        if sections.get('users'):
+            backups['users'] = (user_db.users_file, json.dumps(user_db.users, indent=2))
+        if sections.get('config') or sections.get('credentials'):
+            for label, path_obj in (('config', config.config_path), ('credentials', config.credentials_path)):
+                if os.path.exists(path_obj):
+                    with open(path_obj, 'r') as f:
+                        backups[label] = (path_obj, f.read())
+
+        def replace_parser(sections_data):
+            """Build a fresh ConfigParser from imported sections (full restore,
+            not a merge — the pre-import file is backed up first)."""
+            import configparser
+            p = configparser.ConfigParser(interpolation=None)
+            p.read_dict({s: {k: str(v) for k, v in items.items()} for s, items in sections_data.items()})
+            return p
+
+        try:
+            if sections.get('config') and isinstance(bundle.get('config'), dict):
+                config.config = replace_parser(bundle['config'])
+                applied.append('config')
+            if sections.get('credentials') and isinstance(bundle.get('credentials'), dict):
+                creds = bundle['credentials']
+                if any(v == '***' for items in creds.values() for v in items.values()):
+                    return jsonify({"error": "This backup has masked credentials — re-export with 'include secrets' to restore credentials"}), 400
+                config.credentials = replace_parser(creds)
+                applied.append('credentials')
+            if sections.get('users'):
+                user_db.users = incoming
+                user_db._save_users()
+                applied.append('users')
+            if sections.get('temp_codes') and isinstance(bundle.get('temp_codes'), dict):
+                temp_code_db.codes = bundle['temp_codes']
+                temp_code_db._save_codes()
+                applied.append('temp_codes')
+        except Exception as e:
+            # roll back what we touched using the backups
+            for label, (path, content) in backups.items():
+                try:
+                    with open(path, 'w') as f:
+                        f.write(content)
+                    if label == 'credentials':
+                        os.chmod(path, 0o600)
+                except OSError:
+                    pass
+            logger.error(f"Backup import failed and was rolled back: {e}")
+            return jsonify({"error": f"Import failed, previous settings restored: {e}"}), 500
+
+        # persist side-cars (config.ini / credentials.ini) — users already saved
+        if 'config' in applied or 'credentials' in applied:
+            _persist_config_files()
+            config.reload()
+        if 'temp_codes' in applied:
+            try:
+                os.chmod(temp_code_db.codes_file, 0o600)
+            except OSError:
+                pass
+
+        # drop any session-stale backup artifacts safely
+        for label, (path, content) in backups.items():
+            bpath = f"{path}.backup-{stamp}"
+            try:
+                with open(bpath, 'w') as f:
+                    f.write(content)
+                if label == 'credentials':
+                    os.chmod(bpath, 0o600)
+            except OSError:
+                pass
+
+        logger.info(f"Backup import by {session.get('username')}: sections={applied}")
+        return jsonify({"success": True, "applied": applied,
+                        "message": f"Restored: {', '.join(applied)}. Previous files saved with a .backup-{stamp} suffix."})
+    except Exception as e:
+        logger.error(f"Backup import error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/activity')

@@ -16,7 +16,9 @@ A self-hosted notification system for the Nuki Smart Lock, using the Nuki Web AP
 - 🔍 **Smart Filtering**: Filter by user, action type, or trigger type
 - 🌙 **Dark Mode**: Toggle between light and dark themes
 - 👥 **User Management**: Multiple users with admin/agent roles
+- 🔐 **Per-user sign-in policies**: require or disable passwords/passkeys per user — go passkey-only by removing passwords entirely
 - 🔑 **Agent Access**: Let agents create temporary access codes
+- 💾 **Backup & Restore**: Export/import settings, users and credentials as a JSON bundle (admin → Backup & Restore)
 - 🫆 **Passkey Sign-in**: Optional WebAuthn login (fingerprint/face/PIN) alongside passwords
 - 🐳 **Single-Container Docker Deployment**: One `docker compose up -d` and you're running
 
