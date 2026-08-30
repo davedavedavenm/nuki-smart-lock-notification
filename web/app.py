@@ -70,6 +70,14 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True  # Security best practice
 # Initialize Flask-Session
 Session(app)
 
+# Behind a reverse proxy that terminates TLS (Pangolin, Nginx, Caddy...):
+# trust the forwarded headers so request.is_secure / request.host reflect
+# the real client-facing scheme. Required for correct session cookies and
+# passkey (WebAuthn) origin handling. Enable with PROXY_FIX=true.
+if os.environ.get('PROXY_FIX', 'false').lower() == 'true':
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
 # Make sessions permanent by default
 @app.before_request
 def make_session_permanent():

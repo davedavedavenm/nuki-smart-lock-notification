@@ -91,6 +91,7 @@ Key variables:
 | `NUKI_POLLING_INTERVAL` | `60` | Seconds between Nuki API polls |
 | `NUKI_NOTIFICATION_TYPE` | `both` | `both`, `telegram`, `email`, or `none` |
 | `WEB_HTTPS` | `false` | Set `true` when behind an HTTPS reverse proxy — enables secure session cookies and passkey logins |
+| `PROXY_FIX` | `false` | Set `true` when behind a TLS-terminating reverse proxy (Pangolin, Nginx, Caddy) so the app trusts `X-Forwarded-*` headers |
 | `DEBUG` | `false` | Debug mode |
 
 ## Operations

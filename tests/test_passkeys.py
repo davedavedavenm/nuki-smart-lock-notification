@@ -105,12 +105,38 @@ def test_add_and_remove_passkey(tmp_path):
     assert len(pk.get_passkeys(user)) == 1
 
 
-def test_find_user_by_credential_missing(tmp_path):
+def test_find_user_accepts_bytes_and_string(tmp_path):
+    """Regression: the login route received RAW BYTES while storage keeps a
+    base64url STRING — the lookup silently failed and passkey login returned
+    'Unknown passkey'. Both representations must resolve."""
+    from fido2.utils import websafe_encode
+
     data_dir = tmp_path / 'data'
     data_dir.mkdir()
     db = UserDatabase(str(data_dir))
-    db.users['a'] = {'passkeys': []}
-    assert pk.find_user_by_credential(db, 'nope') is None
+    db.users['dave'] = {'role': 'admin', 'active': True}
+    user = db.get_user('dave')
+
+    pk.add_passkey(user, b'cred-bytes-123', b'\x01\x02')
+
+    stored = pk.get_passkeys(user)[0]
+    # The stored form is a base64url string...
+    assert isinstance(stored['id'], str)
+    # ...and the real login flow must resolve BOTH the browser's string id
+    # and any raw-bytes form:
+    assert pk.find_user_by_credential(db, stored['id']) == 'dave'
+    assert pk.find_user_by_credential(db, b'cred-bytes-123') == 'dave'
+    assert pk.find_user_by_credential(db, websafe_encode(b'cred-bytes-123')) == 'dave'
+    assert pk.find_user_by_credential(db, 'no-such-credential') is None
+
+
+def test_auth_finish_unknown_credential_is_rejected(tmp_path):
+    """A credential not in storage must be refused at the lookup stage."""
+    data_dir = tmp_path / 'data'
+    data_dir.mkdir()
+    db = UserDatabase(str(data_dir))
+    db.users['dave'] = {'role': 'admin', 'active': True}
+    assert pk.find_user_by_credential(db, b'attacker-credential') is None
 
 
 # ---------------------------------------------------------------------------

@@ -86,12 +86,26 @@ def remove_passkey(user, credential_id_b64):
     return True
 
 
-def find_user_by_credential(user_db, credential_id_b64):
-    """Usernameless login: find the owning user for a credential id."""
+def find_user_by_credential(user_db, credential_id):
+    """Usernameless login: find the owning user for a credential.
+
+    ``credential_id`` may be raw bytes or the stored base64url string —
+    both sides are normalised through websafe_decode so the lookup cannot
+    fail on a representation mismatch.
+    """
+    def _norm(value):
+        if isinstance(value, (bytes, bytearray)):
+            return bytes(value)
+        return websafe_decode(value)
+
+    wanted = _norm(credential_id)
     for username, user in user_db.users.items():
         for pk in get_passkeys(user):
-            if pk['id'] == credential_id_b64:
-                return username
+            try:
+                if _norm(pk['id']) == wanted:
+                    return username
+            except Exception:
+                continue
     return None
 
 
@@ -156,7 +170,9 @@ def complete_authentication(server_state, response_json, user_db, rp_id):
     Returns the username on success. Raises fido2 exceptions on failure.
     """
     server = _server(rp_id)
-    credential_id = websafe_decode(response_json['id'])
+    # The assertion's "id" is the base64url credential id; find_user_by_credential
+    # normalises encodings on both sides.
+    credential_id = response_json['id']
     username = find_user_by_credential(user_db, credential_id)
     if not username:
         raise ValueError('Unknown passkey')

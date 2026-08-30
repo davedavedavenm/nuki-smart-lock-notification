@@ -42,6 +42,7 @@
                 <button type="button" class="btn btn-outline-primary nk-passkey-btn d-none" id="passkeyBtn">
                     <i class="fas fa-fingerprint me-2"></i>Sign in with a passkey
                 </button>
+                <div id="passkeyError" class="alert alert-danger small py-2 mt-2 d-none"></div>
                 <p class="nk-passkey-hint d-none" id="passkeyHint">
                     <i class="fas fa-circle-info me-1"></i>Passkeys require HTTPS (or localhost access).
                 </p>
@@ -90,9 +91,11 @@ $(document).ready(function() {
             if (!finish.ok) { throw new Error(result.error || 'Passkey login failed'); }
             window.location.href = result.redirect || '/';
         } catch (err) {
-            if (err.name !== 'NotAllowedError') {
-                console.error(err);
-            }
+            const box = $('#passkeyError');
+            box.text(err.message === 'Unknown passkey'
+                ? 'That passkey is not registered on this dashboard.'
+                : (err.name === 'NotAllowedError' ? 'Passkey login was cancelled or timed out.' : err.message));
+            box.removeClass('d-none');
             btn.prop('disabled', false);
         }
     });
