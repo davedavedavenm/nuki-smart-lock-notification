@@ -104,15 +104,31 @@ bot_token = test_bot_token
 
 @pytest.fixture
 def app(mock_config_dir):
-    """Create a test Flask app with a temporary config"""
-    # Set environment variables BEFORE importing the app so all module-level
-    # singletons (ConfigManager, UserDatabase, ...) bind to the temp dirs
+    """Create a test Flask app with a temporary config.
+
+    web.app binds its managers (ConfigManager, UserDatabase, ...) at import
+    time. Because importing the module happens during test collection (before
+    any fixture runs), we rebind those singletons here to per-test temp dirs —
+    this keeps tests fully isolated from the real runtime state and from each
+    other.
+    """
     os.environ['CONFIG_DIR'] = os.path.join(mock_config_dir, 'config')
     os.environ['LOGS_DIR'] = os.path.join(mock_config_dir, 'logs')
     os.environ['DATA_DIR'] = os.path.join(mock_config_dir, 'data')
 
-    # Import the app after setting up environment
-    from web.app import app as flask_app
+    import web.app as app_module
+    from scripts.nuki.api import NukiAPI
+    from scripts.nuki.utils import ActivityTracker
+    from web.models import UserDatabase
+    from web.temp_codes import TemporaryCodeDatabase
+
+    app_module.config = app_module.ConfigManager(app_module.parent_dir)
+    app_module.api = NukiAPI(app_module.config)
+    app_module.tracker = ActivityTracker(app_module.config.data_dir)
+    app_module.user_db = UserDatabase(app_module.config.data_dir)
+    app_module.temp_code_db = TemporaryCodeDatabase(app_module.config.data_dir)
+
+    flask_app = app_module.app
 
     # Configure for testing
     flask_app.config['TESTING'] = True
