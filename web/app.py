@@ -544,12 +544,46 @@ def users_manage():
 @app.route('/api/users/manage', methods=['GET'])
 @admin_required
 def get_users_manage():
-    """API endpoint to get all users for management"""
+    """API endpoint to get all users for management (includes TOTP status)"""
     try:
         users = user_db.get_all_users()
+        if isinstance(users, list):
+            for u in users:
+                u['totp'] = bool(u.get('totp_secret'))
+                u.pop('totp_secret', None)  # never send secrets to the client
         return jsonify(users)
     except Exception as e:
         logger.error(f"Error getting users: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/users/manage/<username>/totp/reset', methods=['POST'])
+@admin_required
+def reset_user_totp(username):
+    """Revoke another user's TOTP enrollment (e.g. lost phone).
+
+    Security-sensitive: requires the acting admin's own TOTP elevation, and
+    it is refused for your own account (use the self-service disable on the
+    profile, which requires your own code).
+    """
+    if username == session.get('username'):
+        return jsonify({"error": "Use Profile → Disable TOTP to reset your own enrollment"}), 400
+    gate = _require_totp()
+    if gate:
+        return gate
+    try:
+        user = user_db.get_user(username)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        if not user.get('totp_secret'):
+            return jsonify({"error": "This user has no TOTP enrolled"}), 400
+        user.pop('totp_secret', None)
+        user.pop('totp_enrolled_at', None)
+        user_db._save_users()
+        _audit_action('totp.reset', detail=f"target={username}")
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error resetting TOTP for {username}: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/users/manage', methods=['POST'])
@@ -1994,12 +2028,20 @@ def totp_status():
 @app.route('/api/totp/enroll/begin', methods=['POST'])
 @login_required
 def totp_enroll_begin():
-    """Generate a pending secret; it becomes active only after a live code"""
+    """Generate a pending secret; it becomes active only after a live code.
+
+    The pending secret is STICKY for the session: re-opening the dialog must
+    not invalidate a secret the user already typed into their authenticator.
+    """
     user = user_db.get_user(session.get('username'))
-    secret = totp_lib.generate_secret()
-    session['totp_pending_secret'] = secret
-    uri = totp_lib.otpauth_uri(secret, session.get('username', 'admin'))
-    return jsonify({"secret": secret, "otpauth_uri": uri})
+    if user and user.get('totp_secret'):
+        return jsonify({"error": "TOTP is already enrolled"}), 400
+    pending = session.get('totp_pending_secret')
+    if not pending:
+        pending = totp_lib.generate_secret()
+        session['totp_pending_secret'] = pending
+    uri = totp_lib.otpauth_uri(pending, session.get('username', 'admin'))
+    return jsonify({"secret": pending, "otpauth_uri": uri})
 
 
 @app.route('/api/totp/enroll/finish', methods=['POST'])
@@ -2009,11 +2051,12 @@ def totp_enroll_finish():
     if not pending:
         return jsonify({"error": "No enrollment in progress"}), 400
     code = (request.json or {}).get('code', '')
-    if not totp_lib.verify_code(pending, code):
+    if not totp_lib.verify_code(pending, code, window=2):
         audit.record('totp.failed', actor=session.get('username'),
                      detail='enrollment', status='failure',
                      ip=request.headers.get('X-Real-IP') or request.remote_addr)
-        return jsonify({"error": "Invalid code — enrollment not completed"}), 400
+        return jsonify({"error": "Invalid code — check the entry matches this enrollment "
+                                 "(re-scan the QR) and that your phone's clock is set to automatic"}), 400
     user = user_db.get_user(session.get('username'))
     user['totp_secret'] = pending
     user['totp_enrolled_at'] = datetime.now().isoformat()

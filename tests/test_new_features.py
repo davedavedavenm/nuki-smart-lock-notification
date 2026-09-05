@@ -530,6 +530,29 @@ def test_nuki_user_create_gated_and_audited(app):
         monkeypatch.undo()
 
 
+def test_totp_reset_by_admin(app):
+    import web.app as app_module
+    from web import totp as totp_lib
+    # seed a second admin-like user with an enrollment
+    users = app_module.user_db.users
+    users['jenny'] = {'password_hash': 'x', 'role': 'admin', 'active': True,
+                      'created_at': '2026-09-05T00:00:00', 'totp_secret': 'JBSWY3DPEHPK3PXP'}
+    app_module.user_db._save_users()
+    _login_admin(app)
+    # own-account reset refused (self-service only)
+    resp = app.post('/api/users/manage/admin/totp/reset', json={})
+    assert resp.status_code == 400
+    # resetting another admin requires the acting admin's own elevation
+    resp = app.post('/api/users/manage/jenny/totp/reset', json={})
+    assert resp.status_code == 403
+    _enroll_and_elevate(app)
+    resp = app.post('/api/users/manage/jenny/totp/reset', json={})
+    assert resp.status_code == 200
+    assert not app_module.user_db.get_user('jenny').get('totp_secret')
+    entries = app_module.audit.recent(action_filter='totp.reset')
+    assert entries and 'target=jenny' in entries[0]['detail']
+
+
 # ---------------------------------------------------------------------------
 # PWA routes
 # ---------------------------------------------------------------------------

@@ -24,8 +24,9 @@ def _code_at(secret, counter):
     return f"{bin_code % 1_000_000:06d}"
 
 
-def verify_code(secret, code, window=1, now=None):
-    """Constant-time check of a 6-digit code, tolerating ±window time steps.
+def verify_code(secret, code, window=2, now=None):
+    """Constant-time check of a 6-digit code, tolerating ±window time steps
+    (default ±2 steps = ±60s, covering ordinary phone/section clock drift).
 
     Accepts the code formatted with optional spaces (users often type
     '123 456').

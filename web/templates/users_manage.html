@@ -221,6 +221,48 @@
                 signIn.append(' <span class="badge bg-info text-dark ms-1">' + user.passkey_count + ' key' + (user.passkey_count > 1 ? 's' : '') + '</span>');
             }
 
+            // --- TOTP second factor status + admin reset ---
+            const totpBadge = $('<span>')
+                .addClass('badge ms-1 ' + (user.totp ? 'bg-success' : 'bg-secondary'))
+                .attr('title', user.totp ? 'TOTP authenticator enrolled' : 'No TOTP enrolled')
+                .text(user.totp ? '2FA' : 'no 2FA');
+            signIn.append(' ').append(totpBadge);
+            if (user.totp) {
+                const totpReset = $('<button>')
+                    .addClass('btn btn-sm btn-outline-warning ms-1')
+                    .attr('title', 'Reset this user\'s TOTP (e.g. lost phone). They will need to re-enroll.')
+                    .html('<i class="fas fa-rotate-left"></i>')
+                    .click(function() {
+                        if (!confirm('Reset TOTP for "' + user.username + '"? They will no longer be asked for their authenticator code until they enroll again.')) return;
+                        $.ajax({
+                            url: '/api/users/manage/' + encodeURIComponent(user.username) + '/totp/reset',
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: '{}',
+                            success: function() {
+                                loadUsers();
+                            },
+                            error: function(xhr) {
+                                if (xhr.responseJSON?.totp_required) {
+                                    guardTotp(function() {
+                                        $.ajax({
+                                            url: '/api/users/manage/' + encodeURIComponent(user.username) + '/totp/reset',
+                                            method: 'POST',
+                                            contentType: 'application/json',
+                                            data: '{}',
+                                            success: function() { loadUsers(); },
+                                            error: function(x2) { alert(x2.responseJSON?.error || 'Reset failed'); }
+                                        });
+                                    });
+                                    return;
+                                }
+                                alert(xhr.responseJSON?.error || 'Reset failed');
+                            }
+                        });
+                    });
+                signIn.append(totpReset);
+            }
+
             const pwdToggle = $('<button>')
                 .addClass('btn btn-sm btn-outline-secondary ms-1')
                 .attr('title', user.has_password ? 'Remove password (passkey becomes the only sign-in)' : 'Re-allow password (set one in Edit first)')

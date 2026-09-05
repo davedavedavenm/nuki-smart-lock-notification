@@ -34,7 +34,14 @@
                 </div>
             </div>
             <div class="card-body">
-                <div class="alert alert-info py-2 small d-none" id="umDisabledBanner">
+                <div class="alert alert-info py-2 small mb-3">
+                    <strong>What am I looking at?</strong> Each row is <em>a way your lock can be opened</em>:
+                    a paired <strong>phone app</strong>, a <strong>fob</strong>, the <strong>keypad hardware</strong>,
+                    or a <strong>keypad code</strong> (a PIN someone types). Disabling a row stops that method from
+                    working; deleting removes it permanently. Rows marked <em>device</em> (Bridge / Keypad) are the
+                    hardware itself — leave those alone.
+                </div>
+                <div class="alert alert-warning py-2 small d-none" id="umDisabledBanner">
                     Lock-user management is disabled. Flip the switch above (admin) to allow renaming,
                     disabling or removing Nuki users from this console. Viewing stays available.
                 </div>
@@ -262,11 +269,17 @@
             new bootstrap.Modal(document.getElementById('editNukiUserModal')).show();
         });
         $(document).on('click', '.delete-nuki-user-btn', function() {
-            const user = allUsers.find(u => u.id === $(this).data('id'));
-            if (!user) return;
-            if (!confirm(`Remove '${user.name}' from your Nuki account? This revokes their lock access and cannot be undone.`)) return;
-            const retry = () => deleteNukiUser(user.id);
-            deleteNukiUser(user.id, guardTotp.bind(null, retry));
+            const btn = $(this);
+            const userId = btn.data('id');
+            const name = btn.data('name') || userId;
+            const typeLabel = btn.data('typelabel') || '';
+            let msg = `Remove '${name}' (${typeLabel}) from your Nuki account? This revokes its lock access and cannot be undone.`;
+            if (typeLabel.includes('device')) {
+                msg = `⚠️ '${name}' is a hardware device entry (${typeLabel}). Removing it usually breaks that device until it is re-paired. Really delete it?`;
+            }
+            if (!confirm(msg)) return;
+            const retry = () => deleteNukiUser(userId);
+            deleteNukiUser(userId, guardTotp.bind(null, retry));
         });
         $('#saveNukiUserBtn').on('click', function() {
             if (!editTargetId) return;
@@ -474,16 +487,28 @@
             const userActivity = allActivity.filter(activity => activity.user === user.name).length;
             
             // Create status badge
-            const statusBadge = user.enabled 
-                ? '<span class="badge bg-success">Enabled</span>'
-                : '<span class="badge bg-danger">Disabled</span>';
-            
+            const statusTitle = user.enabled
+                ? 'This entry can currently operate the lock'
+                : 'Disabled — this entry cannot operate the lock until re-enabled';
+            const statusBadge = user.enabled
+                ? '<span class="badge bg-success" title="' + statusTitle + '">Enabled</span>'
+                : '<span class="badge bg-secondary" title="' + statusTitle + '">Disabled</span>';
+
             // Create row (escape Nuki-provided names before injecting)
             const safeName = $('<span>').text(user.name).html();
             const safeId = $('<span>').text(user.id).html();
-            const typeLabels = {0: 'App', 2: 'Device', 3: 'Keypad', 13: 'Code'};
-            const typeLabel = typeLabels[user.type] || user.type;
-            const safeType = $('<span>').text(typeLabel).html();
+            const typeLabels = {
+                0:  { label: '📱 App (phone/tablet)',  desc: 'A specific phone or tablet paired through the Nuki app. Each paired device gets its own row. Rename, disable or delete to control that device\'s access.' },
+                1:  { label: '🔌 Bridge (device)',     desc: 'Your Nuki Bridge box\'s own built-in entry — it is required for the bridge to work. Do not disable or delete this.' },
+                2:  { label: '🔑 Fob (keychain)',      desc: 'A Nuki Fob — the small keychain remote accessory.' },
+                3:  { label: '⌨️ Keypad (device)',     desc: 'The physical Keypad hardware\'s own entry. Do not disable or delete this — it is not a code.' },
+                13: { label: '#️⃣ Keypad code (a PIN)', desc: 'A numeric PIN someone types on the keypad — what "Add User" creates. Rename, disable or delete to control it.' },
+                14: { label: 'Z-Key',                  desc: 'A Z-Key integration entry.' },
+                15: { label: 'Virtual',                desc: 'A virtual/integration entry.' }
+            };
+            const t = typeLabels[user.type] || { label: 'Unknown (' + user.type + ')', desc: 'Unrecognised entry type.' };
+            const isDevice = (user.type === 1 || user.type === 3);
+            const safeType = $('<span>').text(t.label).attr('title', t.desc);
             let actionsHtml = `
                         <button class="btn btn-sm btn-outline-primary view-user-btn" data-id="${safeId}">
                             <i class="fas fa-eye me-1"></i>View
@@ -494,7 +519,7 @@
                         <button class="btn btn-sm btn-outline-secondary edit-nuki-user-btn" data-id="${safeId}"${disabledAttr}>
                             <i class="fas fa-pen me-1"></i>Edit
                         </button>
-                        <button class="btn btn-sm btn-outline-danger delete-nuki-user-btn" data-id="${safeId}"${disabledAttr}>
+                        <button class="btn btn-sm btn-outline-danger delete-nuki-user-btn" data-id="${safeId}" data-name="${safeName}" data-typelabel="${$('<span>').text(t.label).html()}"${disabledAttr}>
                             <i class="fas fa-trash me-1"></i>Delete
                         </button>`;
             }
@@ -502,7 +527,7 @@
                 <tr>
                     <td>${safeId}</td>
                     <td>${safeName}</td>
-                    <td>${safeType}</td>
+                    <td><span title="${t.desc}">${safeType}</span></td>
                     <td>${statusBadge}</td>
                     <td>${userActivity > 0 ? userActivity + ' events' : 'No activity'}</td>
                     <td>${actionsHtml}</td>
