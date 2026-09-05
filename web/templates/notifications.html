@@ -357,13 +357,13 @@
             return;
         }
         hooks.forEach(function(hook) {
-            const url = hook.url || '';
+            const url = hook.pushId || hook.url || '';
             // mask the secret part of our own hook URLs
             const masked = url.replace(/(\/webhook\/nuki\/)([a-f0-9]{8})[a-f0-9]+/, '$1$2…');
             const ours = url.includes('/webhook/nuki/') ? ' <span class="badge bg-info">this server</span>' : '';
             list.append($('<li class="list-group-item">').html(
                 '<code>' + $('<span>').text(masked).html() + '</code>' + ours +
-                ' <span class="text-muted small">(id: ' + hook.id + ')</span>'
+                ' <span class="text-muted small">(id: ' + (hook.notificationId || hook.id) + ', status: ' + (hook.status === 1 ? 'active' : hook.status) + ')</span>'
             ));
         });
     }

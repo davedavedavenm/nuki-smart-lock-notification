@@ -188,32 +188,53 @@ class NukiAPI:
     # Nuki notification hooks (webhook push)
     # ------------------------------------------------------------------
 
+    REFERENCE_ID = "nuki-smart-lock-notification"
+
     def list_notification_hooks(self):
-        """List all notification hooks registered on the Nuki account"""
+        """List this deployment's webhook notifications (os=2 entries only).
+
+        GET /notification returns push devices and webhooks mixed; only
+        os=2 entries are webhooks, and our referenceId marks ours.
+        """
         result = self._make_request('GET', f"{self.config.base_url}/notification")
         if result is None:
             return []
-        # API returns {"notifications": [...]}
         if isinstance(result, dict):
-            return result.get('notifications', [])
-        return result
+            result = result.get('notifications', [])
+        return [n for n in result
+                if isinstance(n, dict) and n.get('os') == 2
+                and (n.get('referenceId') == self.REFERENCE_ID
+                     or (n.get('pushId') or '').startswith(self.config.webhook_public_url.rstrip('/')))]
 
     def register_notification_hook(self, url):
-        """Register a webhook notification hook. Returns API result or None.
+        """Register a webhook notification (PUT /notification, os=2).
 
-        type=0 → hook only (no Nuki-side email). Empty lockIds/trigger/action
-        lists mean: all locks, all triggers, all actions.
+        Empty authIds and both triggerEvents mean: all triggers, all events.
+        Returns the created notification dict (truthy) or None on failure.
         """
+        lock_ids = []
+        try:
+            locks = self.get_smartlocks()
+            lock_ids = [l.get('smartlockId') for l in locks if l.get('smartlockId')]
+        except Exception:
+            pass
+        if not lock_ids and self.config.use_explicit_id and self.config.smartlock_id:
+            lock_ids = [int(self.config.smartlock_id)]
+
         payload = {
-            "url": url,
-            "type": 0,
-            "trigger": [],
-            "action": []
+            "pushId": url,
+            "os": 2,
+            "status": 1,
+            "referenceId": self.REFERENCE_ID,
+            "settings": [
+                {"smartlockId": lock_id, "triggerEvents": ["smartlock", "warnings"], "authIds": []}
+                for lock_id in lock_ids
+            ]
         }
-        return self._make_request('POST', f"{self.config.base_url}/notification", json=payload)
+        return self._make_request('PUT', f"{self.config.base_url}/notification", json=payload)
 
     def delete_notification_hook(self, notification_id):
-        """Delete a notification hook by its ID"""
+        """Delete a webhook notification by its notificationId"""
         return self._make_request(
             'DELETE',
             f"{self.config.base_url}/notification/{notification_id}"

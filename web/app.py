@@ -1968,9 +1968,9 @@ def webhook_register():
         base = config.webhook_public_url.rstrip('/') + '/webhook/nuki/'
         removed = 0
         for hook in api.list_notification_hooks():
-            hook_url = hook.get('url', '')
+            hook_url = hook.get('pushId') or hook.get('url') or ''
             if hook_url.startswith(base) and hook_url != full_url:
-                api.delete_notification_hook(hook.get('id'))
+                api.delete_notification_hook(hook.get('notificationId') or hook.get('id'))
                 removed += 1
 
         result = api.register_notification_hook(full_url)
@@ -1994,8 +1994,8 @@ def webhook_unregister():
         base = (config.webhook_public_url or '').rstrip('/') + '/webhook/nuki/'
         removed = 0
         for hook in api.list_notification_hooks():
-            if hook.get('url', '').startswith(base):
-                api.delete_notification_hook(hook.get('id'))
+            if (hook.get('pushId') or hook.get('url') or '').startswith(base):
+                api.delete_notification_hook(hook.get('notificationId') or hook.get('id'))
                 removed += 1
         _audit_action('webhook.unregister', detail=f"hooks_removed={removed}")
         return jsonify({"success": True, "hooks_removed": removed})
