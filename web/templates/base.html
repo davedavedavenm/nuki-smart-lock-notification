@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Nuki Dashboard{% endblock %}</title>
     <!-- PWA: installable as a phone app -->
-    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="manifest" href="{{ pwa_manifest_url }}">
     <meta name="theme-color" content="#0d1117">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">

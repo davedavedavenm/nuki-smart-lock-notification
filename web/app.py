@@ -110,7 +110,12 @@ ASSET_VERSION = '20260905.1'
 
 @app.context_processor
 def inject_asset_version():
-    return {'asset_version': ASSET_VERSION}
+    return {
+        'asset_version': ASSET_VERSION,
+        # Behind SSO proxies, point this at an unauthenticated hostname copy
+        # of the manifest (see /manifest.webmanifest docstring)
+        'pwa_manifest_url': os.environ.get('NUKI_PWA_MANIFEST_URL', '/manifest.webmanifest'),
+    }
 
 # Provide common template variables
 @app.context_processor
@@ -2068,9 +2073,18 @@ def get_audit():
 
 @app.route('/manifest.webmanifest')
 def webmanifest():
-    """Web app manifest (served from a route so it can safely live at root scope)"""
+    """Web app manifest.
+
+    Served with permissive CORS because browsers fetch manifests without
+    credentials: when the dashboard sits behind an SSO proxy (Pangolin), the
+    same-origin manifest request gets redirected to the auth gate and
+    blocked. Deployments can point the <link rel=manifest> at an
+    unauthenticated hostname via NUKI_PWA_MANIFEST_URL; the CORS header
+    makes that cross-origin fetch work.
+    """
     resp = send_from_directory(os.path.join(parent_dir, 'web', 'static'), 'manifest.webmanifest')
     resp.headers['Content-Type'] = 'application/manifest+json'
+    resp.headers['Access-Control-Allow-Origin'] = '*'
     return resp
 
 
