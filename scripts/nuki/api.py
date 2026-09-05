@@ -535,6 +535,58 @@ class NukiAPI:
         except Exception as e:
             logger.error(f"Error removing code: {e}")
             return {"success": False, "message": str(e)}
+
+    def _resolve_auth_entry(self, auth_id):
+        """Find an account-level authorization entry by its hex id"""
+        auths = self.get_users() or []
+        for entry in auths:
+            if str(entry.get('id')) == str(auth_id):
+                return entry
+        return None
+
+    def update_auth(self, auth_id, name=None, enabled=None):
+        """Rename / enable / disable a Nuki authorization.
+
+        auth_id is the account-level hex id shown in event attribution.
+        Per Nuki Web API: update is POST (PUT creates), the body is a
+        SmartlockAuthUpdate where `name` is REQUIRED (max 32 chars), and the
+        operation is applied asynchronously (204 = accepted).
+        Requires an API token with write permission.
+        """
+        entry = self._resolve_auth_entry(auth_id)
+        if not entry:
+            return {"success": False, "message": "Authorization not found"}
+
+        payload = {'name': str(name).strip() if name is not None else str(entry.get('name', ''))}
+        if len(payload['name']) > 32:
+            return {"success": False, "message": "Name is limited to 32 characters by Nuki"}
+        if not payload['name']:
+            return {"success": False, "message": "Name cannot be empty"}
+        if enabled is not None:
+            payload['enabled'] = bool(enabled)
+
+        result = self._make_request(
+            'POST',
+            f"{self.config.base_url}/smartlock/{entry.get('smartlockId')}/auth/{entry.get('authId')}",
+            json=payload
+        )
+        if result is None:
+            return {"success": False, "message": "Nuki API rejected the update (check token write permission)"}
+        return {"success": True, "async": True}
+
+    def delete_auth(self, auth_id):
+        """Remove a Nuki authorization entirely (asynchronous on Nuki's side)"""
+        entry = self._resolve_auth_entry(auth_id)
+        if not entry:
+            return {"success": False, "message": "Authorization not found"}
+
+        result = self._make_request(
+            'DELETE',
+            f"{self.config.base_url}/smartlock/{entry.get('smartlockId')}/auth/{entry.get('authId')}"
+        )
+        if result is None:
+            return {"success": False, "message": "Nuki API rejected the removal (check token write permission)"}
+        return {"success": True, "async": True}
     
     def find_auth_id_by_code(self, smartlock_id, code):
         """Find authorization ID by code value

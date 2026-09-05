@@ -30,6 +30,7 @@ from web.models import UserDatabase, User
 from web.temp_codes import TemporaryCodeDatabase
 from web.dark_mode import init_app
 from web.audit import AuditLog
+from web import totp as totp_lib
 from web import passkeys as pk
 
 # Configure logging with fallback to console if file logging fails
@@ -136,6 +137,7 @@ wake_signal = WakeSignal(config.data_dir)
 # Simple in-memory rate limiters (per worker process)
 _login_alert_times = {}   # "ip|username" -> last alert epoch
 _webhook_hits = {}        # ip -> [epoch timestamps]
+_totp_failures = {}       # username -> [epoch timestamps]
 _RATE_LOCK = threading.Lock()
 
 
@@ -168,6 +170,50 @@ def _rate_limit_login_alert(key, min_interval=60):
         for k in [k for k, t in _login_alert_times.items() if now - t > 3600]:
             del _login_alert_times[k]
         return True
+
+
+# How long a TOTP verification elevates a session (lock-access writes)
+TOTP_ELEVATED_TTL = int(os.environ.get('NUKI_TOTP_ELEVATED_TTL', str(12 * 3600)))
+
+
+def _totp_elevated():
+    """True if the current session has a recent TOTP verification"""
+    until = session.get('totp_until') or 0
+    return time.time() < until
+
+
+def _require_totp():
+    """Gate for lock-access writes. Returns None when allowed, else a
+    (response, status) tuple explaining what the client must do."""
+    if _totp_elevated():
+        return None
+    user = user_db.get_user(session.get('username'))
+    enrolled = bool(user and user.get('totp_secret'))
+    if enrolled:
+        return jsonify({"error": "TOTP verification required",
+                        "totp_required": True, "enrolled": True}), 403
+    return jsonify({"error": "TOTP enrollment required before managing lock users",
+                    "totp_required": True, "enrolled": False}), 403
+
+
+def _check_totp_code(user, code):
+    """Validate a TOTP code for a user with rate limiting. Returns (ok, err)"""
+    now = time.time()
+    with _RATE_LOCK:
+        fails = [t for t in _totp_failures.get(user.get('username'), []) if now - t < 300]
+        _totp_failures[user.get('username')] = fails
+        if len(fails) >= 5:
+            return False, "Too many failed codes — wait 5 minutes"
+    secret = user.get('totp_secret')
+    if not secret:
+        return False, "TOTP is not enrolled"
+    if not totp_lib.verify_code(secret, code):
+        with _RATE_LOCK:
+            _totp_failures.setdefault(user.get('username'), []).append(now)
+        audit.record('totp.failed', actor=user.get('username'),
+                     ip=request.headers.get('X-Real-IP') or request.remote_addr)
+        return False, "Invalid or expired code"
+    return True, None
 
 # Login required decorator
 def login_required(f):
@@ -1008,13 +1054,13 @@ def get_notification_settings():
 @admin_required
 def update_notification_settings():
     """API endpoint to update notification settings"""
+    global config, api, notifier
     try:
         # Get data from request
         data = request.json
         
-        # Get current config file path
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        config_path = os.path.join(base_dir, "config", "config.ini")
+        # Honor CONFIG_DIR via the loaded ConfigManager — never recompute from __file__
+        config_path = config.config_path
         
         # Import the configuration utility functions
         sys.path.insert(0, os.path.join(parent_dir, "scripts"))
@@ -1073,7 +1119,6 @@ def update_notification_settings():
             update_config_func(config_path, 'Filter', 'excluded_triggers', excluded_triggers)
         
         # Reload configuration
-        global config, api, notifier
         config = ConfigManager(parent_dir)
         api = NukiAPI(config)
         notifier = Notifier(config)
@@ -1175,9 +1220,8 @@ def update_config():
     """API endpoint to update configuration"""
     global config, api
     try:
-        # Get current config file path
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        config_path = os.path.join(base_dir, "config", "config.ini")
+        # Honor CONFIG_DIR via the loaded ConfigManager — never recompute from __file__
+        config_path = config.config_path
         config_dir = os.path.dirname(config_path)
         backup_path = os.path.join(config_dir, "config.ini.bak")
         
@@ -1644,6 +1688,73 @@ def get_users():
         logger.error(f"Error getting users: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/nuki-users/<auth_id>', methods=['PUT'])
+@admin_required
+def edit_nuki_user(auth_id):
+    """Rename or enable/disable a Nuki lock authorization"""
+    gate = _require_totp()
+    if gate:
+        return gate
+    if not config.user_management_enabled:
+        return jsonify({"error": "Lock-user management is disabled — enable it on the Nuki Users page"}), 403
+    try:
+        data = request.json or {}
+        name = data.get('name')
+        enabled = data.get('active')
+        if name is None and enabled is None:
+            return jsonify({"error": "Nothing to update"}), 400
+
+        result = api.update_auth(auth_id, name=name, enabled=enabled)
+        if not result.get('success'):
+            _audit_action('nuki_user.edit', detail=f"auth={auth_id} name={name} active={enabled}",
+                          status='failure')
+            return jsonify({"error": result.get('message', 'Update failed')}), 502
+
+        changes = []
+        if name is not None:
+            changes.append(f"name={str(name).strip()!r}")
+        if enabled is not None:
+            changes.append(f"enabled={bool(enabled)}")
+        _audit_action('nuki_user.edit', detail=f"auth={auth_id} {', '.join(changes)}")
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error editing Nuki user: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/nuki-users/<auth_id>', methods=['DELETE'])
+@admin_required
+def remove_nuki_user(auth_id):
+    """Remove a Nuki lock authorization entirely"""
+    gate = _require_totp()
+    if gate:
+        return gate
+    if not config.user_management_enabled:
+        return jsonify({"error": "Lock-user management is disabled — enable it on the Nuki Users page"}), 403
+    try:
+        entry = api._resolve_auth_entry(auth_id)
+        result = api.delete_auth(auth_id)
+        if not result.get('success'):
+            _audit_action('nuki_user.delete', detail=f"auth={auth_id}", status='failure')
+            return jsonify({"error": result.get('message', 'Removal failed')}), 502
+
+        removed_local = 0
+        if entry and entry.get('type') == 13:
+            # It was a temporary code — purge our local records so the
+            # Temporary Codes page does not show ghost entries
+            for code_id in list(temp_code_db.codes.keys()):
+                code = temp_code_db.codes.get(code_id) or {}
+                if str(code.get('auth_id')) == str(auth_id):
+                    temp_code_db.delete_code(code_id)
+                    removed_local += 1
+
+        name = (entry or {}).get('name', '')
+        _audit_action('nuki_user.delete',
+                      detail=f"auth={auth_id} name={name!r} type={(entry or {}).get('type')} local_codes_purged={removed_local}")
+        return jsonify({"success": True, "local_codes_purged": removed_local})
+    except Exception as e:
+        logger.error(f"Error removing Nuki user: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/temp-codes')
 @agent_access_required
 def temp_codes_page():
@@ -1682,6 +1793,9 @@ def get_temp_codes():
 @agent_access_required
 def create_temp_code():
     """API endpoint to create a temporary code"""
+    gate = _require_totp()
+    if gate:
+        return gate
     try:
         # Get data from request
         data = request.json
@@ -1753,6 +1867,9 @@ def create_temp_code():
 @agent_access_required
 def delete_temp_code(code_id):
     """API endpoint to delete a temporary code"""
+    gate = _require_totp()
+    if gate:
+        return gate
     try:
         # Get code from database
         code = temp_code_db.get_code(code_id)
@@ -1834,6 +1951,114 @@ def create_agency_user():
             return redirect(url_for('create_agency_user'))
     
     return render_template('create_agency.html')
+
+# ---------------------------------------------------------------------------
+# TOTP second factor (guards lock-access management actions)
+# ---------------------------------------------------------------------------
+
+@app.route('/api/totp/status', methods=['GET'])
+@login_required
+def totp_status():
+    user = user_db.get_user(session.get('username'))
+    until = session.get('totp_until') or 0
+    return jsonify({
+        "enrolled": bool(user and user.get('totp_secret')),
+        "elevated": time.time() < until,
+        "elevated_until": int(until) if until else None,
+        "ttl": TOTP_ELEVATED_TTL,
+    })
+
+
+@app.route('/api/totp/enroll/begin', methods=['POST'])
+@login_required
+def totp_enroll_begin():
+    """Generate a pending secret; it becomes active only after a live code"""
+    user = user_db.get_user(session.get('username'))
+    secret = totp_lib.generate_secret()
+    session['totp_pending_secret'] = secret
+    uri = totp_lib.otpauth_uri(secret, session.get('username', 'admin'))
+    return jsonify({"secret": secret, "otpauth_uri": uri})
+
+
+@app.route('/api/totp/enroll/finish', methods=['POST'])
+@login_required
+def totp_enroll_finish():
+    pending = session.get('totp_pending_secret')
+    if not pending:
+        return jsonify({"error": "No enrollment in progress"}), 400
+    code = (request.json or {}).get('code', '')
+    if not totp_lib.verify_code(pending, code):
+        audit.record('totp.failed', actor=session.get('username'),
+                     detail='enrollment', status='failure',
+                     ip=request.headers.get('X-Real-IP') or request.remote_addr)
+        return jsonify({"error": "Invalid code — enrollment not completed"}), 400
+    user = user_db.get_user(session.get('username'))
+    user['totp_secret'] = pending
+    user['totp_enrolled_at'] = datetime.now().isoformat()
+    user_db._save_users()
+    session.pop('totp_pending_secret', None)
+    session['totp_until'] = time.time() + TOTP_ELEVATED_TTL
+    _audit_action('totp.enroll')
+    return jsonify({"success": True, "elevated_until": int(session['totp_until'])})
+
+
+@app.route('/api/totp/verify', methods=['POST'])
+@login_required
+def totp_verify():
+    user = user_db.get_user(session.get('username'))
+    code = (request.json or {}).get('code', '')
+    ok, err = _check_totp_code(user, code)
+    if not ok:
+        return jsonify({"error": err}), 400
+    session['totp_until'] = time.time() + TOTP_ELEVATED_TTL
+    _audit_action('totp.verify')
+    return jsonify({"success": True, "elevated_until": int(session['totp_until'])})
+
+
+@app.route('/api/totp/disable', methods=['POST'])
+@login_required
+def totp_disable():
+    user = user_db.get_user(session.get('username'))
+    code = (request.json or {}).get('code', '')
+    ok, err = _check_totp_code(user, code)
+    if not ok:
+        return jsonify({"error": err}), 400
+    user.pop('totp_secret', None)
+    user.pop('totp_enrolled_at', None)
+    user_db._save_users()
+    session.pop('totp_until', None)
+    _audit_action('totp.disable')
+    return jsonify({"success": True})
+
+
+# ---------------------------------------------------------------------------
+# Lock-user management toggle
+# ---------------------------------------------------------------------------
+
+@app.route('/api/nuki-user-management/enabled', methods=['GET', 'POST'])
+@admin_required
+def nuki_user_management_enabled():
+    """Read/flip the opt-in switch for lock-user write operations"""
+    global config, api, notifier
+    if request.method == 'GET':
+        return jsonify({"enabled": config.user_management_enabled})
+    try:
+        data = request.json or {}
+        enabled = bool(data.get('enabled'))
+        sys.path.insert(0, os.path.join(parent_dir, "scripts"))
+        from configure import update_config as update_config_func
+        # config.config_path honors CONFIG_DIR — never recompute from __file__
+        update_config_func(config.config_path,
+                           'Advanced', 'user_management_enabled', str(enabled).lower())
+        config = ConfigManager(parent_dir)
+        api = NukiAPI(config)
+        notifier = Notifier(config)
+        _audit_action('user_management.toggle', detail=f"enabled={enabled}")
+        return jsonify({"success": True, "enabled": enabled})
+    except Exception as e:
+        logger.error(f"Error toggling user management: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 # ---------------------------------------------------------------------------
 # Webhook (push notifications from the Nuki Web API)
@@ -1961,11 +2186,10 @@ def webhook_enable():
 
         sys.path.insert(0, os.path.join(parent_dir, "scripts"))
         from configure import update_config as update_config_func
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        config_path = os.path.join(base_dir, "config", "config.ini")
-        update_config_func(config_path, 'Webhook', 'enabled', str(enabled).lower())
+        # config.config_path honors CONFIG_DIR — never recompute from __file__
+        update_config_func(config.config_path, 'Webhook', 'enabled', str(enabled).lower())
         if public_url:
-            update_config_func(config_path, 'Webhook', 'public_url', public_url)
+            update_config_func(config.config_path, 'Webhook', 'public_url', public_url)
 
         # Generate secrets on first enable
         generated = False

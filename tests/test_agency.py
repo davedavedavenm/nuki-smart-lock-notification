@@ -6,6 +6,7 @@ from flask import session
 
 # Import from the test_mocks module
 from test_mocks import app_with_mocks, mock_api
+from conftest import _enroll_and_elevate
 
 def test_admin_login(app_with_mocks):
     """Test admin login"""
@@ -45,11 +46,8 @@ def test_get_temp_codes_admin(app_with_mocks):
 
 def test_create_temp_code(app_with_mocks):
     """Test creating a temporary code"""
-    # Login as admin
-    app_with_mocks.post('/login', data={
-        'username': 'admin',
-        'password': 'nukiadmin'
-    })
+    # Login as admin and satisfy the TOTP gate for lock-access writes
+    _enroll_and_elevate(app_with_mocks)
     
     # Create temp code
     expiry = (datetime.now() + timedelta(days=1)).isoformat()
@@ -67,11 +65,8 @@ def test_create_temp_code(app_with_mocks):
 
 def test_delete_temp_code(app_with_mocks, monkeypatch):
     """Test deleting a temporary code"""
-    # Login as admin
-    app_with_mocks.post('/login', data={
-        'username': 'admin',
-        'password': 'nukiadmin'
-    })
+    # Login as admin and satisfy the TOTP gate for lock-access writes
+    _enroll_and_elevate(app_with_mocks)
     
     # Patch the temp_code_db
     from web.app import temp_code_db

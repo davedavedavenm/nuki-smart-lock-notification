@@ -14,17 +14,27 @@
 <div class="row">
     <div class="col-md-12">
         <div class="card shadow">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="card-title mb-0">
                     <i class="fas fa-users me-2"></i>User List
                 </h5>
-                <div>
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    {% if session.get('role') == 'admin' %}
+                    <div class="form-check form-switch mb-0" title="Allow renaming, disabling and removing lock users from this console">
+                        <input class="form-check-input" type="checkbox" role="switch" id="umEnabledSwitch">
+                        <label class="form-check-label small" for="umEnabledSwitch">Enable lock-user management</label>
+                    </div>
+                    {% endif %}
                     <button class="btn btn-light btn-sm" id="refreshBtn">
                         <i class="fas fa-sync-alt me-1"></i>Refresh
                     </button>
                 </div>
             </div>
             <div class="card-body">
+                <div class="alert alert-info py-2 small d-none" id="umDisabledBanner">
+                    Lock-user management is disabled. Flip the switch above (admin) to allow renaming,
+                    disabling or removing Nuki users from this console. Viewing stays available.
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -55,7 +65,7 @@
                         <p id="userCount" class="mb-0">Loading user data...</p>
                     </div>
                     <div class="col-md-6 text-md-end">
-                        <span class="text-muted">Note: User management is read-only in this version</span>
+                        <span class="text-muted">Changes apply to your Nuki account immediately and are audited</span>
                     </div>
                 </div>
             </div>
@@ -78,6 +88,35 @@
                         <span class="visually-hidden">Loading...</span>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Nuki User Modal -->
+<div class="modal fade" id="editNukiUserModal" tabindex="-1" aria-labelledby="editNukiUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editNukiUserModalLabel">Edit Lock User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">Changes are applied to your Nuki account straight away.</p>
+                <div class="mb-3">
+                    <label class="form-label" for="editNukiUserName">Name</label>
+                    <input type="text" class="form-control" id="editNukiUserName" maxlength="60">
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="editNukiUserEnabled">
+                    <label class="form-check-label" for="editNukiUserEnabled">Enabled (can operate the lock)</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveNukiUserBtn">
+                    <i class="fas fa-save me-1"></i>Save Changes
+                </button>
             </div>
         </div>
     </div>
@@ -165,6 +204,9 @@
     let allUsers = [];
     let allActivity = [];
     let userActivityChart;
+    const isAdmin = {{ 'true' if session.get('role') == 'admin' else 'false' }};
+    let umEnabled = false;
+    let editTargetId = null;
     
     // Document ready function
     $(document).ready(function() {
@@ -174,7 +216,73 @@
         
         // Set up event listeners
         setupEventListeners();
+
+        // Nuki user edit/delete (admin only)
+        $(document).on('click', '.edit-nuki-user-btn', function() {
+            const user = allUsers.find(u => u.id === $(this).data('id'));
+            if (!user) return;
+            editTargetId = user.id;
+            $('#editNukiUserName').val(user.name);
+            $('#editNukiUserEnabled').prop('checked', !!user.enabled);
+            new bootstrap.Modal(document.getElementById('editNukiUserModal')).show();
+        });
+        $(document).on('click', '.delete-nuki-user-btn', function() {
+            const user = allUsers.find(u => u.id === $(this).data('id'));
+            if (!user) return;
+            if (!confirm(`Remove '${user.name}' from your Nuki account? This revokes their lock access and cannot be undone.`)) return;
+            const retry = () => deleteNukiUser(user.id);
+            deleteNukiUser(user.id, guardTotp.bind(null, retry));
+        });
+        $('#saveNukiUserBtn').on('click', function() {
+            if (!editTargetId) return;
+            const payload = {
+                name: $('#editNukiUserName').val().trim(),
+                active: $('#editNukiUserEnabled').is(':checked')
+            };
+            if (!payload.name) { alert('Name cannot be empty'); return; }
+            const retry = () => saveNukiUser(editTargetId, payload);
+            saveNukiUser(editTargetId, payload, guardTotp.bind(null, retry));
+        });
     });
+
+    // Nuki applies auth changes asynchronously — reload a beat later
+    function afterNukiWrite(msg) {
+        $('#userCount').text(msg + ' Applying on Nuki\'s side — refreshing…');
+        setTimeout(loadUsers, 2500);
+    }
+
+    function saveNukiUser(authId, payload, onGate) {
+        $.ajax({
+            url: '/api/nuki-users/' + encodeURIComponent(authId),
+            method: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function() {
+                bootstrap.Modal.getInstance(document.getElementById('editNukiUserModal')).hide();
+                afterNukiWrite('Saved.');
+            },
+            error: function(xhr) {
+                if (xhr.responseJSON?.totp_required) { onGate(); return; }
+                if (xhr.responseJSON?.error?.includes('disabled')) { updateUmState(); }
+                alert('Save failed: ' + (xhr.responseJSON?.error || 'unknown error'));
+            }
+        });
+    }
+
+    function deleteNukiUser(authId, onGate) {
+        $.ajax({
+            url: '/api/nuki-users/' + encodeURIComponent(authId),
+            method: 'DELETE',
+            success: function(resp) {
+                afterNukiWrite('Removed.' + (resp.local_codes_purged ? ` ${resp.local_codes_purged} local temp-code record(s) cleaned up.` : ''));
+            },
+            error: function(xhr) {
+                if (xhr.responseJSON?.totp_required) { onGate(); return; }
+                if (xhr.responseJSON?.error?.includes('disabled')) { updateUmState(); }
+                alert('Removal failed: ' + (xhr.responseJSON?.error || 'unknown error'));
+            }
+        });
+    }
     
     // Set up event listeners
     function setupEventListeners() {
@@ -183,6 +291,42 @@
             loadUsers();
             loadActivity();
         });
+
+        if (isAdmin) {
+            loadUmToggle();
+            $('#umEnabledSwitch').on('change', function() {
+                $.ajax({
+                    url: '/api/nuki-user-management/enabled',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ enabled: this.checked }),
+                    success: function(resp) {
+                        umEnabled = resp.enabled;
+                        updateUmState();
+                        loadUsers();
+                    },
+                    error: function(xhr) {
+                        alert('Failed to change setting: ' + (xhr.responseJSON?.error || 'unknown error'));
+                        loadUmToggle();
+                    }
+                });
+            });
+        } else {
+            $('#umEnabledSwitch').closest('.form-check').addClass('d-none');
+        }
+    }
+
+    function loadUmToggle() {
+        $.get('/api/nuki-user-management/enabled').done(function(resp) {
+            umEnabled = !!resp.enabled;
+            $('#umEnabledSwitch').prop('checked', umEnabled);
+            updateUmState();
+        });
+    }
+
+    function updateUmState() {
+        $('#umDisabledBanner').toggleClass('d-none', umEnabled);
+        $('.edit-nuki-user-btn, .delete-nuki-user-btn').prop('disabled', !umEnabled);
     }
     
     // Load users
@@ -264,19 +408,34 @@
                 ? '<span class="badge bg-success">Enabled</span>'
                 : '<span class="badge bg-danger">Disabled</span>';
             
-            // Create row
+            // Create row (escape Nuki-provided names before injecting)
+            const safeName = $('<span>').text(user.name).html();
+            const safeId = $('<span>').text(user.id).html();
+            const typeLabels = {0: 'App', 2: 'Device', 3: 'Keypad', 13: 'Code'};
+            const typeLabel = typeLabels[user.type] || user.type;
+            const safeType = $('<span>').text(typeLabel).html();
+            let actionsHtml = `
+                        <button class="btn btn-sm btn-outline-primary view-user-btn" data-id="${safeId}">
+                            <i class="fas fa-eye me-1"></i>View
+                        </button>`;
+            if (isAdmin) {
+                const disabledAttr = umEnabled ? '' : ' disabled title="Enable lock-user management first"';
+                actionsHtml += `
+                        <button class="btn btn-sm btn-outline-secondary edit-nuki-user-btn" data-id="${safeId}"${disabledAttr}>
+                            <i class="fas fa-pen me-1"></i>Edit
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger delete-nuki-user-btn" data-id="${safeId}"${disabledAttr}>
+                            <i class="fas fa-trash me-1"></i>Delete
+                        </button>`;
+            }
             const row = `
                 <tr>
-                    <td>${user.id}</td>
-                    <td>${user.name}</td>
-                    <td>${user.type}</td>
+                    <td>${safeId}</td>
+                    <td>${safeName}</td>
+                    <td>${safeType}</td>
                     <td>${statusBadge}</td>
                     <td>${userActivity > 0 ? userActivity + ' events' : 'No activity'}</td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-primary view-user-btn" data-id="${user.id}">
-                            <i class="fas fa-eye me-1"></i>View
-                        </button>
-                    </td>
+                    <td>${actionsHtml}</td>
                 </tr>
             `;
             

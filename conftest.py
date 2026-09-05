@@ -7,6 +7,23 @@ from pathlib import Path
 
 from werkzeug.security import generate_password_hash
 
+
+def _enroll_and_elevate(client):
+    """Log in the fixture admin, enroll TOTP, and open an elevated session.
+
+    Shared by tests that exercise lock-access write endpoints (temp codes,
+    Nuki user management) which now sit behind the TOTP gate.
+    """
+    import time as _time
+    import web.app as app_module
+    from web import totp as totp_lib
+    client.post('/login', data={'username': 'admin', 'password': 'nukiadmin'},
+                follow_redirects=True)
+    begun = client.post('/api/totp/enroll/begin', json={}).get_json()
+    code = totp_lib._code_at(begun['secret'], int(_time.time() // 30))
+    assert client.post('/api/totp/enroll/finish', json={'code': code}).status_code == 200
+    app_module.config.user_management_enabled = True
+
 # Add the project root to the Python path
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)

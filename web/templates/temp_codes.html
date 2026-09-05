@@ -137,44 +137,48 @@
       });
   }
   
-  function createTemporaryCode() {
-    const code = document.getElementById('code').value;
-    const name = document.getElementById('name').value;
-    const expiry = document.getElementById('expiry').value;
-    
-    // Validate code format (4-8 digits)
-    if (!/^\d{4,8}$/.test(code)) {
-      showAlert('danger', 'Code must be 4-8 digits');
-      return;
-    }
-    
-    // Validate expiry date
-    const expiryDate = new Date(expiry);
-    const now = new Date();
-    if (expiryDate <= now) {
-      showAlert('danger', 'Expiry time must be in the future');
-      return;
-    }
-    
-    fetch('/api/temp-codes', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        code: code,
-        name: name,
-        expiry: expiry
-      })
-    })
-    .then(response => {
-      if (!response.ok) {
-        return response.json().then(data => {
-          throw new Error(data.error || 'Failed to create temporary code');
-        });
+    function createTemporaryCode(retryAfterTotp) {
+      const code = document.getElementById('code').value;
+      const name = document.getElementById('name').value;
+      const expiry = document.getElementById('expiry').value;
+      
+      // Validate code format (4-8 digits)
+      if (!/^\d{4,8}$/.test(code)) {
+        showAlert('danger', 'Code must be 4-8 digits');
+        return;
       }
-      return response.json();
-    })
+      
+      // Validate expiry date
+      const expiryDate = new Date(expiry);
+      const now = new Date();
+      if (expiryDate <= now) {
+        showAlert('danger', 'Expiry time must be in the future');
+        return;
+      }
+      
+      fetch('/api/temp-codes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: code,
+          name: name,
+          expiry: expiry
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            if (data.totp_required) {
+              guardTotp(() => createTemporaryCode(true));
+              throw new Error('__totp_gate__');
+            }
+            throw new Error(data.error || 'Failed to create temporary code');
+          });
+        }
+        return response.json();
+      })
     .then(data => {
       // Reset form
       document.getElementById('new-code-form').reset();
@@ -190,17 +194,21 @@
       showAlert('success', 'Temporary code created successfully');
     })
     .catch(error => {
-      showAlert('danger', error.message);
+      if (error.message !== '__totp_gate__') showAlert('danger', error.message);
     });
   }
   
-  function deleteTemporaryCode(id) {
+  function deleteTemporaryCode(id, retryAfterTotp) {
     fetch(`/api/temp-codes/${id}`, {
       method: 'DELETE'
     })
     .then(response => {
       if (!response.ok) {
         return response.json().then(data => {
+          if (data.totp_required) {
+            guardTotp(() => deleteTemporaryCode(id, true));
+            throw new Error('__totp_gate__');
+          }
           throw new Error(data.error || 'Failed to delete temporary code');
         });
       }
@@ -211,7 +219,7 @@
       showAlert('success', 'Temporary code deleted successfully');
     })
     .catch(error => {
-      showAlert('danger', error.message);
+      if (error.message !== '__totp_gate__') showAlert('danger', error.message);
     });
   }
   

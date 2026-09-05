@@ -185,6 +185,11 @@ def _login_admin(client):
                        follow_redirects=True)
 
 
+def _enroll_and_elevate(app):
+    from conftest import _enroll_and_elevate as _e
+    _e(app)
+
+
 def test_webhook_rejects_bad_secret(app):
     import web.app as app_module
     app_module.config.webhook_secret = 'correct-secret'
@@ -343,6 +348,161 @@ def test_event_actor_naming(mock_config_dir):
     assert api.get_event_user_name(0, None) == "System"
     assert api.get_event_user_name(None, None) == "Unknown User"
     assert api.get_trigger_description(255) == "Unknown"
+
+
+# ---------------------------------------------------------------------------
+# Nuki user management (rename / disable / delete)
+# ---------------------------------------------------------------------------
+
+def test_nuki_user_edit_requires_admin(app):
+    import web.app as app_module
+    calls = []
+    monkey_updates = lambda aid, name=None, enabled=None: calls.append((aid, name, enabled)) or {"success": True}
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(app_module.api, 'update_auth', monkey_updates)
+    try:
+        resp = app.put('/api/nuki-users/abc', json={'name': 'X'})
+        assert resp.status_code in (200, 302) or b'Login' in resp.data  # redirected when anon
+        assert not calls
+        _login_admin(app)
+        _enroll_and_elevate(app)
+        resp = app.put('/api/nuki-users/abc', json={'name': 'Renamed', 'active': False})
+        assert resp.status_code == 200
+        assert calls == [('abc', 'Renamed', False)]
+        entries = app_module.audit.recent(action_filter='nuki_user.edit')
+        assert entries and entries[0]['status'] == 'success'
+    finally:
+        monkeypatch.undo()
+
+
+def test_nuki_user_delete_purges_local_temp_codes(app):
+    import web.app as app_module
+    _login_admin(app)
+    _enroll_and_elevate(app)
+    app_module.temp_code_db.codes['55'] = {'code': 1234, 'name': 'Guest', 'auth_id': 'hex-id-9', 'created_by': 'admin'}
+    app_module.temp_code_db._save_codes()
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(app_module.api, '_resolve_auth_entry',
+                        lambda aid: {'id': 'hex-id-9', 'authId': 42, 'type': 13, 'name': 'Guest', 'smartlockId': 1})
+    monkeypatch.setattr(app_module.api, 'delete_auth', lambda aid: {"success": True})
+    try:
+        resp = app.delete('/api/nuki-users/hex-id-9')
+        assert resp.status_code == 200
+        assert resp.get_json()['local_codes_purged'] == 1
+        assert '55' not in app_module.temp_code_db.codes
+        entries = app_module.audit.recent(action_filter='nuki_user.delete')
+        assert entries and 'name=' in entries[0]['detail']
+    finally:
+        monkeypatch.undo()
+
+
+def test_nuki_user_edit_reports_api_failure(app):
+    import web.app as app_module
+    _login_admin(app)
+    _enroll_and_elevate(app)
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(app_module.api, 'update_auth',
+                        lambda aid, name=None, enabled=None: {"success": False, "message": "Nuki API rejected the update"})
+    try:
+        resp = app.put('/api/nuki-users/abc123', json={'name': 'X'})
+        assert resp.status_code == 502
+        entries = app_module.audit.recent(action_filter='nuki_user.edit')
+        assert entries[0]['status'] == 'failure'
+    finally:
+        monkeypatch.undo()
+
+
+# ---------------------------------------------------------------------------
+# TOTP + lock-user management gating
+# ---------------------------------------------------------------------------
+
+def test_totp_roundtrip(app):
+    import web.app as app_module
+    from web import totp as totp_lib
+    _login_admin(app)
+    # enroll
+    begun = app.post('/api/totp/enroll/begin', json={}).get_json()
+    secret = begun['secret']
+    code = totp_lib._code_at(secret, int(time.time() // 30))
+    done = app.post('/api/totp/enroll/finish', json={'code': code})
+    assert done.status_code == 200
+    assert app_module.user_db.get_user('admin').get('totp_secret') == secret
+    # wrong code rejected, right code elevates
+    bad = app.post('/api/totp/verify', json={'code': '000000'})
+    assert bad.status_code == 400
+    good = app.post('/api/totp/verify', json={'code': totp_lib._code_at(secret, int(time.time() // 30))})
+    assert good.status_code == 200
+    assert app_module.session.get('totp_until', 0) > time.time()
+
+
+def test_totp_verify_tolerance_and_garbage():
+    from web import totp as totp_lib
+    secret = totp_lib.generate_secret()
+    code = totp_lib._code_at(secret, int(time.time() // 30) - 1)  # previous step
+    assert totp_lib.verify_code(secret, code, window=1)
+    assert totp_lib.verify_code(secret, code[:3] + ' ' + code[3:])  # spaced
+    assert not totp_lib.verify_code(secret, 'abcdef')
+    assert not totp_lib.verify_code(secret, '')
+
+
+def test_totp_gate_blocks_nuki_user_edit_until_elevated(app):
+    import time as _time
+    import web.app as app_module
+    from web import totp as totp_lib
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(app_module, 'USER_MANAGEMENT_TEST', True, raising=False)
+    monkeypatch.setattr(app_module.api, 'update_auth',
+                        lambda aid, name=None, enabled=None: {"success": True})
+    try:
+        _login_admin(app)
+        app_module.config.user_management_enabled = True
+        # admin has no TOTP enrolled yet -> hard-ish gate with needs_enrollment
+        resp = app.put('/api/nuki-users/abc', json={'name': 'X'})
+        assert resp.status_code == 403
+        assert resp.get_json()['totp_required'] is True
+        assert resp.get_json()['enrolled'] is False
+        # enroll, then verify, then the write passes
+        begun = app.post('/api/totp/enroll/begin', json={}).get_json()
+        code = totp_lib._code_at(begun['secret'], int(_time.time() // 30))
+        assert app.post('/api/totp/enroll/finish', json={'code': code}).status_code == 200
+        resp = app.put('/api/nuki-users/abc', json={'name': 'X'})
+        assert resp.status_code == 200
+    finally:
+        monkeypatch.undo()
+
+
+def test_user_management_toggle_disabled_blocks_writes(app):
+    import web.app as app_module
+    from web import totp as totp_lib
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(app_module.api, 'delete_auth', lambda aid: {"success": True})
+    monkeypatch.setattr(app_module.api, '_resolve_auth_entry',
+                        lambda aid: {'id': aid, 'authId': 1, 'type': 0, 'name': 'X', 'smartlockId': 1})
+    try:
+        _login_admin(app)
+        begun = app.post('/api/totp/enroll/begin', json={}).get_json()
+        code = totp_lib._code_at(begun['secret'], int(time.time() // 30))
+        app.post('/api/totp/enroll/finish', json={'code': code})
+        app_module.config.user_management_enabled = False
+        resp = app.delete('/api/nuki-users/abc')
+        assert resp.status_code == 403
+        assert 'disabled' in resp.get_json()['error']
+        app_module.config.user_management_enabled = True
+        resp = app.delete('/api/nuki-users/abc')
+        assert resp.status_code == 200
+    finally:
+        monkeypatch.undo()
+
+
+def test_toggle_endpoint_roundtrip(app, mock_config_dir):
+    os.environ['CONFIG_DIR'] = os.path.join(mock_config_dir, 'config')
+    _login_admin(app)
+    resp = app.post('/api/nuki-user-management/enabled', json={'enabled': True})
+    assert resp.status_code == 200
+    ini = open(os.path.join(mock_config_dir, 'config', 'config.ini')).read()
+    assert 'user_management_enabled = true' in ini
+    resp = app.get('/api/nuki-user-management/enabled')
+    assert resp.get_json()['enabled'] is True
 
 
 # ---------------------------------------------------------------------------

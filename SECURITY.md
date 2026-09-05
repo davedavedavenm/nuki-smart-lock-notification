@@ -75,6 +75,34 @@ The Docker deployment (see [DOCKER_GUIDE.md](DOCKER_GUIDE.md)):
 - Session management includes timeouts, HttpOnly cookies, and a
   `WEB_HTTPS=true` opt-in for Secure cookies behind reverse proxies
 
+### TOTP Second Factor for Lock-Access Actions
+
+- Actions that change **who can operate the lock** (creating/deleting
+  temporary codes, renaming/disabling/removing Nuki lock users) are gated by
+  a TOTP second factor (RFC 6238, stdlib implementation)
+- Each user enrolls their own authenticator (Profile / inline enrollment
+  during the gated action); a verified code elevates the session for 12
+  hours (configurable via `NUKI_TOTP_ELEVATED_TTL`)
+- Failed codes are rate-limited (5 per 5 minutes) and audited
+- TOTP secrets live in `users.json` alongside password hashes (0600)
+
+### Audit Trail
+
+- Security- and admin-relevant events (sign-ins and failures, config
+  changes, user management, temporary codes, webhook hits/rejects) are
+  appended to `data/audit.jsonl` and viewable in **Admin → Audit Log**
+- The audit file is append-only with in-place rotation at 5 MB
+
+### Webhook Endpoint
+
+- The Nuki push endpoint is guarded by a 256-bit URL-path secret (Nuki's
+  hooks cannot send headers) and is POST-only and rate-limited
+- Payloads are additionally HMAC-signed by Nuki with a registration secret;
+  signature state is verified and audited per hit
+- The webhook only ever *wakes* the monitor — it cannot create lock actions
+- Lock-user management is **off by default** (`NUKI_USER_MANAGEMENT_ENABLED=false`)
+  and must be explicitly enabled; writes then require admin + TOTP
+
 ## Security Best Practices for Installation
 
 1. Set a strong, unique `SECRET_KEY` in `.env` before first start

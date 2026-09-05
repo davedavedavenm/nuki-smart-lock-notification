@@ -87,6 +87,10 @@ class ConfigManager:
 
         # Self-monitoring: consecutive failed polls before a system alert fires
         self.alert_failure_threshold = self._get_val_int('Advanced', 'alert_failure_threshold', env_name='NUKI_ALERT_FAILURE_THRESHOLD', fallback=3)
+
+        # Lock-user management (rename/disable/delete of Nuki authorizations)
+        # writes to the lock's access list — off until explicitly enabled
+        self.user_management_enabled = self._get_val_bool('Advanced', 'user_management_enabled', env_name='NUKI_USER_MANAGEMENT_ENABLED', fallback=False)
         
         # Filter settings
         self.excluded_users = self._parse_list(self._get_val('Filter', 'excluded_users', env_name='NUKI_EXCLUDED_USERS', fallback=''))
@@ -363,6 +367,7 @@ class ConfigManager:
         
         config.add_section('Advanced')
         config.set('Advanced', 'alert_failure_threshold', '3')
+        config.set('Advanced', 'user_management_enabled', 'false')
         config.set('Advanced', 'max_events_per_check', '5')
         config.set('Advanced', 'max_historical_events', '20')
         config.set('Advanced', 'debug_mode', 'false')

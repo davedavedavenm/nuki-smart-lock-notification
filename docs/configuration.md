@@ -78,6 +78,7 @@ format = detailed                ; Options: detailed, simple
 
 [Advanced]
 alert_failure_threshold = 3      ; Failed checks before a system alert is sent
+user_management_enabled = false  ; Allow lock-user rename/disable/delete from the UI
 max_events_per_check = 5         ; Maximum events to process per check
 max_historical_events = 20       ; Maximum historical events to track
 debug_mode = false               ; Enable debug logging

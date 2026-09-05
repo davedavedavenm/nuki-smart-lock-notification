@@ -126,3 +126,17 @@ physical button presses report "Button Press", bridge/system events report
 "System". Named auth IDs always resolve to their Nuki user. Do not collapse
 these back into a generic "Unknown User" — an anonymous unlock is exactly
 what the notifications exist to surface.
+
+## Lock-user management: opt-in, admin-only, TOTP-gated — Active (2026-09)
+
+Renaming/disabling/removing Nuki lock authorizations writes to the lock's
+access list, so it is OFF by default (`NUKI_USER_MANAGEMENT_ENABLED=false`)
+and enabled per-install from the Users page. Writes require an admin session
+**and** a TOTP verification (per-user authenticator; enrollment happens
+inline on first use). A verified code elevates the whole session for 12
+hours rather than prompting per action. Per the Nuki Web API: update is
+`POST /smartlock/{id}/auth/{authId}` with `name` required (≤32 chars),
+create is `PUT`, both applied asynchronously (204). Creating *app* users
+(Jennifer's phone) is not possible via the API — only keypad/code
+authorizations; app users pair through the Nuki app. Do not loosen the
+TOTP gate or enable this by default.

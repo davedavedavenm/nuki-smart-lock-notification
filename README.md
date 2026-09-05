@@ -14,7 +14,9 @@ A self-hosted notification system for the Nuki Smart Lock, using the Nuki Web AP
 - 🌙 **Quiet Hours**: Defer overnight events into a single digest delivered when the window ends
 - 🩺 **Self-Monitoring**: Telegram/email alert when polling or API auth keeps failing (and when it recovers)
 - 📋 **Audit Log**: Admin-visible trail of sign-ins, config changes, user management, codes and webhook hits
-- 👤 **User Identification**: Track which user operated the lock
+- 📱 **Installable App (PWA)**: Add the console to your phone's home screen — standalone app, offline shell, no app store
+- 🔐 **Nuki User Management**: Opt-in renaming/disabling/removal of lock authorizations from the console, gated by admin role and a TOTP second factor
+- 👤 **User Identification**: Track which user operated the lock (button presses and system events are labelled as such)
 - 🌐 **Web Dashboard**: Monitor activity, manage users and configuration
 - 🕒 **Activity Logging**: Detailed history of lock activity
 - 🔄 **Digest Mode**: Summaries of activities instead of individual notifications
@@ -108,6 +110,22 @@ the app generates a 256-bit secret, and "Register with Nuki" creates the
 notification hook on your Nuki account. Events then wake the monitor within
 ~1 second; polling continues as a fallback so nothing is lost if the tunnel
 is down. See [DOCKER_GUIDE.md](DOCKER_GUIDE.md) for reverse-proxy notes.
+
+### Install as a Phone App (PWA)
+
+Open the dashboard on your phone and use the browser's *Install app*
+(Android Chrome/Edge) or *Share → Add to Home Screen* (iOS Safari). The
+console then runs as a standalone app with its own icon. Lock data is always
+fetched live; only static assets are cached.
+
+### TOTP for Lock-Access Actions
+
+Actions that change who can operate the lock (temporary codes, and — once
+enabled — editing/removing Nuki lock users) ask for a 6-digit code from your
+authenticator app. Enrollment happens inline the first time (scan the QR
+with any TOTP app); a verified code elevates the session for 12 hours.
+Nuki lock-user management itself is off by default — enable it with the
+switch on the **Users** page (or `NUKI_USER_MANAGEMENT_ENABLED=true`).
 
 ## Web Interface
 

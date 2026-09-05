@@ -205,4 +205,9 @@ docker compose restart
 - **Webhook secret**: stored in `config/credentials.ini` (`[Webhook] secret`,
   file mode 0600). Treat the full webhook URL as a credential; rotate it in
   the UI if it ever leaks (e.g. pasted into a chat) and re-register
+- **Lock-user management & TOTP**: renaming/disabling/removing Nuki lock
+  users is off by default (`NUKI_USER_MANAGEMENT_ENABLED=false`). When
+  enabled, every such write (and every temporary-code create/delete) asks
+  for a TOTP code from the acting user's authenticator; a verification
+  elevates the session for 12h (`NUKI_TOTP_ELEVATED_TTL`)
 - See [SECURITY.md](SECURITY.md) for the full security policy
