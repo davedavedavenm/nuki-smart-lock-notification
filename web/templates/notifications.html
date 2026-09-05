@@ -123,52 +123,94 @@
                     <div class="row mb-4">
                         <div class="col-md-4">
                             <h5 id="usersColTitle">Users</h5>
-                            <div class="mb-3">
-                                <select id="excludedUsers" class="form-select" multiple size="6">
-                                    <!-- User list will be loaded dynamically -->
-                                </select>
-                                <div class="form-text" id="usersColHelp">No selection = everyone</div>
+                            <div class="card mb-3">
+                                <div class="card-body p-2 nk-filter-list" id="excludedUsersBox">
+                                    <div class="text-muted small p-1">Loading users…</div>
+                                </div>
                             </div>
+                            <div class="form-text" id="usersColHelp">No selection = everyone</div>
                         </div>
 
                         <div class="col-md-4">
                             <h5 id="actionsColTitle">Actions</h5>
-                            <div class="mb-3">
-                                <select id="excludedActions" class="form-select" multiple size="6">
-                                    <option value="1">Unlock</option>
-                                    <option value="2">Lock</option>
-                                    <option value="3">Unlatch</option>
-                                    <option value="4">Lock 'n' Go</option>
-                                    <option value="5">Lock 'n' Go with unlatch</option>
-                                    <option value="6">Full Lock</option>
-                                </select>
-                                <div class="form-text" id="actionsColHelp">No selection = all actions</div>
+                            <div class="card mb-3">
+                                <div class="card-body p-2 nk-filter-list" id="excludedActionsBox">
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="act1" value="1">
+                                        <label class="form-check-label" for="act1">Unlock</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="act2" value="2">
+                                        <label class="form-check-label" for="act2">Lock</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="act3" value="3">
+                                        <label class="form-check-label" for="act3">Unlatch</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="act4" value="4">
+                                        <label class="form-check-label" for="act4">Lock 'n' Go</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="act5" value="5">
+                                        <label class="form-check-label" for="act5">Lock 'n' Go with unlatch</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="act6" value="6">
+                                        <label class="form-check-label" for="act6">Full Lock</label>
+                                    </div>
+                                </div>
                             </div>
+                            <div class="form-text" id="actionsColHelp">No selection = all actions</div>
                         </div>
 
                         <div class="col-md-4">
                             <h5 id="triggersColTitle">Triggers</h5>
-                            <div class="mb-3">
-                                <select id="excludedTriggers" class="form-select" multiple size="6">
-                                    <option value="0">System</option>
-                                    <option value="1">Manual</option>
-                                    <option value="2">Button</option>
-                                    <option value="3">Automatic</option>
-                                    <option value="4">App</option>
-                                    <option value="5">Website</option>
-                                    <option value="6">Auto Lock</option>
-                                    <option value="7">Time Control</option>
-                                </select>
-                                <div class="form-text" id="triggersColHelp">No selection = all triggers</div>
+                            <div class="card mb-3">
+                                <div class="card-body p-2 nk-filter-list" id="excludedTriggersBox">
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="trg0" value="0">
+                                        <label class="form-check-label" for="trg0">System</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="trg1" value="1">
+                                        <label class="form-check-label" for="trg1">Manual</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="trg2" value="2">
+                                        <label class="form-check-label" for="trg2">Button</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="trg3" value="3">
+                                        <label class="form-check-label" for="trg3">Automatic</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="trg4" value="4">
+                                        <label class="form-check-label" for="trg4">App</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="trg5" value="5">
+                                        <label class="form-check-label" for="trg5">Website</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="trg6" value="6">
+                                        <label class="form-check-label" for="trg6">Auto Lock</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input filter-check" type="checkbox" id="trg7" value="7">
+                                        <label class="form-check-label" for="trg7">Time Control</label>
+                                    </div>
+                                </div>
                             </div>
+                            <div class="form-text" id="triggersColHelp">No selection = all triggers</div>
                         </div>
                     </div>
 
                     <div class="row mb-4">
                         <div class="col-12">
-                            <div class="card bg-light border-0">
-                                <div class="card-body py-3">
-                                    <h6 class="card-title mb-2"><i class="fas fa-eye me-1"></i>What will notify?</h6>
+                            <div class="card">
+                                <div class="card-header"><i class="fas fa-eye me-1"></i>What will notify?</div>
+                                <div class="card-body">
                                     <div id="filterPreview" class="small">Loading preview…</div>
                                 </div>
                             </div>
@@ -254,7 +296,7 @@
         $('#saveNotificationSettings').click(saveNotificationSettings);
         $('#saveWebhookSettings').click(saveWebhookSettings);
         $('input[name="filterMode"]').on('change', function() { updateColumnSemantics(); updatePreview(); });
-        $('#excludedUsers, #excludedActions, #excludedTriggers').on('change', updatePreview);
+        $(document).on('change', '.filter-check', updatePreview);
         $('#notifyAutoLock, #notifySystemEvents, #notifyDoorOpen, #quietHoursEnabled, #quietStart, #quietEnd').on('change', updatePreview);
         $('#registerWebhookBtn').click(registerWebhook);
         $('#unregisterWebhookBtn').click(unregisterWebhook);
@@ -295,17 +337,16 @@
                 $('#quietStart').val(data.quiet_start || '22:00');
                 $('#quietEnd').val(data.quiet_end || '07:00');
                 
-                // Set excluded actions
+                // Set selected actions/triggers (checkbox groups)
                 if (data.excluded_actions) {
                     data.excluded_actions.forEach(function(action) {
-                        $('#excludedActions option[value="' + action + '"]').prop('selected', true);
+                        $('#excludedActionsBox input[value="' + action + '"]').prop('checked', true);
                     });
                 }
-                
-                // Set excluded triggers
+
                 if (data.excluded_triggers) {
                     data.excluded_triggers.forEach(function(trigger) {
-                        $('#excludedTriggers option[value="' + trigger + '"]').prop('selected', true);
+                        $('#excludedTriggersBox input[value="' + trigger + '"]').prop('checked', true);
                     });
                 }
                 
@@ -323,30 +364,35 @@
         return $('input[name="filterMode"]:checked').val() || 'all';
     }
 
+    function checkedValues(boxId) {
+        return $('#' + boxId + ' input.filter-check:checked').map(function() { return this.value; }).get();
+    }
+
     function updateColumnSemantics() {
         const mode = currentFilterMode();
         const listsActive = mode !== 'all';
         const verb = mode === 'include' ? 'Only' : 'Except';
-        [['usersColTitle', 'usersColHelp', 'Users'],
-         ['actionsColTitle', 'actionsColHelp', 'Actions'],
-         ['triggersColTitle', 'triggersColHelp', 'Triggers']].forEach(function(ids) {
+        [['usersColTitle', 'usersColHelp', 'Users', 'excludedUsersBox'],
+         ['actionsColTitle', 'actionsColHelp', 'Actions', 'excludedActionsBox'],
+         ['triggersColTitle', 'triggersColHelp', 'Triggers', 'excludedTriggersBox']].forEach(function(ids) {
             if (listsActive) {
                 $('#' + ids[0]).text(verb + ' ' + ids[2]);
                 $('#' + ids[1]).text(mode === 'include'
-                    ? 'Nothing selected = no restriction (' + ids[2].toLowerCase() + ' all pass)'
-                    : 'Nothing selected = nothing blocked');
+                    ? 'Tick only what should notify — unticked ' + ids[2].toLowerCase() + ' stay silent'
+                    : 'Tick what should stay silent — everything else notifies');
             } else {
                 $('#' + ids[0]).text(ids[2]);
-                $('#' + ids[1]).text('Ignored in "All events" mode');
+                $('#' + ids[1]).text('Ignored while "All events" is selected');
             }
+            $('#' + ids[3]).toggleClass('nk-filter-active', listsActive);
         });
     }
 
     function updatePreview() {
         const mode = currentFilterMode();
-        const actions = $('#excludedActions').val() || [];
-        const triggers = $('#excludedTriggers').val() || [];
-        const users = $('#excludedUsers').val() || [];
+        const actions = checkedValues('excludedActionsBox');
+        const triggers = checkedValues('excludedTriggersBox');
+        const users = checkedValues('excludedUsersBox');
         const autoLock = $('#notifyAutoLock').is(':checked');
         const system = $('#notifySystemEvents').is(':checked');
         const doorOpen = $('#notifyDoorOpen').is(':checked');
@@ -396,28 +442,31 @@
             url: '/api/users',
             method: 'GET',
             success: function(data) {
-                const userSelect = $('#excludedUsers');
-                userSelect.empty();
-                
-                // Add "Auto Lock" option
-                userSelect.append($('<option>').val('Auto Lock').text('Auto Lock'));
-                
-                // Add all users from the API
-                data.forEach(function(user) {
-                    userSelect.append($('<option>').val(user.name).text(user.name));
+                const box = $('#excludedUsersBox');
+                box.empty();
+
+                const all = [{name: 'Auto Lock'}].concat(data || []);
+                all.forEach(function(user, i) {
+                    const id = 'exclUser' + i;
+                    box.append(
+                        '<div class="form-check">' +
+                        '<input class="form-check-input filter-check" type="checkbox" id="' + id + '" value="' + $('<span>').text(user.name).html() + '">' +
+                        '<label class="form-check-label" for="' + id + '">' + $('<span>').text(user.name).html() + '</label>' +
+                        '</div>'
+                    );
                 });
-                
-                // Set previously excluded users
+
+                // Restore previously selected users
                 if (window.excludedUsers) {
                     window.excludedUsers.forEach(function(username) {
-                        userSelect.find('option[value="' + username + '"]').prop('selected', true);
+                        box.find('input[value="' + $('<span>').text(username).html() + '"]').prop('checked', true);
                     });
                 }
                 updatePreview();
             },
             error: function(xhr, status, error) {
                 console.error('Error loading users:', error);
-                alert('Failed to load users. See console for details.');
+                $('#excludedUsersBox').html('<div class="text-danger small p-1">Failed to load users</div>');
             }
         });
     }
@@ -434,9 +483,9 @@
             quiet_start: $('#quietStart').val(),
             quiet_end: $('#quietEnd').val(),
             filter_mode: currentFilterMode(),
-            excluded_users: $('#excludedUsers').val() || [],
-            excluded_actions: $('#excludedActions').val() || [],
-            excluded_triggers: $('#excludedTriggers').val() || []
+            excluded_users: checkedValues('excludedUsersBox'),
+            excluded_actions: checkedValues('excludedActionsBox'),
+            excluded_triggers: checkedValues('excludedTriggersBox')
         };
         
         $.ajax({

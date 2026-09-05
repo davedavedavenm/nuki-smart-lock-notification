@@ -498,3 +498,13 @@ thead th {
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Notification filter checkbox lists (Notifications page) */
+.nk-filter-list {
+    max-height: 11rem;
+    overflow-y: auto;
+}
+.nk-filter-list .form-check { margin-bottom: 0.15rem; }
+.nk-filter-active {
+    border-left: 3px solid var(--nk-accent) !important;
+}

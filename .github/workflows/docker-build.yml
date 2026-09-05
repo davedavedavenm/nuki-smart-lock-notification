@@ -30,6 +30,8 @@ jobs:
       run: |
         docker load -i /tmp/nuki-image.tar
         mkdir -p runtime/config runtime/data runtime/logs runtime/flask_session
+        # The container runs as UID 999; bind-mounted host dirs must be writable
+        sudo chown -R 999:999 runtime
         docker run -d --name nuki-smoke -p 5000:5000 \
           -e SECRET_KEY=ci-smoke-test-key \
           -e ALLOW_MISSING_TOKEN=true \
