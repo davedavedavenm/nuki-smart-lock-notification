@@ -83,6 +83,7 @@ class ConfigManager:
         self.webhook_enabled = self._get_val_bool('Webhook', 'enabled', env_name='NUKI_WEBHOOK_ENABLED', fallback=False)
         self.webhook_public_url = self._get_val('Webhook', 'public_url', env_name='NUKI_WEBHOOK_PUBLIC_URL', fallback='')
         self.webhook_secret = self._get_val('Webhook', 'secret', env_name='NUKI_WEBHOOK_SECRET', is_credential=True, fallback='')
+        self.webhook_signature_secret = self._get_val('Webhook', 'signature_secret', env_name='NUKI_WEBHOOK_SIGNATURE_SECRET', is_credential=True, fallback='')
 
         # Self-monitoring: consecutive failed polls before a system alert fires
         self.alert_failure_threshold = self._get_val_int('Advanced', 'alert_failure_threshold', env_name='NUKI_ALERT_FAILURE_THRESHOLD', fallback=3)

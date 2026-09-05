@@ -206,11 +206,13 @@ class NukiAPI:
                 and (n.get('referenceId') == self.REFERENCE_ID
                      or (n.get('pushId') or '').startswith(self.config.webhook_public_url.rstrip('/')))]
 
-    def register_notification_hook(self, url):
+    def register_notification_hook(self, url, signature_secret=None):
         """Register a webhook notification (PUT /notification, os=2).
 
-        Empty authIds and both triggerEvents mean: all triggers, all events.
-        Returns the created notification dict (truthy) or None on failure.
+        Nuki requires a 40-byte hex `secret` for os=2 (web hook) entries and
+        uses it to sign the POST payload. Empty authIds and both
+        triggerEvents mean: all triggers, all events. Returns the created
+        notification dict (truthy) or None on failure.
         """
         lock_ids = []
         try:
@@ -231,6 +233,8 @@ class NukiAPI:
                 for lock_id in lock_ids
             ]
         }
+        if signature_secret:
+            payload["secret"] = signature_secret
         return self._make_request('PUT', f"{self.config.base_url}/notification", json=payload)
 
     def delete_notification_hook(self, notification_id):

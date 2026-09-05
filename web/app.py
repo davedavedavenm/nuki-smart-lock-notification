@@ -1857,6 +1857,9 @@ def nuki_webhook(secret):
         # Secret valid but push disabled — accept silently, do not wake
         return jsonify({"status": "ignored"}), 200
 
+    # Log only header NAMES — enough to identify Nuki's signature header for
+    # future payload verification without leaking values
+    logger.info(f"Webhook hit: header names={sorted(request.headers.keys())}")
     wake_signal.trigger()
     audit.record('webhook.hit', actor='nuki-api', detail='monitor woken', ip=ip)
     return jsonify({"status": "ok"}), 200
@@ -1872,6 +1875,22 @@ def _set_webhook_secret(secret_value):
         os.chmod(config.credentials_path, 0o600)
     except OSError:
         pass
+
+
+def _ensure_webhook_signature_secret():
+    """Nuki signs webhook payloads with a 40-byte hex secret it requires at
+    registration; generate and persist one if absent. Returns True if new."""
+    if getattr(config, 'webhook_signature_secret', ''):
+        return False
+    if not config.credentials.has_section('Webhook'):
+        config.credentials.add_section('Webhook')
+    config.credentials.set('Webhook', 'signature_secret', secrets.token_hex(20))
+    config._save_config(config.credentials, config.credentials_path)
+    try:
+        os.chmod(config.credentials_path, 0o600)
+    except OSError:
+        pass
+    return True
 
 
 @app.route('/api/webhook/status', methods=['GET'])
@@ -1916,10 +1935,12 @@ def webhook_enable():
         if public_url:
             update_config_func(config_path, 'Webhook', 'public_url', public_url)
 
-        # Generate a secret on first enable
+        # Generate secrets on first enable
         generated = False
         if enabled and not config.webhook_secret:
             _set_webhook_secret(secrets.token_hex(32))
+            generated = True
+        if enabled and _ensure_webhook_signature_secret():
             generated = True
 
         config = ConfigManager(parent_dir)
@@ -1973,7 +1994,8 @@ def webhook_register():
                 api.delete_notification_hook(hook.get('notificationId') or hook.get('id'))
                 removed += 1
 
-        result = api.register_notification_hook(full_url)
+        result = api.register_notification_hook(
+            full_url, signature_secret=config.webhook_signature_secret or None)
         if result is None:
             _audit_action('webhook.register', detail='Nuki API rejected the hook', status='failure')
             return jsonify({"error": "Nuki API rejected the hook registration (check token scopes and public URL)"}), 502
