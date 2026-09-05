@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 # Enable lenient mode for web interface to allow setup wizard
 os.environ["ALLOW_MISSING_TOKEN"] = "true"
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from flask_session import Session
@@ -2060,6 +2060,28 @@ def get_audit():
     except Exception as e:
         logger.error(f"Error reading audit log: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# PWA: installable app support (manifest + service worker)
+# ---------------------------------------------------------------------------
+
+@app.route('/manifest.webmanifest')
+def webmanifest():
+    """Web app manifest (served from a route so it can safely live at root scope)"""
+    resp = send_from_directory(os.path.join(parent_dir, 'web', 'static'), 'manifest.webmanifest')
+    resp.headers['Content-Type'] = 'application/manifest+json'
+    return resp
+
+
+@app.route('/sw.js')
+def service_worker():
+    """Service worker must be served from the site root to control '/' scope"""
+    resp = send_from_directory(os.path.join(parent_dir, 'web', 'static'), 'sw.js')
+    resp.headers['Content-Type'] = 'text/javascript'
+    resp.headers['Cache-Control'] = 'no-cache'
+    resp.headers['Service-Worker-Allowed'] = '/'
+    return resp
 
 
 @app.route('/health')

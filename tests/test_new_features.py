@@ -304,6 +304,27 @@ def test_config_filter_mode_fallback(mock_config_dir):
 
 
 # ---------------------------------------------------------------------------
+# PWA routes
+# ---------------------------------------------------------------------------
+
+def test_manifest_route(app):
+    resp = app.get('/manifest.webmanifest')
+    assert resp.status_code == 200
+    assert resp.content_type.startswith('application/manifest+json')
+    data = resp.get_json()
+    assert data['display'] == 'standalone'
+    assert data['start_url'] == '/'
+
+
+def test_service_worker_route(app):
+    resp = app.get('/sw.js')
+    assert resp.status_code == 200
+    assert 'text/javascript' in resp.content_type
+    assert resp.headers.get('Service-Worker-Allowed') == '/'
+    assert b"addEventListener('fetch'" in resp.data
+
+
+# ---------------------------------------------------------------------------
 # Config additions
 # ---------------------------------------------------------------------------
 
