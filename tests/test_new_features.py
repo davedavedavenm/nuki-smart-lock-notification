@@ -2,6 +2,8 @@
 import os
 import json
 import time
+import hmac
+import hashlib
 import pytest
 from datetime import datetime
 
@@ -211,6 +213,30 @@ def test_webhook_valid_secret_but_disabled(app):
     assert resp.status_code == 200
     assert resp.get_json()['status'] == 'ignored'
     assert not os.path.exists(app_module.wake_signal.path)
+
+
+def test_webhook_signature_verified_and_mismatch_audited(app):
+    import hashlib
+    import web.app as app_module
+    app_module.config.webhook_secret = 'correct-secret'
+    app_module.config.webhook_signature_secret = 'a' * 40
+    app_module.config.webhook_enabled = True
+    body = json.dumps([{"smartlockId": 1}])
+
+    good = hmac.new(b'a' * 40, body.encode(), hashlib.sha256).hexdigest()
+    resp = app.post('/webhook/nuki/correct-secret', data=body,
+                    content_type='application/json',
+                    headers={'X-Nuki-Signature-Sha256': good})
+    assert resp.status_code == 200
+    entries = app_module.audit.recent(action_filter='webhook.hit')
+    assert 'signature=verified' in entries[0]['detail']
+
+    resp = app.post('/webhook/nuki/correct-secret', data=body,
+                    content_type='application/json',
+                    headers={'X-Nuki-Signature-Sha256': 'deadbeef'})
+    assert resp.status_code == 200  # URL secret still admits it
+    entries = app_module.audit.recent(action_filter='webhook.hit')
+    assert 'signature=MISMATCH' in entries[0]['detail']
 
 
 def test_webhook_requires_post(app):

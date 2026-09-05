@@ -4,6 +4,7 @@ import sys
 import json
 import time
 import hmac
+import hashlib
 import secrets
 import logging
 import threading
@@ -1871,11 +1872,28 @@ def nuki_webhook(secret):
         # Secret valid but push disabled — accept silently, do not wake
         return jsonify({"status": "ignored"}), 200
 
-    # Log only header NAMES — enough to identify Nuki's signature header for
-    # future payload verification without leaking values
-    logger.info(f"Webhook hit: header names={sorted(request.headers.keys())}")
+    # Verify Nuki's payload signature when present. Nuki signs the raw body
+    # with the 40-byte hex secret supplied at hook registration
+    # (X-Nuki-Signature-Sha256, legacy X-Nuki-Signature). The URL secret
+    # remains the primary gate; a present-but-wrong signature is accepted
+    # but loudly audited so a scheme change never silently breaks push.
+    sig = (request.headers.get('X-Nuki-Signature-Sha256')
+           or request.headers.get('X-Nuki-Signature') or '')
+    sig_state = 'absent'
+    if sig and config.webhook_signature_secret:
+        expected = hmac.new(
+            config.webhook_signature_secret.encode(),
+            request.get_data(),
+            hashlib.sha256
+        ).hexdigest()
+        sig_state = 'verified' if hmac.compare_digest(sig.strip().lower(), expected.lower()) else 'MISMATCH'
+    elif sig:
+        sig_state = 'sent-but-no-registered-secret'
+
+    # Log only header NAMES (values are HMACs; names help diagnose proxies)
+    logger.info(f"Webhook hit: header names={sorted(request.headers.keys())} signature={sig_state}")
     wake_signal.trigger()
-    audit.record('webhook.hit', actor='nuki-api', detail='monitor woken', ip=ip)
+    audit.record('webhook.hit', actor='nuki-api', detail=f'monitor woken; signature={sig_state}', ip=ip)
     return jsonify({"status": "ok"}), 200
 
 
