@@ -106,3 +106,23 @@ and rate-limited; do not make them per-event chatty.
 Events inside the quiet window are queued and flushed as one digest when the
 window ends (windows may span midnight). Nothing is discarded. Digest sends
 are also suppressed during quiet hours and flushed on exit.
+
+## PWA with same-origin data, cross-origin manifest — Active (2026-09)
+
+The dashboard is an installable PWA (manifest + root-scope service worker).
+The SW must never cache pages or API responses — lock state is security
+relevant and must be live; only /static/ assets are cache-first, with a
+cached /login as the offline fallback. Browsers fetch manifests without
+credentials, so behind Pangolin SSO the manifest is served CORS-enabled from
+the unauthenticated hook hostname (`NUKI_PWA_MANIFEST_URL`); start_url stays
+absolute on the SSO-protected hostname. Passkeys and the PWA are bound to
+the `nuki.magnusfamily.co.uk` RP/origin — the LAN HTTP URL is a
+non-passkey fallback by design.
+
+## Anonymous lock events are named, not "Unknown User" — Active (2026-09)
+
+Events without an authId are anonymous by design, not lookup failures:
+physical button presses report "Button Press", bridge/system events report
+"System". Named auth IDs always resolve to their Nuki user. Do not collapse
+these back into a generic "Unknown User" — an anonymous unlock is exactly
+what the notifications exist to surface.
