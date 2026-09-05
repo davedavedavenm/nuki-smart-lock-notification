@@ -32,7 +32,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger('nuki_monitor')
 
-if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
+# basicConfig attaches handlers to the ROOT logger — check there, not on the
+# named logger (which only propagates), or this warning always fires
+if not any(isinstance(h, logging.FileHandler) for h in logging.getLogger().handlers):
     logger.warning("File logging is disabled due to permission issues. Using console logging only.")
     logger.warning("To fix this, ensure the container has write access to the logs directory.")
     logger.warning("See TROUBLESHOOTING.md for more information.")
@@ -79,7 +81,32 @@ class NukiMonitor:
         self.failure_alert_sent = False
         self.auth_alert_sent = False
 
+        # Config hot-reload: only re-read when the files actually change
+        self._config_mtimes = self._get_config_mtimes()
+
         logger.info("Nuki Monitor initialized")
+
+    def _get_config_mtimes(self):
+        mtimes = {}
+        for path in (self.config.config_path, self.config.credentials_path):
+            try:
+                mtimes[path] = os.path.getmtime(path)
+            except OSError:
+                mtimes[path] = None
+        return mtimes
+
+    def _reload_config_if_changed(self):
+        """Pick up web-UI config changes without a restart (mtime-gated to
+        avoid log spam and needless re-reads)"""
+        current = self._get_config_mtimes()
+        if current == self._config_mtimes:
+            return
+        self._config_mtimes = current
+        try:
+            self.config.reload()
+            logger.info("Configuration reloaded after change detected")
+        except Exception as e:
+            logger.error(f"Failed to reload configuration: {e}")
     
     def _check_directory_permissions(self):
         """Check directory permissions and log warnings if issues are found"""
@@ -361,10 +388,7 @@ class NukiMonitor:
             while True:
                 # Pick up config changes made through the web UI without
                 # needing a container restart
-                try:
-                    self.config.reload()
-                except Exception as e:
-                    logger.error(f"Failed to reload configuration: {e}")
+                self._reload_config_if_changed()
 
                 check_ok = False
                 try:

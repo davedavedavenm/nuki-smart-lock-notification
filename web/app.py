@@ -58,7 +58,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger('nuki_web')
 
-if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
+# basicConfig attaches handlers to the ROOT logger — check there, not on the
+# named logger (which only propagates), or this warning always fires
+if not any(isinstance(h, logging.FileHandler) for h in logging.getLogger().handlers):
     logger.warning("File logging is disabled due to permission issues. Using console logging only.")
     logger.warning("To fix this, ensure the container has write access to the logs directory.")
     logger.warning("See TROUBLESHOOTING.md for more information.")
