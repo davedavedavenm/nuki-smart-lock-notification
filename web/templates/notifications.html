@@ -60,6 +60,35 @@
                                 <input type="checkbox" class="form-check-input" id="notifySystemEvents">
                                 <label class="form-check-label" for="notifySystemEvents">Notify on System events</label>
                             </div>
+
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="notifyDoorOpen">
+                                <label class="form-check-label" for="notifyDoorOpen">Notify when the door opens (door sensor)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>Quiet Hours</h5>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="quietHoursEnabled">
+                                <label class="form-check-label" for="quietHoursEnabled">Enable quiet hours</label>
+                            </div>
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <label class="form-label" for="quietStart">From</label>
+                                    <input type="time" class="form-control" id="quietStart" value="22:00">
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label class="form-label" for="quietEnd">Until</label>
+                                    <input type="time" class="form-control" id="quietEnd" value="07:00">
+                                </div>
+                            </div>
+                            <div class="form-text">
+                                Events during quiet hours are queued and delivered as one digest when the
+                                window ends. The window may span midnight.
+                            </div>
                         </div>
                     </div>
                     
@@ -107,6 +136,55 @@
                         </div>
                     </div>
                     
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h5><i class="fas fa-bolt me-1"></i>Instant Push (Webhook)</h5>
+                            <p class="text-muted small mb-3">
+                                Instead of waiting for the next poll, the Nuki Web API can push each event to this
+                                server the moment it happens. Requires a public HTTPS URL that reaches this dashboard
+                                (e.g. via a Pangolin tunnel). Polling continues as a fallback either way.
+                            </p>
+                            <div class="mb-3 form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="webhookEnabled">
+                                <label class="form-check-label" for="webhookEnabled">Enable webhook endpoint</label>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="webhookPublicUrl">Public base URL of this dashboard</label>
+                                <input type="url" class="form-control" id="webhookPublicUrl" placeholder="https://hook.nuki.example.com">
+                                <div class="form-text">https:// only. The full webhook URL adds <code>/webhook/nuki/&lt;secret&gt;</code>.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Webhook URL (register this with Nuki)</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="webhookFullUrl" readonly>
+                                    <button class="btn btn-outline-secondary" type="button" id="copyWebhookUrl">
+                                        <i class="fas fa-copy me-1"></i>Copy
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-primary" id="saveWebhookSettings">
+                                    <i class="fas fa-save me-1"></i>Save Webhook Settings
+                                </button>
+                                <button type="button" class="btn btn-success" id="registerWebhookBtn">
+                                    <i class="fas fa-plug me-1"></i>Register with Nuki
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" id="unregisterWebhookBtn">
+                                    <i class="fas fa-times me-1"></i>Unregister
+                                </button>
+                                <button type="button" class="btn btn-outline-warning" id="rotateWebhookSecretBtn">
+                                    <i class="fas fa-key me-1"></i>Rotate Secret
+                                </button>
+                            </div>
+                            <div id="webhookHooksContainer">
+                                <h6>Hooks registered at Nuki</h6>
+                                <ul class="list-group" id="webhookHooksList">
+                                    <li class="list-group-item text-muted">Loading...</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row">
                         <div class="col-12">
                             <button type="button" id="saveNotificationSettings" class="btn btn-primary">
@@ -129,9 +207,24 @@
         
         // Load users for exclusion list
         loadUsers();
+
+        // Load webhook configuration
+        loadWebhookStatus();
         
         // Handle form submission
         $('#saveNotificationSettings').click(saveNotificationSettings);
+        $('#saveWebhookSettings').click(saveWebhookSettings);
+        $('#registerWebhookBtn').click(registerWebhook);
+        $('#unregisterWebhookBtn').click(unregisterWebhook);
+        $('#rotateWebhookSecretBtn').click(rotateWebhookSecret);
+        $('#copyWebhookUrl').click(function() {
+            const field = document.getElementById('webhookFullUrl');
+            if (!field.value) { alert('No webhook URL yet — enable and save first.'); return; }
+            navigator.clipboard.writeText(field.value).then(
+                function() { alert('Webhook URL copied'); },
+                function() { field.select(); document.execCommand('copy'); }
+            );
+        });
     });
     
     function loadNotificationSettings() {
@@ -148,6 +241,12 @@
                 // Set event filtering
                 $('#notifyAutoLock').prop('checked', data.notify_auto_lock);
                 $('#notifySystemEvents').prop('checked', data.notify_system_events);
+                $('#notifyDoorOpen').prop('checked', data.notify_door_open);
+
+                // Set quiet hours
+                $('#quietHoursEnabled').prop('checked', data.quiet_hours_enabled);
+                $('#quietStart').val(data.quiet_start || '22:00');
+                $('#quietEnd').val(data.quiet_end || '07:00');
                 
                 // Set excluded actions
                 if (data.excluded_actions) {
@@ -210,6 +309,10 @@
             digest_mode: $('#digestMode').is(':checked'),
             notify_auto_lock: $('#notifyAutoLock').is(':checked'),
             notify_system_events: $('#notifySystemEvents').is(':checked'),
+            notify_door_open: $('#notifyDoorOpen').is(':checked'),
+            quiet_hours_enabled: $('#quietHoursEnabled').is(':checked'),
+            quiet_start: $('#quietStart').val(),
+            quiet_end: $('#quietEnd').val(),
             excluded_users: $('#excludedUsers').val() || [],
             excluded_actions: $('#excludedActions').val() || [],
             excluded_triggers: $('#excludedTriggers').val() || []
@@ -226,6 +329,111 @@
             error: function(xhr, status, error) {
                 console.error('Error saving notification settings:', error);
                 alert('Failed to save notification settings: ' + (xhr.responseJSON?.error || error));
+            }
+        });
+    }
+
+    function loadWebhookStatus() {
+        $.ajax({
+            url: '/api/webhook/status',
+            method: 'GET',
+            success: function(data) {
+                $('#webhookEnabled').prop('checked', data.enabled);
+                $('#webhookPublicUrl').val(data.public_url || '');
+                $('#webhookFullUrl').val(data.full_url || '');
+                renderWebhookHooks(data.registered_hooks || []);
+            },
+            error: function(xhr) {
+                $('#webhookHooksList').html('<li class="list-group-item text-danger">Failed to load webhook status</li>');
+            }
+        });
+    }
+
+    function renderWebhookHooks(hooks) {
+        const list = $('#webhookHooksList');
+        list.empty();
+        if (!hooks.length) {
+            list.append('<li class="list-group-item text-muted">No notification hooks registered at Nuki</li>');
+            return;
+        }
+        hooks.forEach(function(hook) {
+            const url = hook.url || '';
+            // mask the secret part of our own hook URLs
+            const masked = url.replace(/(\/webhook\/nuki\/)([a-f0-9]{8})[a-f0-9]+/, '$1$2…');
+            const ours = url.includes('/webhook/nuki/') ? ' <span class="badge bg-info">this server</span>' : '';
+            list.append($('<li class="list-group-item">').html(
+                '<code>' + $('<span>').text(masked).html() + '</code>' + ours +
+                ' <span class="text-muted small">(id: ' + hook.id + ')</span>'
+            ));
+        });
+    }
+
+    function saveWebhookSettings() {
+        const payload = {
+            enabled: $('#webhookEnabled').is(':checked'),
+            public_url: $('#webhookPublicUrl').val().trim()
+        };
+        $.ajax({
+            url: '/api/webhook/enable',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function(data) {
+                if (data.webhook_url) { $('#webhookFullUrl').val(data.webhook_url); }
+                alert('Webhook settings saved.' + (data.secret_generated ? ' A new secret was generated — click "Register with Nuki" to activate push.' : ''));
+                loadWebhookStatus();
+            },
+            error: function(xhr) {
+                alert('Failed to save webhook settings: ' + (xhr.responseJSON?.error || 'unknown error'));
+            }
+        });
+    }
+
+    function registerWebhook() {
+        $.ajax({
+            url: '/api/webhook/register',
+            method: 'POST',
+            contentType: 'application/json',
+            data: '{}',
+            success: function(data) {
+                alert('Webhook registered with Nuki. Stale hooks removed: ' + (data.stale_hooks_removed || 0));
+                loadWebhookStatus();
+            },
+            error: function(xhr) {
+                alert('Registration failed: ' + (xhr.responseJSON?.error || 'unknown error'));
+            }
+        });
+    }
+
+    function unregisterWebhook() {
+        $.ajax({
+            url: '/api/webhook/unregister',
+            method: 'POST',
+            contentType: 'application/json',
+            data: '{}',
+            success: function(data) {
+                alert('Removed ' + (data.hooks_removed || 0) + ' hook(s) from Nuki.');
+                loadWebhookStatus();
+            },
+            error: function(xhr) {
+                alert('Unregister failed: ' + (xhr.responseJSON?.error || 'unknown error'));
+            }
+        });
+    }
+
+    function rotateWebhookSecret() {
+        if (!confirm('Rotate the webhook secret? The old URL stops working immediately and you must re-register with Nuki.')) return;
+        $.ajax({
+            url: '/api/webhook/rotate-secret',
+            method: 'POST',
+            contentType: 'application/json',
+            data: '{}',
+            success: function(data) {
+                $('#webhookFullUrl').val(data.webhook_url || '');
+                alert('New secret generated. Click "Register with Nuki" to update the hook.');
+            },
+            error: function(xhr) {
+                alert('Rotation failed: ' + (xhr.responseJSON?.error || 'unknown error'));
             }
         });
     }

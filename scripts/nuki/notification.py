@@ -12,7 +12,67 @@ class Notifier:
         self.config = config
         self.digest_events = []
         self.last_digest_time = datetime.now()
-    
+        # Set when events were queued specifically because of quiet hours,
+        # so they flush as soon as the quiet window ends
+        self.quiet_flush_pending = False
+
+    def in_quiet_hours(self, now=None):
+        """Whether the current time falls inside the configured quiet window.
+
+        Handles windows that span midnight (e.g. 22:00 -> 07:00).
+        """
+        if not self.config.quiet_hours_enabled:
+            return False
+        try:
+            start = datetime.strptime(self.config.quiet_start, '%H:%M').time()
+            end = datetime.strptime(self.config.quiet_end, '%H:%M').time()
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid quiet hours window: {self.config.quiet_start}-{self.config.quiet_end}")
+            return False
+        current = (now or datetime.now()).time()
+        if start <= end:
+            return start <= current < end
+        return current >= start or current < end
+
+    def flush_digest_if_due(self):
+        """Flush queued digest events when due or when quiet hours ended.
+
+        Called by the monitor once per loop so digest/quiet-hour events are
+        delivered even when no new events arrive to trigger a send.
+        """
+        if not self.digest_events:
+            self.quiet_flush_pending = False
+            return False
+
+        if self.in_quiet_hours():
+            return False
+
+        quiet_ended = self.quiet_flush_pending
+        interval_elapsed = (datetime.now() - self.last_digest_time).total_seconds() >= self.config.digest_interval
+
+        if quiet_ended or interval_elapsed:
+            logger.info("Flushing digest queue (%s)", "quiet hours ended" if quiet_ended else "digest interval elapsed")
+            return self.send_digest_notification()
+        return False
+
+    def send_alert(self, message, subject="System Alert"):
+        """Send a system/self-monitoring alert, bypassing event filters.
+
+        Alerts are delivered via Telegram when configured, otherwise via
+        email when configured — they intentionally still work when
+        notification_type is 'none' (event notifications disabled), because
+        their purpose is to surface that the monitor itself is failing.
+        """
+        logger.info(f"Sending system alert: {subject}")
+        sent = False
+        if self.config.telegram_bot_token and self.config.telegram_chat_id:
+            sent = self.send_telegram(f"⚠️ *Nuki Monitor Alert*\n{message}") or sent
+        elif self.config.smtp_server and self.config.email_recipient:
+            sent = self.send_email(f"{self.config.email_subject_prefix}: {subject}", message) or sent
+        else:
+            logger.warning("System alert could not be delivered: no Telegram or email channel configured")
+        return sent
+
     def send_notification(self, event):
         """Send an immediate notification for a single event"""
         logger.info(f"Sending notification for {event['event_type']} by {event['user_name']}")
@@ -20,6 +80,13 @@ class Notifier:
         # Check if we should filter this event
         if self._should_filter_event(event):
             logger.info(f"Event filtered: {event['event_type']} by {event['user_name']}")
+            return False
+
+        # Inside quiet hours: defer to the digest queue instead of sending now
+        if self.in_quiet_hours():
+            logger.info(f"Quiet hours active - deferring event to digest: {event['event_type']} by {event['user_name']}")
+            self.digest_events.append(event)
+            self.quiet_flush_pending = True
             return False
         
         # Create subject and messages
@@ -49,9 +116,10 @@ class Notifier:
             
         self.digest_events.append(event)
         
-        # Check if it's time to send digest
+        # Check if it's time to send digest (never during quiet hours —
+        # the queued events flush when the quiet window ends)
         time_since_digest = datetime.now() - self.last_digest_time
-        if time_since_digest.total_seconds() >= self.config.digest_interval:
+        if time_since_digest.total_seconds() >= self.config.digest_interval and not self.in_quiet_hours():
             self.send_digest_notification()
     
     def _should_filter_event(self, event):
@@ -108,7 +176,8 @@ class Notifier:
         # Reset digest regardless of send success to prevent repeated failures
         self.digest_events = []
         self.last_digest_time = datetime.now()
-        
+        self.quiet_flush_pending = False
+
         return success
     
     def _build_digest_email(self, events):

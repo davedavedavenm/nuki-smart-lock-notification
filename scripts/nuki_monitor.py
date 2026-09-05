@@ -42,10 +42,14 @@ scripts_dir = os.path.dirname(os.path.abspath(__file__))
 if scripts_dir not in sys.path:
     sys.path.append(scripts_dir)
 
+# Keep running (and alert) even if the API token goes missing at runtime —
+# a dead monitor loop notifies nobody, an alive one sends failure alerts.
+os.environ.setdefault("ALLOW_MISSING_TOKEN", "true")
+
 # Import the modules
 from nuki.config import ConfigManager
 from nuki.api import NukiAPI
-from nuki.utils import ActivityTracker
+from nuki.utils import ActivityTracker, WakeSignal, DoorStateStore
 from nuki.notification import Notifier
 
 class NukiMonitor:
@@ -61,10 +65,20 @@ class NukiMonitor:
         self.api = NukiAPI(self.config)
         self.tracker = ActivityTracker(self.config.data_dir)
         self.notifier = Notifier(self.config)
-        
+        self.wake = WakeSignal(self.config.data_dir)
+        self.door_states = DoorStateStore(self.config.data_dir)
+
         # Flag to indicate first run
         self.first_run = True
-        
+
+        # Last full lock objects fetched from the API (reused for door state)
+        self.last_locks = None
+
+        # Self-monitoring state
+        self.consecutive_failures = 0
+        self.failure_alert_sent = False
+        self.auth_alert_sent = False
+
         logger.info("Nuki Monitor initialized")
     
     def _check_directory_permissions(self):
@@ -159,12 +173,15 @@ class NukiMonitor:
                 'smartlockId': self.config.smartlock_id,
                 'name': 'Configured Lock'  # Default name when using explicit ID
             }]
+            self.last_locks = None
         else:
             # Get locks dynamically from API
             locks = self.api.get_smartlocks()
             if not locks:
                 logger.error("No smartlocks found")
                 return False
+            # Full lock objects (with state) reused for the door-state check
+            self.last_locks = locks
         
         new_events = []
         
@@ -253,18 +270,124 @@ class NukiMonitor:
         
         return True
     
+    def check_door_states(self):
+        """Detect door sensor transitions and alert when the door opens.
+
+        Only the closed->opened transition notifies; the first observed state
+        per lock just seeds the store (no alert after restarts).
+        """
+        if not self.config.notify_door_open:
+            return
+
+        locks = getattr(self, 'last_locks', None)
+        if not locks:
+            locks = self.api.get_smartlocks()
+
+        for lock in locks or []:
+            lock_id = lock.get('smartlockId')
+            lock_name = lock.get('name', 'Unknown Lock')
+            state = lock.get('state') or {}
+            door_state = state.get('doorState')
+            if door_state is None:
+                continue
+
+            previous, current = self.door_states.update(lock_id, door_state)
+            if previous is not None and previous != current:
+                logger.info(f"Door state for {lock_name}: {self.door_states.describe(previous)} -> {self.door_states.describe(current)}")
+            if previous is not None and previous != 4 and current == 4:
+                event = {
+                    'lock_name': lock_name,
+                    'lock_id': lock_id,
+                    'event_type': 'Door Opened',
+                    'action': None,
+                    'trigger': None,
+                    'user_name': 'Door Sensor',
+                    'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'event_id': None
+                }
+                try:
+                    self.notifier.send_notification(event)
+                except Exception as e:
+                    logger.error(f"Error sending door-open notification: {e}")
+
+    def _handle_health(self, check_ok):
+        """Track consecutive failures and send one-shot Telegram/email alerts"""
+        error_status = self.api.last_error_status
+
+        if check_ok and error_status is None:
+            if self.failure_alert_sent or self.auth_alert_sent:
+                self.notifier.send_alert(
+                    "Monitoring resumed — the Nuki API is responding normally again."
+                )
+            self.consecutive_failures = 0
+            self.failure_alert_sent = False
+            self.auth_alert_sent = False
+            return
+
+        self.consecutive_failures += 1
+
+        if error_status == 401 and not self.auth_alert_sent:
+            self.notifier.send_alert(
+                "Nuki API authentication failed (HTTP 401). The API token is "
+                "invalid, expired or lacks scopes — notifications are paused "
+                "until this is fixed in Admin > System Config."
+            )
+            self.auth_alert_sent = True
+        elif (self.consecutive_failures >= self.config.alert_failure_threshold
+              and not self.failure_alert_sent
+              and not self.auth_alert_sent):
+            detail = f" (last API status: {error_status})" if error_status else ""
+            self.notifier.send_alert(
+                f"The Nuki monitor has failed {self.consecutive_failures} "
+                f"consecutive activity checks{detail}. Lock events may not be "
+                "delivered until this recovers."
+            )
+            self.failure_alert_sent = True
+
+    def _sleep_with_wake(self):
+        """Sleep for the polling interval, waking early on a webhook signal"""
+        interval = max(1, self.config.polling_interval)
+        for _ in range(interval):
+            time.sleep(1)
+            if self.wake.consume():
+                logger.info("Wake signal received - polling immediately")
+                return
+
     def run(self):
         """Run the monitor in a continuous loop"""
         logger.info("Starting Nuki Monitor")
         
         try:
             while True:
+                # Pick up config changes made through the web UI without
+                # needing a container restart
                 try:
-                    self.check_new_activity()
+                    self.config.reload()
+                except Exception as e:
+                    logger.error(f"Failed to reload configuration: {e}")
+
+                check_ok = False
+                try:
+                    check_ok = bool(self.check_new_activity())
                 except Exception as e:
                     logger.error(f"Error checking for new activity: {e}")
-                    
-                time.sleep(self.config.polling_interval)
+
+                try:
+                    self.check_door_states()
+                except Exception as e:
+                    logger.error(f"Error checking door states: {e}")
+
+                try:
+                    self._handle_health(check_ok)
+                except Exception as e:
+                    logger.error(f"Error in health handling: {e}")
+
+                try:
+                    self.notifier.flush_digest_if_due()
+                except Exception as e:
+                    logger.error(f"Error flushing digest: {e}")
+
+                self._sleep_with_wake()
         except KeyboardInterrupt:
             logger.info("Monitor stopped by user")
         except Exception as e:

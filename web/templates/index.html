@@ -205,6 +205,13 @@
                             ${lock.state}
                         </span>
                     `);
+                    if (lock.door_state_name) {
+                        $('#lockStatusText').append(`
+                            <div class="mt-2"><span class="badge ${lock.door_state_name === 'Opened' ? 'bg-danger' : lock.door_state_name === 'Closed' ? 'bg-success' : 'bg-warning text-dark'}">
+                                <i class="fas fa-${lock.door_state_name === 'Opened' ? 'door-open' : 'door-closed'} me-1"></i>Door: ${lock.door_state_name}
+                            </span></div>
+                        `);
+                    }
                     
                     // Update battery status
                     $('#batteryStatusCard .spinner-border').hide();
@@ -212,21 +219,21 @@
                         $('#batteryStatusText').html(`
                             <span class="fs-4 text-danger">
                                 <i class="fas fa-battery-empty me-2"></i>
-                                Critical
+                                Critical${lock.battery_charge != null ? ' (' + lock.battery_charge + '%)' : ''}
                             </span>
                         `);
                     } else if (lock.battery_charging) {
                         $('#batteryStatusText').html(`
                             <span class="fs-4 text-warning">
                                 <i class="fas fa-plug me-2"></i>
-                                Charging
+                                Charging${lock.battery_charge != null ? ' (' + lock.battery_charge + '%)' : ''}
                             </span>
                         `);
                     } else {
                         $('#batteryStatusText').html(`
                             <span class="fs-4 text-success">
                                 <i class="fas fa-battery-full me-2"></i>
-                                OK
+                                ${lock.battery_charge != null ? lock.battery_charge + '%' : 'OK'}
                             </span>
                         `);
                     }

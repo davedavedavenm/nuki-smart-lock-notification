@@ -71,6 +71,21 @@ class ConfigManager:
         self.track_all_users = self._get_val_bool('Notification', 'track_all_users', env_name='NUKI_TRACK_ALL_USERS', fallback=True)
         self.notify_auto_lock = self._get_val_bool('Notification', 'notify_auto_lock', env_name='NUKI_NOTIFY_AUTO_LOCK', fallback=True)
         self.notify_system_events = self._get_val_bool('Notification', 'notify_system_events', env_name='NUKI_NOTIFY_SYSTEM_EVENTS', fallback=True)
+        self.notify_door_open = self._get_val_bool('Notification', 'notify_door_open', env_name='NUKI_NOTIFY_DOOR_OPEN', fallback=False)
+
+        # Quiet hours: events arriving inside the window are queued into the
+        # digest and flushed when the window ends
+        self.quiet_hours_enabled = self._get_val_bool('Notification', 'quiet_hours_enabled', env_name='NUKI_QUIET_HOURS_ENABLED', fallback=False)
+        self.quiet_start = self._get_val('Notification', 'quiet_start', env_name='NUKI_QUIET_START', fallback='22:00')
+        self.quiet_end = self._get_val('Notification', 'quiet_end', env_name='NUKI_QUIET_END', fallback='07:00')
+
+        # Webhook (push) settings: secret lives in credentials.ini
+        self.webhook_enabled = self._get_val_bool('Webhook', 'enabled', env_name='NUKI_WEBHOOK_ENABLED', fallback=False)
+        self.webhook_public_url = self._get_val('Webhook', 'public_url', env_name='NUKI_WEBHOOK_PUBLIC_URL', fallback='')
+        self.webhook_secret = self._get_val('Webhook', 'secret', env_name='NUKI_WEBHOOK_SECRET', is_credential=True, fallback='')
+
+        # Self-monitoring: consecutive failed polls before a system alert fires
+        self.alert_failure_threshold = self._get_val_int('Advanced', 'alert_failure_threshold', env_name='NUKI_ALERT_FAILURE_THRESHOLD', fallback=3)
         
         # Filter settings
         self.excluded_users = self._parse_list(self._get_val('Filter', 'excluded_users', env_name='NUKI_EXCLUDED_USERS', fallback=''))
@@ -103,10 +118,8 @@ class ConfigManager:
             else:
                 sys.exit(1)
         else:
-            # Mask token for security while providing useful debugging info
-            token_len = len(self.api_token)
-            masked_token = f"{self.api_token[:5]}...{self.api_token[-5:]}" if token_len >= 10 else "***"
-            logger.info(f"✅ DIAGNOSTIC: API token loaded successfully - {masked_token}")
+            # Confirm the token loaded without writing any of it to the logs
+            logger.info(f"✅ DIAGNOSTIC: API token loaded successfully (length {len(self.api_token)})")
         
         self.headers = {
             "Authorization": f"Bearer {self.api_token}",
@@ -142,6 +155,13 @@ class ConfigManager:
         if self.debug_mode:
             logger.setLevel(logging.DEBUG)
             logger.debug("Debug logging enabled")
+
+    @property
+    def webhook_full_url(self):
+        """Full URL Nuki should call: <public_url>/webhook/nuki/<secret>"""
+        if not self.webhook_public_url or not self.webhook_secret:
+            return ''
+        return f"{self.webhook_public_url.rstrip('/')}/webhook/nuki/{self.webhook_secret}"
 
     @property
     def is_configured(self):
@@ -304,6 +324,14 @@ class ConfigManager:
         config.set('Notification', 'track_all_users', 'true')
         config.set('Notification', 'notify_auto_lock', 'true')
         config.set('Notification', 'notify_system_events', 'true')
+        config.set('Notification', 'notify_door_open', 'false')
+        config.set('Notification', 'quiet_hours_enabled', 'false')
+        config.set('Notification', 'quiet_start', '22:00')
+        config.set('Notification', 'quiet_end', '07:00')
+
+        config.add_section('Webhook')
+        config.set('Webhook', 'enabled', 'false')
+        config.set('Webhook', 'public_url', '')
         
         config.add_section('Filter')
         config.set('Filter', 'excluded_users', '')
@@ -324,6 +352,7 @@ class ConfigManager:
         config.set('Telegram', 'format', 'detailed')
         
         config.add_section('Advanced')
+        config.set('Advanced', 'alert_failure_threshold', '3')
         config.set('Advanced', 'max_events_per_check', '5')
         config.set('Advanced', 'max_historical_events', '20')
         config.set('Advanced', 'debug_mode', 'false')
@@ -343,3 +372,6 @@ class ConfigManager:
         
         credentials.add_section('Telegram')
         credentials.set('Telegram', 'bot_token', '')
+
+        credentials.add_section('Webhook')
+        credentials.set('Webhook', 'secret', '')

@@ -9,6 +9,11 @@ A self-hosted notification system for the Nuki Smart Lock, using the Nuki Web AP
 
 - 🔒 **Secure Monitoring**: Connect to the Nuki Web API with proper authentication
 - 🔔 **Instant Notifications**: Email and/or Telegram alerts when the lock is used
+- ⚡ **Webhook Push**: Optional instant event delivery via a Nuki notification hook (polling stays as fallback)
+- 🚪 **Door Sensor & Battery**: Door open/closed state and battery charge on the dashboard, plus optional "door opened" alerts
+- 🌙 **Quiet Hours**: Defer overnight events into a single digest delivered when the window ends
+- 🩺 **Self-Monitoring**: Telegram/email alert when polling or API auth keeps failing (and when it recovers)
+- 📋 **Audit Log**: Admin-visible trail of sign-ins, config changes, user management, codes and webhook hits
 - 👤 **User Identification**: Track which user operated the lock
 - 🌐 **Web Dashboard**: Monitor activity, manage users and configuration
 - 🕒 **Activity Logging**: Detailed history of lock activity
@@ -50,7 +55,7 @@ A self-hosted notification system for the Nuki Smart Lock, using the Nuki Web AP
    docker compose up -d --build
    ```
 
-4. Open `http://<host-ip>:5000`. On first run you are walked through the **Setup Wizard**:
+4. Open `http://<host-ip>:5000` (host port defaults to 5000 — change it with `NUKI_WEB_PORT` in `.env` if the port is already taken on your host). On first run you are walked through the **Setup Wizard**:
    1. Create your own admin account (there are **no default logins**)
    2. Enter your Nuki API token — validated against the Nuki Web API as you go
    3. Optionally add Telegram and email notification credentials
@@ -93,6 +98,16 @@ Configuration lives in two layers:
    docker exec -it nuki python scripts/get_telegram_chat_id.py
    ```
 3. Add the chat ID to `config/config.ini` under `[Telegram]`
+
+### Instant Push (Webhook)
+
+By default the monitor polls the Nuki API every `polling_interval` seconds. If
+your dashboard is reachable over public HTTPS (e.g. through a Pangolin tunnel
+on a dedicated hostname), enable **Notifications → Instant Push (Webhook)**:
+the app generates a 256-bit secret, and "Register with Nuki" creates the
+notification hook on your Nuki account. Events then wake the monitor within
+~1 second; polling continues as a fallback so nothing is lost if the tunnel
+is down. See [DOCKER_GUIDE.md](DOCKER_GUIDE.md) for reverse-proxy notes.
 
 ## Web Interface
 

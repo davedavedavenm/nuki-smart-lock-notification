@@ -3,7 +3,10 @@ import os
 import sys
 import json
 import time
+import hmac
+import secrets
 import logging
+import threading
 from datetime import datetime, timedelta
 
 # Enable lenient mode for web interface to allow setup wizard
@@ -20,10 +23,12 @@ sys.path.insert(0, parent_dir)
 
 from scripts.nuki.config import ConfigManager
 from scripts.nuki.api import NukiAPI
-from scripts.nuki.utils import ActivityTracker
+from scripts.nuki.utils import ActivityTracker, WakeSignal
+from scripts.nuki.notification import Notifier
 from web.models import UserDatabase, User
 from web.temp_codes import TemporaryCodeDatabase
 from web.dark_mode import init_app
+from web.audit import AuditLog
 from web import passkeys as pk
 
 # Configure logging with fallback to console if file logging fails
@@ -76,7 +81,7 @@ Session(app)
 # passkey (WebAuthn) origin handling. Enable with PROXY_FIX=true.
 if os.environ.get('PROXY_FIX', 'false').lower() == 'true':
     from werkzeug.middleware.proxy_fix import ProxyFix
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # Make sessions permanent by default
 @app.before_request
@@ -88,7 +93,7 @@ def make_session_permanent():
 def check_setup():
     # Allow access to setup page, setup API, static files, and the health
     # endpoint (used by the Docker healthcheck) regardless of setup state
-    if request.endpoint in ['setup', 'api_setup', 'static', 'health', 'health_check']:
+    if request.endpoint in ['setup', 'api_setup', 'static', 'health', 'health_check', 'nuki_webhook']:
         return
 
     # Fresh install (no user accounts yet): walk the user through setup
@@ -116,6 +121,45 @@ api = NukiAPI(config)
 tracker = ActivityTracker(config.data_dir)
 user_db = UserDatabase(config.data_dir)
 temp_code_db = TemporaryCodeDatabase(config.data_dir)
+audit = AuditLog(config.data_dir)
+notifier = Notifier(config)
+wake_signal = WakeSignal(config.data_dir)
+
+# Simple in-memory rate limiters (per worker process)
+_login_alert_times = {}   # "ip|username" -> last alert epoch
+_webhook_hits = {}        # ip -> [epoch timestamps]
+_RATE_LOCK = threading.Lock()
+
+
+def _audit_action(action, detail="", status="success"):
+    """Record an audit entry for the current request"""
+    actor = session.get('username', 'anonymous') if 'logged_in' in session else 'anonymous'
+    audit.record(action, actor=actor, detail=detail, status=status,
+                 ip=request.headers.get('X-Real-IP') or request.remote_addr)
+
+
+def _send_alert_async(message, subject="Security Alert"):
+    """Deliver a system alert without blocking the request"""
+    def _send():
+        try:
+            notifier.send_alert(message, subject=subject)
+        except Exception as e:
+            logger.error(f"Failed to send alert: {e}")
+    threading.Thread(target=_send, daemon=True).start()
+
+
+def _rate_limit_login_alert(key, min_interval=60):
+    """True if an alert for this key may be sent now (and records the time)"""
+    now = time.time()
+    with _RATE_LOCK:
+        last = _login_alert_times.get(key, 0)
+        if now - last < min_interval:
+            return False
+        _login_alert_times[key] = now
+        # prune old keys
+        for k in [k for k, t in _login_alert_times.items() if now - t > 3600]:
+            del _login_alert_times[k]
+        return True
 
 # Login required decorator
 def login_required(f):
@@ -204,12 +248,21 @@ def login():
             session['role'] = user_data.get('role', 'user')
             session['theme'] = user_data.get('theme', 'dark')
 
+            _audit_action('login.success', detail=f"role={user_data.get('role', 'user')}")
             flash('You were successfully logged in')
             next_page = request.args.get('next')
             if next_page:
                 return redirect(next_page)
             return redirect(url_for('index'))
         else:
+            ip = request.headers.get('X-Real-IP') or request.remote_addr or ''
+            audit.record('login.failure', actor=username or 'anonymous',
+                         detail='invalid credentials', status='failure', ip=ip)
+            if _rate_limit_login_alert(f"{ip}|{username}"):
+                _send_alert_async(
+                    f"Failed sign-in attempt for account '{username}' from {ip}. "
+                    "Repeated failures are recorded in Admin > Audit Log."
+                )
             error = 'Invalid credentials'
 
     return render_template('login.html', error=error)
@@ -217,6 +270,8 @@ def login():
 @app.route('/logout')
 def logout():
     """Logout and clear session"""
+    if 'logged_in' in session:
+        _audit_action('logout')
     session.pop('logged_in', None)
     session.pop('username', None)
     session.pop('role', None)
@@ -287,6 +342,7 @@ def passkey_register_finish():
         if not user_db._save_users():
             return jsonify({"error": "Could not save passkey"}), 500
         logger.info(f"Passkey registered for user {session['username']}")
+        _audit_action('passkey.register', detail=f"name={name}")
         return jsonify({"success": True, "message": "Passkey registered"})
     except Exception as e:
         logger.error(f"Passkey registration failed: {e}")
@@ -300,6 +356,7 @@ def passkey_delete(credential_id):
     user = user_db.get_user(session['username'])
     if pk.remove_passkey(user, credential_id):
         user_db._save_users()
+        _audit_action('passkey.delete')
         return jsonify({"success": True})
     return jsonify({"error": "Passkey not found"}), 404
 
@@ -345,6 +402,7 @@ def passkey_auth_finish():
     user['last_login'] = datetime.now().isoformat()
     user_db._save_users()
     logger.info(f"User {username} logged in with passkey")
+    _audit_action('login.success', detail='method=passkey')
     return jsonify({"success": True, "redirect": url_for('index')})
 
 
@@ -459,8 +517,10 @@ def add_user():
         
         success = user_db.add_user(username, password, role, active)
         if success:
+            _audit_action('user.add', detail=f"username={username} role={role} active={active}")
             return jsonify({"success": True})
         else:
+            _audit_action('user.add', detail=f"username={username}", status='failure')
             return jsonify({"error": "Failed to add user"}), 500
     except Exception as e:
         logger.error(f"Error adding user: {e}")
@@ -496,6 +556,8 @@ def update_user(username):
         if theme:
             user_db.update_theme(username, theme)
         
+        changed = [k for k in ('password', 'role', 'active', 'theme') if data.get(k) is not None]
+        _audit_action('user.update', detail=f"username={username} fields={','.join(changed)}")
         return jsonify({"success": True})
     except Exception as e:
         logger.error(f"Error updating user: {e}")
@@ -514,6 +576,7 @@ def delete_user(username):
         
         success = user_db.delete_user(username)
         if success:
+            _audit_action('user.delete', detail=f"username={username}")
             return jsonify({"success": True})
         else:
             return jsonify({"error": "Failed to delete user"}), 500
@@ -547,6 +610,7 @@ def set_auth_policy(username):
                 return jsonify({"error": err}), 400
             logger.info(f"Passkey policy for {username}: {data['passkey']}")
 
+        _audit_action('user.auth_policy', detail=f"username={username} password={data.get('password')} passkey={data.get('passkey')}")
         return jsonify({"success": True, "auth": user_db.get_auth(username)})
     except Exception as e:
         logger.error(f"Error updating auth policy for {username}: {e}")
@@ -603,6 +667,7 @@ def backup_export():
         }
 
         logger.info(f"Backup export by {session.get('username')} (include_secrets={include_secrets})")
+        _audit_action('backup.export', detail=f"include_secrets={include_secrets}")
         resp = jsonify(bundle)
         resp.headers['Content-Disposition'] = 'attachment; filename=nuki-backup.json'
         return resp
@@ -698,6 +763,7 @@ def backup_import():
         if 'config' in applied or 'credentials' in applied:
             _persist_config_files()
             config.reload()
+        _audit_action('backup.import', detail=f"sections_applied={','.join(applied) or 'none'}")
         if 'temp_codes' in applied:
             try:
                 os.chmod(temp_code_db.codes_file, 0o600)
@@ -856,7 +922,11 @@ def get_status():
             battery_critical = state.get('batteryCritical', False)
             battery_charging = state.get('batteryCharging', False)
             battery_charge = state.get('batteryCharge', 0)
-            
+
+            # Door sensor state (0=untrained, 3=closed, 4=opened, ...)
+            door_state = state.get('doorState')
+            door_state_name = api.get_door_state_description(door_state) if door_state is not None else None
+
             # Create status object
             status = {
                 'id': lock_id,
@@ -865,6 +935,11 @@ def get_status():
                 'battery_critical': battery_critical,
                 'battery_charging': battery_charging,
                 'battery_charge': battery_charge,
+                'keypad_battery_critical': state.get('keypadBatteryCritical', False),
+                'doorsensor_battery_critical': state.get('doorsensorBatteryCritical', False),
+                'door_state': door_state,
+                'door_state_name': door_state_name,
+                'night_mode': state.get('nightMode', False),
                 'last_activity': None,
                 'last_user': None
             }
@@ -906,6 +981,10 @@ def get_notification_settings():
             'digest_mode': config.digest_mode,
             'notify_auto_lock': config.notify_auto_lock,
             'notify_system_events': config.notify_system_events,
+            'notify_door_open': config.notify_door_open,
+            'quiet_hours_enabled': config.quiet_hours_enabled,
+            'quiet_start': config.quiet_start,
+            'quiet_end': config.quiet_end,
             'excluded_users': config.excluded_users,
             'excluded_actions': config.excluded_actions,
             'excluded_triggers': config.excluded_triggers
@@ -947,6 +1026,20 @@ def update_notification_settings():
         # Update system events notifications
         if 'notify_system_events' in data:
             update_config_func(config_path, 'Notification', 'notify_system_events', str(data['notify_system_events']).lower())
+
+        # Update door-open notifications
+        if 'notify_door_open' in data:
+            update_config_func(config_path, 'Notification', 'notify_door_open', str(data['notify_door_open']).lower())
+
+        # Update quiet hours
+        if 'quiet_hours_enabled' in data:
+            update_config_func(config_path, 'Notification', 'quiet_hours_enabled', str(data['quiet_hours_enabled']).lower())
+        for key in ('quiet_start', 'quiet_end'):
+            if key in data:
+                import re
+                if not re.match(r'^([01]\d|2[0-3]):[0-5]\d$', str(data[key])):
+                    return jsonify({"error": f"{key} must be in HH:MM 24h format"}), 400
+                update_config_func(config_path, 'Notification', key, str(data[key]))
         
         # Update excluded users
         if 'excluded_users' in data:
@@ -964,10 +1057,17 @@ def update_notification_settings():
             update_config_func(config_path, 'Filter', 'excluded_triggers', excluded_triggers)
         
         # Reload configuration
-        global config, api
+        global config, api, notifier
         config = ConfigManager(parent_dir)
         api = NukiAPI(config)
-        
+        notifier = Notifier(config)
+
+        _audit_action('settings.notifications',
+                      detail=f"type={data.get('type')} digest={data.get('digest_mode')} "
+                             f"quiet={data.get('quiet_hours_enabled')} door_open={data.get('notify_door_open')} "
+                             f"excluded_users={len(data.get('excluded_users', []))} "
+                             f"excluded_actions={data.get('excluded_actions')} "
+                             f"excluded_triggers={data.get('excluded_triggers')}")
         return jsonify({"success": True})
     except Exception as e:
         logger.error(f"Error updating notification settings: {e}")
@@ -1079,7 +1179,11 @@ def update_config():
         
         # Get data from request
         data = request.json
-        
+
+        # Capture which fields were touched for the audit trail (names only,
+        # never values — payloads may contain secrets)
+        requested_fields = {s: sorted(o.keys()) for s, o in (data or {}).items() if isinstance(o, dict)}
+
         success_count = 0
         error_count = 0
         
@@ -1175,7 +1279,11 @@ def update_config():
             os.chmod(config_path, 0o640)
         except Exception as perm_error:
             logger.warning(f"Failed to set config file permissions: {perm_error}")
-        
+
+        global notifier
+        notifier = Notifier(config)
+        _audit_action('settings.config',
+                      detail=f"changes={success_count} errors={error_count} fields={json.dumps(requested_fields)}")
         return jsonify({"success": True, "changes": success_count, "errors": error_count})
     except Exception as e:
         logger.error(f"Error updating configuration: {e}")
@@ -1366,6 +1474,8 @@ def api_setup():
 
         if stage == 'done':
             session.pop('setup_stage', None)
+            audit.record('setup.completed', actor=session.get('username', 'setup'),
+                         detail='setup wizard finished', ip=request.remote_addr)
             return jsonify({"success": True, "message": "Setup complete"})
 
         return jsonify({"error": f"Unknown setup stage: {stage}"}), 400
@@ -1607,7 +1717,8 @@ def create_temp_code():
         
         # Record the auth_id in our database for easier cleanup later
         temp_code_db.update_code(code_id, {"auth_id": result.get('auth_id')})
-        
+
+        _audit_action('tempcode.create', detail=f"name={name} expiry={expiry_datetime.isoformat()}")
         return jsonify({
             "id": code_id,
             "code": code,
@@ -1664,6 +1775,7 @@ def delete_temp_code(code_id):
         if not success:
             return jsonify({"error": "Failed to delete code from database"}), 500
         
+        _audit_action('tempcode.delete', detail=f"name={code.get('name')}")
         return jsonify({"success": True})
     except Exception as e:
         logger.error(f"Error deleting temporary code: {e}")
@@ -1692,6 +1804,7 @@ def create_agency_user():
             success = user_db.add_user(username, password, 'agent', active)
             
             if success:
+                _audit_action('user.add', detail=f"username={username} role=agent active={active} via=create-agency")
                 flash('Agent user created successfully', 'success')
                 return redirect(url_for('users_manage'))
             else:
@@ -1704,6 +1817,217 @@ def create_agency_user():
             return redirect(url_for('create_agency_user'))
     
     return render_template('create_agency.html')
+
+# ---------------------------------------------------------------------------
+# Webhook (push notifications from the Nuki Web API)
+# ---------------------------------------------------------------------------
+
+@app.route('/webhook/nuki/<secret>', methods=['POST'])
+def nuki_webhook(secret):
+    """Receive Nuki notification hooks and wake the monitor immediately.
+
+    Security: the 256-bit secret in the URL path is the only credential
+    (Nuki cannot send headers). Every hit is audited; invalid secrets and
+    floods are rejected and recorded.
+    """
+    ip = request.headers.get('X-Real-IP') or request.remote_addr or ''
+
+    # Reject when the webhook feature has no secret configured
+    configured_secret = config.webhook_secret
+    if not configured_secret or not hmac.compare_digest(secret, configured_secret):
+        audit.record('webhook.rejected', actor='anonymous',
+                     detail='invalid or missing secret', status='failure', ip=ip)
+        return jsonify({"status": "forbidden"}), 403
+
+    # Rate limit: max 60 hits/min per IP (a lock cannot realistically exceed this)
+    now = time.time()
+    with _RATE_LOCK:
+        hits = [t for t in _webhook_hits.get(ip, []) if now - t < 60]
+        if len(hits) >= 60:
+            _webhook_hits[ip] = hits
+            audit.record('webhook.ratelimited', actor='anonymous',
+                         detail='too many hits', status='failure', ip=ip)
+            return jsonify({"status": "rate limited"}), 429
+        hits.append(now)
+        _webhook_hits[ip] = hits
+
+    if not config.webhook_enabled:
+        # Secret valid but push disabled — accept silently, do not wake
+        return jsonify({"status": "ignored"}), 200
+
+    wake_signal.trigger()
+    audit.record('webhook.hit', actor='nuki-api', detail='monitor woken', ip=ip)
+    return jsonify({"status": "ok"}), 200
+
+
+def _set_webhook_secret(secret_value):
+    """Persist the webhook secret in credentials.ini"""
+    if not config.credentials.has_section('Webhook'):
+        config.credentials.add_section('Webhook')
+    config.credentials.set('Webhook', 'secret', secret_value)
+    config._save_config(config.credentials, config.credentials_path)
+    try:
+        os.chmod(config.credentials_path, 0o600)
+    except OSError:
+        pass
+
+
+@app.route('/api/webhook/status', methods=['GET'])
+@admin_required
+def webhook_status():
+    """Current webhook configuration and hooks registered at Nuki"""
+    try:
+        hooks = []
+        if config.api_token:
+            hooks = api.list_notification_hooks()
+        return jsonify({
+            "enabled": config.webhook_enabled,
+            "public_url": config.webhook_public_url,
+            "secret_set": bool(config.webhook_secret),
+            "full_url": config.webhook_full_url,
+            "full_url_set": bool(config.webhook_full_url),
+            "registered_hooks": hooks,
+        })
+    except Exception as e:
+        logger.error(f"Error getting webhook status: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/webhook/enable', methods=['POST'])
+@admin_required
+def webhook_enable():
+    """Enable/disable the webhook endpoint and set the public base URL"""
+    global config, api, notifier
+    try:
+        data = request.json or {}
+        enabled = bool(data.get('enabled', False))
+        public_url = (data.get('public_url') or '').strip().rstrip('/')
+
+        if enabled and public_url and not public_url.startswith('https://'):
+            return jsonify({"error": "public_url must be an https:// URL"}), 400
+
+        sys.path.insert(0, os.path.join(parent_dir, "scripts"))
+        from configure import update_config as update_config_func
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        config_path = os.path.join(base_dir, "config", "config.ini")
+        update_config_func(config_path, 'Webhook', 'enabled', str(enabled).lower())
+        if public_url:
+            update_config_func(config_path, 'Webhook', 'public_url', public_url)
+
+        # Generate a secret on first enable
+        generated = False
+        if enabled and not config.webhook_secret:
+            _set_webhook_secret(secrets.token_hex(32))
+            generated = True
+
+        config = ConfigManager(parent_dir)
+        api = NukiAPI(config)
+        notifier = Notifier(config)
+
+        _audit_action('webhook.enable' if enabled else 'webhook.disable',
+                      detail=f"public_url={public_url or '(unchanged)'} secret_generated={generated}")
+        return jsonify({"success": True, "secret_generated": generated,
+                        "webhook_url": config.webhook_full_url if enabled else ""})
+    except Exception as e:
+        logger.error(f"Error updating webhook settings: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/webhook/rotate-secret', methods=['POST'])
+@admin_required
+def webhook_rotate_secret():
+    """Generate a new webhook secret; registered hooks must be re-registered"""
+    try:
+        _set_webhook_secret(secrets.token_hex(32))
+        global config, api, notifier
+        config = ConfigManager(parent_dir)
+        api = NukiAPI(config)
+        notifier = Notifier(config)
+        _audit_action('webhook.rotate_secret')
+        return jsonify({"success": True, "webhook_url": config.webhook_full_url})
+    except Exception as e:
+        logger.error(f"Error rotating webhook secret: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/webhook/register', methods=['POST'])
+@admin_required
+def webhook_register():
+    """Register the notification hook with the Nuki Web API.
+
+    Removes any stale hooks pointing at this deployment's /webhook/nuki/ path
+    first, so rotating secrets never leaves orphaned hooks behind.
+    """
+    try:
+        full_url = config.webhook_full_url
+        if not full_url:
+            return jsonify({"error": "Enable the webhook and set the public URL first"}), 400
+
+        base = config.webhook_public_url.rstrip('/') + '/webhook/nuki/'
+        removed = 0
+        for hook in api.list_notification_hooks():
+            hook_url = hook.get('url', '')
+            if hook_url.startswith(base) and hook_url != full_url:
+                api.delete_notification_hook(hook.get('id'))
+                removed += 1
+
+        result = api.register_notification_hook(full_url)
+        if result is None:
+            _audit_action('webhook.register', detail='Nuki API rejected the hook', status='failure')
+            return jsonify({"error": "Nuki API rejected the hook registration (check token scopes and public URL)"}), 502
+
+        _audit_action('webhook.register', detail=f"stale_hooks_removed={removed}")
+        return jsonify({"success": True, "stale_hooks_removed": removed,
+                        "registered_hooks": api.list_notification_hooks()})
+    except Exception as e:
+        logger.error(f"Error registering webhook: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/webhook/unregister', methods=['POST'])
+@admin_required
+def webhook_unregister():
+    """Remove this deployment's notification hooks from the Nuki account"""
+    try:
+        base = (config.webhook_public_url or '').rstrip('/') + '/webhook/nuki/'
+        removed = 0
+        for hook in api.list_notification_hooks():
+            if hook.get('url', '').startswith(base):
+                api.delete_notification_hook(hook.get('id'))
+                removed += 1
+        _audit_action('webhook.unregister', detail=f"hooks_removed={removed}")
+        return jsonify({"success": True, "hooks_removed": removed})
+    except Exception as e:
+        logger.error(f"Error unregistering webhook: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Audit log
+# ---------------------------------------------------------------------------
+
+@app.route('/admin/audit')
+@admin_required
+def audit_page():
+    """Audit trail page"""
+    return render_template('audit.html')
+
+
+@app.route('/api/audit', methods=['GET'])
+@admin_required
+def get_audit():
+    """API endpoint to read recent audit entries"""
+    try:
+        limit = min(int(request.args.get('limit', 200)), 1000)
+        action_filter = request.args.get('action', '').strip() or None
+        status_filter = request.args.get('status', '').strip() or None
+        entries = audit.recent(limit=limit, action_filter=action_filter,
+                               status_filter=status_filter)
+        return jsonify(entries)
+    except Exception as e:
+        logger.error(f"Error reading audit log: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/health')
 def health_check():

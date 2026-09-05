@@ -24,3 +24,44 @@ jobs:
         tags: nuki-smart-lock-notification:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        outputs: type=docker,dest=/tmp/nuki-image.tar
+
+    - name: Smoke test — boot container and wait for /health
+      run: |
+        docker load -i /tmp/nuki-image.tar
+        mkdir -p runtime/config runtime/data runtime/logs runtime/flask_session
+        docker run -d --name nuki-smoke -p 5000:5000 \
+          -e SECRET_KEY=ci-smoke-test-key \
+          -e ALLOW_MISSING_TOKEN=true \
+          -v "$PWD/runtime/config:/app/config" \
+          -v "$PWD/runtime/data:/app/data" \
+          -v "$PWD/runtime/logs:/app/logs" \
+          -v "$PWD/runtime/flask_session:/app/flask_session" \
+          nuki-smart-lock-notification:latest
+        ok=""
+        for i in $(seq 1 45); do
+          if curl -sf http://localhost:5000/health; then ok=1; echo; break; fi
+          sleep 2
+        done
+        if [ -z "$ok" ]; then
+          echo "::error::Smoke test failed — /health never returned 200"
+          docker logs nuki-smoke
+          exit 1
+        fi
+        echo "Smoke: /health OK"
+
+    - name: Smoke test — setup wizard gate + webhook 403
+      run: |
+        code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5000/)
+        if [ "$code" != "302" ]; then
+          echo "::error::Expected redirect to setup wizard, got $code"
+          docker logs nuki-smoke
+          exit 1
+        fi
+        echo "Smoke: unauthenticated / redirects to setup ($code)"
+        code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:5000/webhook/nuki/bogus-secret)
+        if [ "$code" != "403" ]; then
+          echo "::error::Expected 403 from webhook with bad secret, got $code"
+          exit 1
+        fi
+        echo "Smoke: webhook rejects bad secret ($code)"

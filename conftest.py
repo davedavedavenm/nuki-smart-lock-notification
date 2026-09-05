@@ -118,15 +118,20 @@ def app(mock_config_dir):
 
     import web.app as app_module
     from scripts.nuki.api import NukiAPI
-    from scripts.nuki.utils import ActivityTracker
+    from scripts.nuki.utils import ActivityTracker, WakeSignal
+    from scripts.nuki.notification import Notifier
     from web.models import UserDatabase
     from web.temp_codes import TemporaryCodeDatabase
+    from web.audit import AuditLog
 
     app_module.config = app_module.ConfigManager(app_module.parent_dir)
     app_module.api = NukiAPI(app_module.config)
     app_module.tracker = ActivityTracker(app_module.config.data_dir)
     app_module.user_db = UserDatabase(app_module.config.data_dir)
     app_module.temp_code_db = TemporaryCodeDatabase(app_module.config.data_dir)
+    app_module.audit = AuditLog(app_module.config.data_dir)
+    app_module.notifier = Notifier(app_module.config)
+    app_module.wake_signal = WakeSignal(app_module.config.data_dir)
 
     flask_app = app_module.app
 

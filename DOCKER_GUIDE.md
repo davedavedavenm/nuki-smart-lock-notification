@@ -113,6 +113,36 @@ curl http://localhost:5000/health
 
 The healthcheck (every 60s) hits `/health` inside the container.
 
+### Audit log
+
+Security- and admin-relevant events (sign-ins including failures, config
+changes, user management, temporary codes, webhook hits/rejects) are appended
+to `data/audit.jsonl` and viewable in the web UI under **Admin → Audit Log**.
+The file self-rotates at 5 MB (keeps the most recent half).
+
+### Instant push (webhook)
+
+Polling (`polling_interval`, default 60s) is the baseline. For ~1s delivery,
+expose the container over public HTTPS and register a Nuki notification hook:
+
+1. Point a tunnel/reverse-proxy hostname at the container, e.g.
+   `hook.nuki.example.com → <host-ip>:NUKI_WEB_PORT`. This hostname must be
+   reachable **without interactive auth** (Nuki cannot log in to an SSO gate),
+   e.g. a Pangolin resource with SSO disabled. Keep the dashboard's own
+   hostname behind SSO.
+2. Set in `.env`: `PROXY_FIX=true`, `WEB_HTTPS=true`.
+3. Web UI → **Notifications → Instant Push (Webhook)**: enable, enter the
+   public base URL (`https://hook.nuki.example.com`), **Save** (generates a
+   256-bit secret), then **Register with Nuki**.
+
+The hook URL is `https://<base>/webhook/nuki/<secret>` — the secret is the
+only credential (Nuki hooks cannot send headers). The endpoint is POST-only,
+rate-limited (60/min/IP) and every hit or rejection is audited. A webhook
+POST merely *wakes* the monitor to poll immediately; dedup and notification
+logic stay in the polling path, so nothing double-notifies and everything
+still works when the tunnel is down. Rotating the secret requires
+re-registering (the UI removes stale hooks automatically).
+
 ### Updating
 
 ```bash
@@ -172,4 +202,7 @@ docker compose restart
   and sign in with fingerprint/face/device PIN instead of a password. Browsers
   only allow this over HTTPS (or localhost) — set `WEB_HTTPS=true` in `.env`
   when running behind an HTTPS reverse proxy so secure session cookies are set
+- **Webhook secret**: stored in `config/credentials.ini` (`[Webhook] secret`,
+  file mode 0600). Treat the full webhook URL as a credential; rotate it in
+  the UI if it ever leaks (e.g. pasted into a chat) and re-register
 - See [SECURITY.md](SECURITY.md) for the full security policy

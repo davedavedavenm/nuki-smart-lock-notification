@@ -45,24 +45,30 @@ class NukiAPI:
         self.user_cache = {}
         self.user_cache_timestamp = 0
         self.user_cache_timeout = config.user_cache_timeout  # In seconds
+
+        # Status code of the most recent failed API request (None after a
+        # success) — used by the monitor's self-alerting on auth failures
+        self.last_error_status = None
+
+        self.door_state_map = {
+            0: "Untrained",
+            1: "Online",
+            2: "Offline",
+            3: "Closed",
+            4: "Opened",
+            5: "Unknown",
+            6: "Calibrating"
+        }
     
     def _make_request(self, method, url, params=None, json=None, retry=True):
         """Make an API request with retry logic"""
         max_retries = self.config.max_retries if retry else 1
         retry_delay = self.config.retry_delay
         
-        # Log the Authorization header being used
+        # Log whether an Authorization header is present (never log token contents)
         auth_header = self.config.headers.get("Authorization", "")
         if auth_header:
-            # Extract and mask just the token portion of the header
-            if auth_header.startswith("Bearer ") and len(auth_header) > 7:
-                token_part = auth_header[7:]  # Skip "Bearer "
-                if len(token_part) >= 5:
-                    logger.info(f"DIAGNOSTIC: HTTP Request - Using Authorization header: Bearer {token_part[:5]}... for {method} {url}")
-                else:
-                    logger.info(f"DIAGNOSTIC: HTTP Request - Using Authorization header: Bearer *** for {method} {url}")
-            else:
-                logger.info(f"DIAGNOSTIC: HTTP Request - Using Authorization header in unexpected format for {method} {url}")
+            logger.info(f"DIAGNOSTIC: HTTP Request - Authorization header present for {method} {url}")
         else:
             logger.info(f"DIAGNOSTIC: HTTP Request - No Authorization header found for {method} {url}")
         
@@ -87,6 +93,11 @@ class NukiAPI:
                     time.sleep(wait_time)
                     continue
                 
+                if response.status_code == 200:
+                    self.last_error_status = None
+                elif response.status_code != 429:
+                    self.last_error_status = response.status_code
+
                 # Specific handling for auth errors
                 if response.status_code == 401:
                     error_msg = "API Authentication Failed: Your Nuki API token appears to be invalid or expired"
@@ -115,6 +126,8 @@ class NukiAPI:
                     
                 # Handle other error codes
                 response.raise_for_status()
+                if not response.content:
+                    return {}
                 return response.json()
                 
             except requests.exceptions.RequestException as e:
@@ -164,6 +177,47 @@ class NukiAPI:
         if status_code in self.status_map:
             return self.status_map[status_code]
         return "Unknown Status"
+
+    def get_door_state_description(self, door_state):
+        """Get human-readable description of the door sensor state"""
+        if door_state in self.door_state_map:
+            return self.door_state_map[door_state]
+        return f"Unknown ({door_state})"
+
+    # ------------------------------------------------------------------
+    # Nuki notification hooks (webhook push)
+    # ------------------------------------------------------------------
+
+    def list_notification_hooks(self):
+        """List all notification hooks registered on the Nuki account"""
+        result = self._make_request('GET', f"{self.config.base_url}/notification")
+        if result is None:
+            return []
+        # API returns {"notifications": [...]}
+        if isinstance(result, dict):
+            return result.get('notifications', [])
+        return result
+
+    def register_notification_hook(self, url):
+        """Register a webhook notification hook. Returns API result or None.
+
+        type=0 → hook only (no Nuki-side email). Empty lockIds/trigger/action
+        lists mean: all locks, all triggers, all actions.
+        """
+        payload = {
+            "url": url,
+            "type": 0,
+            "trigger": [],
+            "action": []
+        }
+        return self._make_request('POST', f"{self.config.base_url}/notification", json=payload)
+
+    def delete_notification_hook(self, notification_id):
+        """Delete a notification hook by its ID"""
+        return self._make_request(
+            'DELETE',
+            f"{self.config.base_url}/notification/{notification_id}"
+        )
     
     def get_smartlocks(self):
         """Get all smartlocks associated with the account"""
@@ -201,7 +255,12 @@ class NukiAPI:
                 )
                 
                 logger.info(f"DIAGNOSTIC: Log request status code: {response.status_code}")
-                
+
+                if response.status_code == 200:
+                    self.last_error_status = None
+                elif response.status_code != 429:
+                    self.last_error_status = response.status_code
+
                 if response.status_code == 401:
                     # Enhanced 401 error diagnostic
                     error_data = ""

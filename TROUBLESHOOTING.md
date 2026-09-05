@@ -33,11 +33,19 @@ Then `docker compose up -d`.
 
 - Check the monitor log: `tail -f logs/nuki_monitor.log`
 - Verify filters in `config/config.ini` (`[Filter]` section) are not excluding
-  your events
+  your events — `excluded_actions = 1` silently mutes every **Unlock**
+- Telegram log shows `403 Forbidden: the bot can't send messages to the bot`?
+  The configured `chat_id` is the **bot's own ID**, not yours. Send `/start` to
+  your bot in Telegram, then run the detector which saves the correct ID:
+  ```bash
+  docker exec -it nuki python scripts/get_telegram_chat_id.py
+  ```
 - Verify `[Telegram]` / `[Email]` settings; test the API token with:
   ```bash
   docker exec -it nuki python scripts/verify_token.py
   ```
+- Quiet hours enabled? Events inside the window are queued and delivered as a
+  digest when the window ends (Notifications page in the web UI).
 
 ## Web interface not reachable
 

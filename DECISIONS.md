@@ -79,3 +79,30 @@ plain-HTTP LAN access always works. Browsers only offer WebAuthn in secure
 contexts (HTTPS or localhost), so the UI hides passkey options when insecure;
 set `WEB_HTTPS=true` behind a reverse proxy. Do not ship other login
 mechanisms without user sign-off.
+
+## Webhook as wake signal, polling as the source of truth — Active (2026-09)
+
+Nuki notification hooks (`POST /webhook/nuki/<secret>`) only *wake* the
+monitor to poll immediately; event extraction, dedup and notification always
+go through the existing polling path. This keeps one code path for events
+(no double-notify risk, no separate webhook payload parser) and makes the
+webhook a pure latency optimisation — polling remains the fallback when the
+tunnel or hook is down. The URL-path secret is the only credential because
+Nuki's hooks cannot send custom headers; the endpoint is POST-only,
+rate-limited, audited, and meant to live on a dedicated hostname without
+proxy SSO. Do not switch to processing webhook payloads directly.
+
+## System alerts bypass the "none" channel — Active (2026-09)
+
+`notification_type = none` disables *event* notifications, but self-monitoring
+alerts (repeated poll failures, 401 auth failure, recovery, failed sign-ins)
+are still delivered via Telegram if configured, else email. Their purpose is
+to report that the notification system itself is broken, so letting the same
+switch silence them would defeat it. Alerts are one-shot per failure episode
+and rate-limited; do not make them per-event chatty.
+
+## Quiet hours defer to digest, never drop — Active (2026-09)
+
+Events inside the quiet window are queued and flushed as one digest when the
+window ends (windows may span midnight). Nothing is discarded. Digest sends
+are also suppressed during quiet hours and flushed on exit.

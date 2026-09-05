@@ -85,10 +85,19 @@
                     </div>
                     
                     <div class="mb-3">
+                        <h6><i class="fas fa-door-closed me-2"></i>Door Sensor</h6>
+                        <p id="doorState"><span class="badge bg-secondary">Unknown</span></p>
+                    </div>
+
+                    <div class="mb-3">
                         <h6><i class="fas fa-battery-three-quarters me-2"></i>Battery Status</h6>
                         <p id="batteryStatus">
                             <span class="badge bg-success">OK</span>
                         </p>
+                        <div class="progress mt-2" style="height: 8px;">
+                            <div class="progress-bar bg-success" id="batteryBar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <small class="text-muted" id="batteryPercent"></small>
                     </div>
                     
                     <div class="mb-3">
@@ -315,6 +324,37 @@
                 <i class="fas fa-${batteryIcon} me-1"></i>${batteryText}
             </span>
         `);
+
+        const charge = Number(lockData.battery_charge || 0);
+        $('#batteryBar')
+            .css('width', charge + '%')
+            .toggleClass('bg-success', charge > 40 && !lockData.battery_critical)
+            .toggleClass('bg-warning', charge > 15 && charge <= 40)
+            .toggleClass('bg-danger', charge <= 15 || lockData.battery_critical);
+        $('#batteryPercent').text(lockData.battery_charge != null ? charge + '% charge' : '');
+
+        // Door sensor state
+        const doorName = lockData.door_state_name;
+        if (doorName) {
+            let doorBadge = 'bg-secondary';
+            if (doorName === 'Closed') doorBadge = 'bg-success';
+            else if (doorName === 'Opened') doorBadge = 'bg-danger';
+            else if (doorName === 'Offline' || doorName === 'Untrained') doorBadge = 'bg-warning text-dark';
+            $('#doorState').html(`
+                <span class="badge ${doorBadge}">
+                    <i class="fas fa-${doorName === 'Opened' ? 'door-open' : 'door-closed'} me-1"></i>${doorName}
+                </span>
+            `);
+        } else {
+            $('#doorState').html('<span class="badge bg-secondary">No door sensor data</span>');
+        }
+        if (lockData.keypad_battery_critical || lockData.doorsensor_battery_critical) {
+            const which = [
+                lockData.keypad_battery_critical ? 'keypad' : null,
+                lockData.doorsensor_battery_critical ? 'door sensor' : null
+            ].filter(Boolean).join(' and ');
+            $('#doorState').append(` <span class="badge bg-danger">${which} battery critical</span>`);
+        }
         
         // Last activity
         if (lockData.last_activity) {

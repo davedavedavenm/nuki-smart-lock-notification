@@ -45,6 +45,14 @@ digest_interval = 3600           ; Digest interval in seconds
 track_all_users = true           ; Track all users or only specified ones
 notify_auto_lock = true          ; Send notifications for auto-lock events
 notify_system_events = true      ; Send notifications for system events
+notify_door_open = false         ; Alert when the door sensor reports "opened"
+quiet_hours_enabled = false      ; Defer events to a digest during a quiet window
+quiet_start = 22:00              ; Quiet window start (24h HH:MM, container TZ)
+quiet_end = 07:00                ; Quiet window end (may span midnight)
+
+[Webhook]
+enabled = false                  ; Accept Nuki push hooks (instant notifications)
+public_url =                     ; Public https:// base URL of this dashboard
 
 [Filter]
 excluded_users =                 ; Comma-separated list of users to exclude
@@ -65,6 +73,7 @@ use_emoji = true                 ; Use emoji in Telegram messages
 format = detailed                ; Options: detailed, simple
 
 [Advanced]
+alert_failure_threshold = 3      ; Failed checks before a system alert is sent
 max_events_per_check = 5         ; Maximum events to process per check
 max_historical_events = 20       ; Maximum historical events to track
 debug_mode = false               ; Enable debug logging
@@ -92,6 +101,9 @@ password = your-email-password
 
 [Telegram]
 bot_token = YOUR_TELEGRAM_BOT_TOKEN
+
+[Webhook]
+secret =                         ; Generated in the UI (Notifications > Instant Push)
 ```
 
 ## Obtaining Required Credentials
