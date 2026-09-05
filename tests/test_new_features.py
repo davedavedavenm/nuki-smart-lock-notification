@@ -252,6 +252,58 @@ def test_failed_login_is_audited_and_alerts(app, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Filter modes (all / include / exclude)
+# ---------------------------------------------------------------------------
+
+def test_filter_mode_all_notifies_everything():
+    n = Notifier(FakeConfig(filter_mode='all', excluded_actions=['1']))
+    assert not n._should_filter_event(make_event(action=1))
+
+
+def test_filter_mode_include_allowlist():
+    n = Notifier(FakeConfig(filter_mode='include', excluded_actions=['2']))
+    assert not n._should_filter_event(make_event(action=2))     # selected -> notify
+    assert n._should_filter_event(make_event(action=1))         # not selected -> muted
+
+
+def test_filter_mode_include_empty_list_means_no_restriction():
+    n = Notifier(FakeConfig(filter_mode='include', excluded_actions=[]))
+    assert not n._should_filter_event(make_event(action=1))
+    assert not n._should_filter_event(make_event(action=2))
+
+
+def test_filter_mode_include_users_dimension():
+    n = Notifier(FakeConfig(filter_mode='include', excluded_users=['Dave']))
+    assert not n._should_filter_event(make_event(user_name='Dave'))
+    assert n._should_filter_event(make_event(user_name='Jennifer'))
+
+
+def test_filter_mode_exclude_legacy():
+    n = Notifier(FakeConfig(filter_mode='exclude', excluded_actions=['1']))
+    assert n._should_filter_event(make_event(action=1))         # selected -> muted
+    assert not n._should_filter_event(make_event(action=2))     # rest notify
+
+
+def test_system_events_toggle_applies_in_all_modes():
+    ev = make_event(event_type='Nuki Bridge', trigger=0, action=None)
+    n = Notifier(FakeConfig(filter_mode='all', notify_system_events=True))
+    assert not n._should_filter_event(ev)
+    n2 = Notifier(FakeConfig(filter_mode='all', notify_system_events=False))
+    assert n2._should_filter_event(ev)
+
+
+def test_config_filter_mode_fallback(mock_config_dir):
+    os.environ['CONFIG_DIR'] = os.path.join(mock_config_dir, 'config')
+    from scripts.nuki.config import ConfigManager
+    cfg = ConfigManager(mock_config_dir)
+    assert cfg.filter_mode == 'all'  # no lists configured anywhere
+    cfg.config.set('Filter', 'excluded_actions', '1')
+    cfg._save_config(cfg.config, cfg.config_path)
+    cfg.reload()
+    assert cfg.filter_mode == 'exclude'  # legacy config keeps its semantics
+
+
+# ---------------------------------------------------------------------------
 # Config additions
 # ---------------------------------------------------------------------------
 

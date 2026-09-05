@@ -92,6 +92,15 @@ class ConfigManager:
         self.excluded_users = self._parse_list(self._get_val('Filter', 'excluded_users', env_name='NUKI_EXCLUDED_USERS', fallback=''))
         self.excluded_actions = self._parse_list(self._get_val('Filter', 'excluded_actions', env_name='NUKI_EXCLUDED_ACTIONS', fallback=''))
         self.excluded_triggers = self._parse_list(self._get_val('Filter', 'excluded_triggers', env_name='NUKI_EXCLUDED_TRIGGERS', fallback=''))
+        # filter_mode: 'all' = notify everything; 'include' = the selected
+        # users/actions/triggers are the ONLY ones that notify; 'exclude' =
+        # the selected ones are muted (legacy behaviour). Empty lists never
+        # restrict, so a fresh config with no lists behaves as 'all' either
+        # way; the fallback below preserves semantics for legacy configs.
+        self.filter_mode = (self._get_val('Filter', 'filter_mode', env_name='NUKI_FILTER_MODE', fallback='') or '').strip().lower()
+        if self.filter_mode not in ('all', 'include', 'exclude'):
+            has_excludes = bool(self.excluded_users or self.excluded_actions or self.excluded_triggers)
+            self.filter_mode = 'exclude' if has_excludes else 'all'
         
         # API settings
         self.api_token = self._get_val('Nuki', 'api_token', env_name='NUKI_API_TOKEN', is_credential=True, fallback='')

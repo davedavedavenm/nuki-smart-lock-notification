@@ -55,9 +55,13 @@ enabled = false                  ; Accept Nuki push hooks (instant notifications
 public_url =                     ; Public https:// base URL of this dashboard
 
 [Filter]
-excluded_users =                 ; Comma-separated list of users to exclude
-excluded_actions =               ; Comma-separated list of actions to exclude
-excluded_triggers =              ; Comma-separated list of triggers to exclude
+filter_mode = all                ; all = notify everything; include = only the
+                                 ; selected users/actions/triggers notify;
+                                 ; exclude = the selected ones are muted.
+                                 ; Empty lists never restrict a dimension.
+excluded_users =                 ; Selected users (meaning depends on mode)
+excluded_actions =               ; Selected actions (1=Unlock, 2=Lock, ...)
+excluded_triggers =              ; Selected triggers (0=System, 4=App, ...)
 
 [Email]
 smtp_server = smtp.example.com   ; SMTP server address

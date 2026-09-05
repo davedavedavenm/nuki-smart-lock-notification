@@ -93,18 +93,46 @@
                     </div>
                     
                     <div class="row mb-4">
+                        <div class="col-12">
+                            <h5>Event Filtering</h5>
+                            <div class="mb-3">
+                                <label class="form-label d-block">Which lock events should notify you?</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="filterMode" id="filterModeAll" value="all">
+                                    <label class="form-check-label" for="filterModeAll">
+                                        <strong>All events</strong> <span class="text-muted small">— every unlock, lock and system event</span>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="filterMode" id="filterModeInclude" value="include">
+                                    <label class="form-check-label" for="filterModeInclude">
+                                        <strong>Only the selected</strong> <span class="text-muted small">— the lists below become allow-lists (include)</span>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="filterMode" id="filterModeExclude" value="exclude">
+                                    <label class="form-check-label" for="filterModeExclude">
+                                        <strong>Everything except selected</strong> <span class="text-muted small">— the lists below become block-lists (exclude)</span>
+                                    </label>
+                                </div>
+                                <div class="form-text">In include/exclude modes, an empty list means <em>no restriction</em> for that column.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
                         <div class="col-md-4">
-                            <h5>Excluded Users</h5>
+                            <h5 id="usersColTitle">Users</h5>
                             <div class="mb-3">
                                 <select id="excludedUsers" class="form-select" multiple size="6">
                                     <!-- User list will be loaded dynamically -->
                                 </select>
-                                <div class="form-text">Select users to exclude from notifications</div>
+                                <div class="form-text" id="usersColHelp">No selection = everyone</div>
                             </div>
                         </div>
-                        
+
                         <div class="col-md-4">
-                            <h5>Excluded Actions</h5>
+                            <h5 id="actionsColTitle">Actions</h5>
                             <div class="mb-3">
                                 <select id="excludedActions" class="form-select" multiple size="6">
                                     <option value="1">Unlock</option>
@@ -114,12 +142,12 @@
                                     <option value="5">Lock 'n' Go with unlatch</option>
                                     <option value="6">Full Lock</option>
                                 </select>
-                                <div class="form-text">Select actions to exclude from notifications</div>
+                                <div class="form-text" id="actionsColHelp">No selection = all actions</div>
                             </div>
                         </div>
-                        
+
                         <div class="col-md-4">
-                            <h5>Excluded Triggers</h5>
+                            <h5 id="triggersColTitle">Triggers</h5>
                             <div class="mb-3">
                                 <select id="excludedTriggers" class="form-select" multiple size="6">
                                     <option value="0">System</option>
@@ -131,7 +159,18 @@
                                     <option value="6">Auto Lock</option>
                                     <option value="7">Time Control</option>
                                 </select>
-                                <div class="form-text">Select triggers to exclude from notifications</div>
+                                <div class="form-text" id="triggersColHelp">No selection = all triggers</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card bg-light border-0">
+                                <div class="card-body py-3">
+                                    <h6 class="card-title mb-2"><i class="fas fa-eye me-1"></i>What will notify?</h6>
+                                    <div id="filterPreview" class="small">Loading preview…</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -214,6 +253,9 @@
         // Handle form submission
         $('#saveNotificationSettings').click(saveNotificationSettings);
         $('#saveWebhookSettings').click(saveWebhookSettings);
+        $('input[name="filterMode"]').on('change', function() { updateColumnSemantics(); updatePreview(); });
+        $('#excludedUsers, #excludedActions, #excludedTriggers').on('change', updatePreview);
+        $('#notifyAutoLock, #notifySystemEvents, #notifyDoorOpen, #quietHoursEnabled, #quietStart, #quietEnd').on('change', updatePreview);
         $('#registerWebhookBtn').click(registerWebhook);
         $('#unregisterWebhookBtn').click(unregisterWebhook);
         $('#rotateWebhookSecretBtn').click(rotateWebhookSecret);
@@ -243,6 +285,11 @@
                 $('#notifySystemEvents').prop('checked', data.notify_system_events);
                 $('#notifyDoorOpen').prop('checked', data.notify_door_open);
 
+                // Filter mode + column semantics
+                $('input[name="filterMode"][value="' + (data.filter_mode || 'all') + '"]').prop('checked', true);
+                updateColumnSemantics();
+                updatePreview();
+
                 // Set quiet hours
                 $('#quietHoursEnabled').prop('checked', data.quiet_hours_enabled);
                 $('#quietStart').val(data.quiet_start || '22:00');
@@ -271,6 +318,78 @@
             }
         });
     }
+
+    function currentFilterMode() {
+        return $('input[name="filterMode"]:checked').val() || 'all';
+    }
+
+    function updateColumnSemantics() {
+        const mode = currentFilterMode();
+        const listsActive = mode !== 'all';
+        const verb = mode === 'include' ? 'Only' : 'Except';
+        [['usersColTitle', 'usersColHelp', 'Users'],
+         ['actionsColTitle', 'actionsColHelp', 'Actions'],
+         ['triggersColTitle', 'triggersColHelp', 'Triggers']].forEach(function(ids) {
+            if (listsActive) {
+                $('#' + ids[0]).text(verb + ' ' + ids[2]);
+                $('#' + ids[1]).text(mode === 'include'
+                    ? 'Nothing selected = no restriction (' + ids[2].toLowerCase() + ' all pass)'
+                    : 'Nothing selected = nothing blocked');
+            } else {
+                $('#' + ids[0]).text(ids[2]);
+                $('#' + ids[1]).text('Ignored in "All events" mode');
+            }
+        });
+    }
+
+    function updatePreview() {
+        const mode = currentFilterMode();
+        const actions = $('#excludedActions').val() || [];
+        const triggers = $('#excludedTriggers').val() || [];
+        const users = $('#excludedUsers').val() || [];
+        const autoLock = $('#notifyAutoLock').is(':checked');
+        const system = $('#notifySystemEvents').is(':checked');
+        const doorOpen = $('#notifyDoorOpen').is(':checked');
+        const quiet = $('#quietHoursEnabled').is(':checked');
+
+        const actionNames = {1: 'Unlock', 2: 'Lock', 3: 'Unlatch', 4: "Lock 'n' Go", 5: "Lock 'n' Go + unlatch", 6: 'Full Lock'};
+        let lines = [];
+
+        if (mode === 'all') {
+            lines.push('✅ All lock events will notify.');
+        } else {
+            let actionLine;
+            if (!actions.length) {
+                actionLine = mode === 'include' ? '✅ All actions (no action restriction)' : '✅ All actions';
+            } else if (mode === 'include') {
+                actionLine = '✅ Only: ' + actions.map(a => actionNames[a] || a).join(', ');
+            } else {
+                const muted = Object.keys(actionNames).filter(a => actions.includes(a));
+                const pass = Object.keys(actionNames).filter(a => !actions.includes(a));
+                actionLine = '✅ ' + pass.map(a => actionNames[a]).join(', ') +
+                    ' &nbsp;|&nbsp; 🔇 muted: ' + muted.map(a => actionNames[a]).join(', ');
+            }
+            lines.push(actionLine);
+        }
+
+        lines.push((autoLock ? '✅' : '🔇') + ' Auto Lock events &nbsp; ' +
+                   (system ? '✅' : '🔇') + ' System events &nbsp; ' +
+                   (doorOpen ? '✅' : '🔇') + ' Door-open alerts');
+
+        if (users.length) {
+            lines.push(mode === 'include'
+                ? '👤 Only these users: ' + users.join(', ')
+                : '👤 Everyone except: ' + users.join(', '));
+        } else {
+            lines.push('👤 All users');
+        }
+
+        lines.push(quiet
+            ? '🌙 Quiet hours ' + $('#quietStart').val() + '–' + $('#quietEnd').val() + ' (queued as digest, delivered when window ends)'
+            : '🌙 Quiet hours off');
+
+        $('#filterPreview').html(lines.map(l => '<div>' + l + '</div>').join(''));
+    }
     
     function loadUsers() {
         $.ajax({
@@ -294,6 +413,7 @@
                         userSelect.find('option[value="' + username + '"]').prop('selected', true);
                     });
                 }
+                updatePreview();
             },
             error: function(xhr, status, error) {
                 console.error('Error loading users:', error);
@@ -313,6 +433,7 @@
             quiet_hours_enabled: $('#quietHoursEnabled').is(':checked'),
             quiet_start: $('#quietStart').val(),
             quiet_end: $('#quietEnd').val(),
+            filter_mode: currentFilterMode(),
             excluded_users: $('#excludedUsers').val() || [],
             excluded_actions: $('#excludedActions').val() || [],
             excluded_triggers: $('#excludedTriggers').val() || []

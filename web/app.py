@@ -987,6 +987,7 @@ def get_notification_settings():
             'quiet_hours_enabled': config.quiet_hours_enabled,
             'quiet_start': config.quiet_start,
             'quiet_end': config.quiet_end,
+            'filter_mode': config.filter_mode,
             'excluded_users': config.excluded_users,
             'excluded_actions': config.excluded_actions,
             'excluded_triggers': config.excluded_triggers
@@ -1042,6 +1043,13 @@ def update_notification_settings():
                 if not re.match(r'^([01]\d|2[0-3]):[0-5]\d$', str(data[key])):
                     return jsonify({"error": f"{key} must be in HH:MM 24h format"}), 400
                 update_config_func(config_path, 'Notification', key, str(data[key]))
+
+        # Update filter mode (all | include | exclude)
+        if 'filter_mode' in data:
+            mode = str(data['filter_mode']).strip().lower()
+            if mode not in ('all', 'include', 'exclude'):
+                return jsonify({"error": "filter_mode must be all, include or exclude"}), 400
+            update_config_func(config_path, 'Filter', 'filter_mode', mode)
         
         # Update excluded users
         if 'excluded_users' in data:
@@ -1067,6 +1075,7 @@ def update_notification_settings():
         _audit_action('settings.notifications',
                       detail=f"type={data.get('type')} digest={data.get('digest_mode')} "
                              f"quiet={data.get('quiet_hours_enabled')} door_open={data.get('notify_door_open')} "
+                             f"filter_mode={data.get('filter_mode')} "
                              f"excluded_users={len(data.get('excluded_users', []))} "
                              f"excluded_actions={data.get('excluded_actions')} "
                              f"excluded_triggers={data.get('excluded_triggers')}")

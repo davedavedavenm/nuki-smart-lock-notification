@@ -123,23 +123,54 @@ class Notifier:
             self.send_digest_notification()
     
     def _should_filter_event(self, event):
-        """Check if an event should be filtered based on config settings"""
-        # Auto-lock filtering
+        """Check if an event should be filtered based on config settings.
+
+        filter_mode:
+          'all'     — everything notifies (subject to the auto-lock/system
+                      toggles below)
+          'include' — a non-empty select acts as an ALLOW-list: the event
+                      must match it to notify. Empty selects don't restrict.
+          'exclude' — a non-empty select acts as a BLOCK-list (legacy).
+        """
+        # Auto-lock filtering (trigger 6) — applies in every mode
         if event['user_name'] == "Auto Lock" and not self.config.notify_auto_lock:
             return True
-            
-        # User filtering
-        if event['user_name'] in self.config.excluded_users:
+
+        # System events (trigger 0 = System, e.g. "Nuki Bridge") — applies
+        # in every mode
+        event_name = str(event.get('event_type', ''))
+        if ((event.get('trigger') == 0 or event_name.startswith("Nuki "))
+                and not self.config.notify_system_events):
             return True
-            
-        # Action filtering
-        if 'action' in event and str(event['action']) in self.config.excluded_actions:
+
+        mode = getattr(self.config, 'filter_mode', None) or 'all'
+        if mode == 'all':
+            return False
+
+        selected_users = self.config.excluded_users
+        selected_actions = self.config.excluded_actions
+        selected_triggers = self.config.excluded_triggers
+
+        def dimension_allows(selected, value):
+            """Empty selection = no restriction; otherwise value must match"""
+            return not selected or str(value) in selected
+
+        if mode == 'include':
+            if not dimension_allows(selected_users, event['user_name']):
+                return True
+            if 'action' in event and not dimension_allows(selected_actions, event.get('action')):
+                return True
+            if 'trigger' in event and not dimension_allows(selected_triggers, event.get('trigger')):
+                return True
+            return False
+
+        # Legacy exclude mode: any match mutes the event
+        if event['user_name'] in selected_users:
             return True
-            
-        # Trigger filtering
-        if 'trigger' in event and str(event['trigger']) in self.config.excluded_triggers:
+        if 'action' in event and str(event['action']) in selected_actions:
             return True
-            
+        if 'trigger' in event and str(event['trigger']) in selected_triggers:
+            return True
         return False
     
     def send_digest_notification(self):
