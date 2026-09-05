@@ -20,6 +20,9 @@
                 </h5>
                 <div class="d-flex align-items-center gap-3 flex-wrap">
                     {% if session.get('role') == 'admin' %}
+                    <button class="btn btn-success btn-sm d-none" id="addNukiUserBtn" title="Create a keypad/code user">
+                        <i class="fas fa-user-plus me-1"></i>Add User
+                    </button>
                     <div class="form-check form-switch mb-0" title="Allow renaming, disabling and removing lock users from this console">
                         <input class="form-check-input" type="checkbox" role="switch" id="umEnabledSwitch">
                         <label class="form-check-label small" for="umEnabledSwitch">Enable lock-user management</label>
@@ -116,6 +119,38 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="saveNukiUserBtn">
                     <i class="fas fa-save me-1"></i>Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Nuki User Modal -->
+<div class="modal fade" id="createNukiUserModal" tabindex="-1" aria-labelledby="createNukiUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createNukiUserModalLabel">Add Lock User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">
+                    Creates a <strong>keypad code user</strong> (permanent, no expiry). Phone-app users like
+                    Jennifer pair through the Nuki app itself — the API cannot create those.
+                </p>
+                <div class="mb-3">
+                    <label class="form-label" for="createNukiUserName">Name</label>
+                    <input type="text" class="form-control" id="createNukiUserName" maxlength="32" placeholder="e.g. Cleaner">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="createNukiUserCode">Keypad code</label>
+                    <input type="text" class="form-control" id="createNukiUserCode" inputmode="numeric" maxlength="8" placeholder="4-8 digits">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="createNukiUserBtn">
+                    <i class="fas fa-user-plus me-1"></i>Create User
                 </button>
             </div>
         </div>
@@ -243,7 +278,41 @@
             const retry = () => saveNukiUser(editTargetId, payload);
             saveNukiUser(editTargetId, payload, guardTotp.bind(null, retry));
         });
+
+        $('#addNukiUserBtn').on('click', function() {
+            $('#createNukiUserName').val('');
+            $('#createNukiUserCode').val('');
+            new bootstrap.Modal(document.getElementById('createNukiUserModal')).show();
+        });
+        $('#createNukiUserBtn').on('click', function() {
+            const payload = {
+                name: $('#createNukiUserName').val().trim(),
+                code: $('#createNukiUserCode').val().trim()
+            };
+            if (!payload.name) { alert('Name cannot be empty'); return; }
+            if (!/^\d{4,8}$/.test(payload.code)) { alert('Code must be 4-8 digits'); return; }
+            const retry = () => createNukiUser(payload);
+            createNukiUser(payload, guardTotp.bind(null, retry));
+        });
     });
+
+    function createNukiUser(payload, onGate) {
+        $.ajax({
+            url: '/api/nuki-users',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function() {
+                bootstrap.Modal.getInstance(document.getElementById('createNukiUserModal')).hide();
+                afterNukiWrite('User created.');
+            },
+            error: function(xhr) {
+                if (xhr.responseJSON?.totp_required) { onGate(); return; }
+                if (xhr.responseJSON?.error?.includes('disabled')) { updateUmState(); }
+                alert('Creation failed: ' + (xhr.responseJSON?.error || 'unknown error'));
+            }
+        });
+    }
 
     // Nuki applies auth changes asynchronously — reload a beat later
     function afterNukiWrite(msg) {
@@ -326,6 +395,7 @@
 
     function updateUmState() {
         $('#umDisabledBanner').toggleClass('d-none', umEnabled);
+        $('#addNukiUserBtn').toggleClass('d-none', !umEnabled);
         $('.edit-nuki-user-btn, .delete-nuki-user-btn').prop('disabled', !umEnabled);
     }
     

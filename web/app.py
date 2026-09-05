@@ -108,7 +108,7 @@ def check_setup():
 init_app(app)
 
 # Static asset cache-busting: bump when CSS/JS change so browsers fetch fresh
-ASSET_VERSION = '20260905.1'
+ASSET_VERSION = '20260905.2'
 
 @app.context_processor
 def inject_asset_version():
@@ -1687,6 +1687,28 @@ def get_users():
     except Exception as e:
         logger.error(f"Error getting users: {e}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/nuki-users', methods=['POST'])
+@admin_required
+def create_nuki_user():
+    """Create a permanent keypad/code lock user (the API cannot create app users)"""
+    gate = _require_totp()
+    if gate:
+        return gate
+    if not config.user_management_enabled:
+        return jsonify({"error": "Lock-user management is disabled — enable it on the Nuki Users page"}), 403
+    try:
+        data = request.json or {}
+        result = api.create_auth(data.get('name', ''), data.get('code', ''))
+        if not result.get('success'):
+            _audit_action('nuki_user.create', detail=f"name={data.get('name')}", status='failure')
+            return jsonify({"error": result.get('message', 'Creation failed')}), 502
+        _audit_action('nuki_user.create', detail=f"name={data.get('name')} permanent_code=true")
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error creating Nuki user: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/nuki-users/<auth_id>', methods=['PUT'])
 @admin_required

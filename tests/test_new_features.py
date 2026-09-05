@@ -505,6 +505,31 @@ def test_toggle_endpoint_roundtrip(app, mock_config_dir):
     assert resp.get_json()['enabled'] is True
 
 
+def test_nuki_user_create_gated_and_audited(app):
+    import web.app as app_module
+    _login_admin(app)
+    _enroll_and_elevate(app)
+    calls = []
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(app_module.api, 'create_auth',
+                        lambda name, code, remote_allowed=True: calls.append((name, code)) or {"success": True})
+    try:
+        # toggle off -> 403
+        app_module.config.user_management_enabled = False
+        resp = app.post('/api/nuki-users', json={'name': 'Cleaner', 'code': '556677'})
+        assert resp.status_code == 403
+        assert not calls
+        # toggle on -> creates
+        app_module.config.user_management_enabled = True
+        resp = app.post('/api/nuki-users', json={'name': 'Cleaner', 'code': '556677'})
+        assert resp.status_code == 200
+        assert calls == [('Cleaner', '556677')]
+        entries = app_module.audit.recent(action_filter='nuki_user.create')
+        assert entries and entries[0]['status'] == 'success'
+    finally:
+        monkeypatch.undo()
+
+
 # ---------------------------------------------------------------------------
 # PWA routes
 # ---------------------------------------------------------------------------

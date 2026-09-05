@@ -33,8 +33,16 @@ function setFooterYear() {
 
 // Set up mobile navigation
 function setupMobileNav() {
-    // Close the navbar when a nav-link is clicked on mobile
+    // Close the navbar when a plain nav-link is clicked on mobile.
+    // Dropdown toggles (e.g. Admin) must NOT collapse the navbar —
+    // doing so kills the dropdown the user just opened.
     $('.navbar-nav .nav-link').on('click', function() {
+        if (window.innerWidth < 992 && !$(this).hasClass('dropdown-toggle')) {
+            $('.navbar-collapse').collapse('hide');
+        }
+    });
+    // Navigating from a dropdown item closes the whole navbar
+    $('.dropdown-menu .dropdown-item').on('click', function() {
         if (window.innerWidth < 992) {
             $('.navbar-collapse').collapse('hide');
         }

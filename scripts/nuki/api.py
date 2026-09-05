@@ -588,6 +588,49 @@ class NukiAPI:
             return {"success": False, "message": "Nuki API rejected the removal (check token write permission)"}
         return {"success": True, "async": True}
     
+    def create_auth(self, name, code, remote_allowed=True):
+        """Create a permanent keypad/code authorization for the lock.
+
+        Per Nuki's API, *app* users (phones) cannot be created remotely —
+        they pair through the Nuki app. Only code-based authorizations
+        (type 13) can be created here. Create is PUT, applied asynchronously.
+        """
+        name = str(name).strip()
+        if not name:
+            return {"success": False, "message": "Name cannot be empty"}
+        if len(name) > 32:
+            return {"success": False, "message": "Name is limited to 32 characters by Nuki"}
+        code = str(code).strip()
+        if not (code.isdigit() and 4 <= len(code) <= 8):
+            return {"success": False, "message": "Code must be 4-8 digits"}
+
+        lock_id = None
+        try:
+            locks = self.get_smartlocks()
+            lock_id = locks[0].get('smartlockId') if locks else None
+        except Exception:
+            pass
+        if not lock_id and self.config.use_explicit_id and self.config.smartlock_id:
+            lock_id = int(self.config.smartlock_id)
+        if not lock_id:
+            return {"success": False, "message": "No smartlock found on the account"}
+
+        payload = {
+            "name": name,
+            "code": int(code),
+            "type": 13,
+            "remoteAllowed": bool(remote_allowed),
+        }
+        result = self._make_request(
+            'PUT',
+            f"{self.config.base_url}/smartlock/{lock_id}/auth",
+            json=payload
+        )
+        if result is None:
+            return {"success": False, "message": "Nuki API rejected the creation (check token write permission)"}
+        entry = result if isinstance(result, dict) else {}
+        return {"success": True, "async": True, "id": entry.get('id'), "auth_id": entry.get('id')}
+
     def find_auth_id_by_code(self, smartlock_id, code):
         """Find authorization ID by code value
         
