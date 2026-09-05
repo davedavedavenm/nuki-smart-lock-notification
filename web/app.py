@@ -874,7 +874,7 @@ def get_activity():
             trigger_description = api.get_trigger_description(trigger)
             
             # Get user name
-            user_name = "Auto Lock" if trigger == 6 else api.get_user_name(auth_id) if auth_id else "Unknown User"
+            user_name = api.get_event_user_name(trigger, auth_id)
             
             # Create processed event
             processed_event = {

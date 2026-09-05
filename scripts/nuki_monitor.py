@@ -244,13 +244,7 @@ class NukiMonitor:
                     action_description = self.api.get_action_description(event)
                     
                     # Get user name if available
-                    user_name = "Auto Lock"  # Default for auto lock events
-                    
-                    # Special handling for trigger 6 (auto lock)
-                    if trigger == 6:
-                        user_name = "Auto Lock"
-                    else:
-                        user_name = self.api.get_user_name(auth_id) if auth_id else "Unknown User"
+                    user_name = self.api.get_event_user_name(trigger, auth_id)
                     
                     # Create event record
                     event_record = {

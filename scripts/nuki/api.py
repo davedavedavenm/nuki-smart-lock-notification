@@ -25,7 +25,8 @@ class NukiAPI:
             4: "App",
             5: "Website",
             6: "Auto Lock",
-            7: "Time Control"
+            7: "Time Control",
+            255: "Unknown"
         }
 
         self.status_map = {
@@ -395,17 +396,17 @@ class NukiAPI:
         # Special case for auto-lock (no auth ID)
         if auth_id is None:
             return "Auto Lock"
-            
+
         users = self.get_users()
         if not users:
             logger.warning(f"No users found when looking up auth_id: {auth_id}")
             return "Unknown User"
-        
+
         # Try direct match first
         for user in users:
             if user.get('id') == auth_id:
                 return user.get('name', 'Unknown User')
-        
+
         # Try type conversion if direct match fails
         try:
             if isinstance(auth_id, int):
@@ -418,7 +419,25 @@ class NukiAPI:
                         return user.get('name', 'Unknown User')
         except Exception as e:
             logger.warning(f"Error during user ID type conversion: {e}")
-        
+
+        return "Unknown User"
+
+    def get_event_user_name(self, trigger, auth_id):
+        """Human-readable actor for a log event.
+
+        Events without an authId are not failed lookups — they are genuinely
+        anonymous interactions (physical button presses, bridge/system
+        actions). Labelling those 'Unknown User' is accurate but alarming;
+        name them for what they are instead.
+        """
+        if trigger == 6:
+            return "Auto Lock"
+        if auth_id:
+            return self.get_user_name(auth_id)
+        if trigger == 2:
+            return "Button Press"
+        if trigger == 0:
+            return "System"
         return "Unknown User"
     
     def parse_date(self, date_str):

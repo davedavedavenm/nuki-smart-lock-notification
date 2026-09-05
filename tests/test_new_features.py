@@ -304,6 +304,22 @@ def test_config_filter_mode_fallback(mock_config_dir):
 
 
 # ---------------------------------------------------------------------------
+# Event actor naming (button presses / system events are not "Unknown User")
+# ---------------------------------------------------------------------------
+
+def test_event_actor_naming(mock_config_dir):
+    os.environ['CONFIG_DIR'] = os.path.join(mock_config_dir, 'config')
+    from scripts.nuki.config import ConfigManager
+    from scripts.nuki.api import NukiAPI
+    api = NukiAPI(ConfigManager(mock_config_dir))
+    assert api.get_event_user_name(6, None) == "Auto Lock"
+    assert api.get_event_user_name(2, None) == "Button Press"
+    assert api.get_event_user_name(0, None) == "System"
+    assert api.get_event_user_name(None, None) == "Unknown User"
+    assert api.get_trigger_description(255) == "Unknown"
+
+
+# ---------------------------------------------------------------------------
 # PWA routes
 # ---------------------------------------------------------------------------
 
