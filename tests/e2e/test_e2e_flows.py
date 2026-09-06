@@ -1,11 +1,16 @@
 """Tier 2 — browser journeys that would have caught the failures we shipped:
 mobile nav dropdown collapsing, TOTP enrollment flow, table overflow, gating."""
 import json
+import os
 import re
 
 import pytest
 
-pytestmark = pytest.mark.e2e
+pytestmark = [
+    pytest.mark.e2e,
+    pytest.mark.skipif(os.environ.get('RUN_E2E') != '1',
+                       reason='browser E2E requires RUN_E2E=1'),
+]
 
 from helpers import (login, enroll_and_elevate, js_errors,  # noqa: E402
                      _assert_no_js_errors, _assert_no_horizontal_overflow)
