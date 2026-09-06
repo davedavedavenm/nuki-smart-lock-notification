@@ -108,7 +108,8 @@ class ConfigManager:
         
         # API settings
         self.api_token = self._get_val('Nuki', 'api_token', env_name='NUKI_API_TOKEN', is_credential=True, fallback='')
-        self.base_url = "https://api.nuki.io"
+        # NUKI_BASE_URL exists for testing (mock server); production default
+        self.base_url = os.environ.get('NUKI_BASE_URL', 'https://api.nuki.io')
         
         # Smartlock settings
         self.smartlock_id = self._get_val('Nuki', 'smartlock_id', env_name='NUKI_SMARTLOCK_ID', fallback='')

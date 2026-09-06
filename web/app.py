@@ -1696,8 +1696,9 @@ def users():
 def get_users():
     """API endpoint to get users"""
     try:
-        # Get users from API
-        users = api.get_users()
+        # force_refresh: this is the user-management view — a 1h stale cache
+        # hiding freshly created/renamed users is unacceptable
+        users = api.get_users(force_refresh=True)
         
         # Format user data
         user_data = []

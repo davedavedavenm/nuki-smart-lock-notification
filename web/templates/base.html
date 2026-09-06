@@ -337,11 +337,18 @@
             const code = $('#totpGateCode').val().trim();
             if (!code) return;
             const url = enrolled ? '/api/totp/verify' : '/api/totp/enroll/finish';
-            $.post(url, JSON.stringify({ code: code }), null, 'json').done(function () {
-                modal.hide();
-                if (typeof onSuccess === 'function') onSuccess();
-            }).fail(function (xhr) {
-                $('#totpGateError').removeClass('d-none').text(xhr.responseJSON?.error || 'Verification failed');
+            $.ajax({
+                url: url,
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({code: code}),
+                success: function () {
+                    modal.hide();
+                    if (typeof onSuccess === 'function') onSuccess();
+                },
+                error: function (xhr) {
+                    $('#totpGateError').removeClass('d-none').text(xhr.responseJSON?.error || 'Verification failed');
+                }
             });
         });
         modal.show();

@@ -508,7 +508,7 @@
             };
             const t = typeLabels[user.type] || { label: 'Unknown (' + user.type + ')', desc: 'Unrecognised entry type.' };
             const isDevice = (user.type === 1 || user.type === 3);
-            const safeType = $('<span>').text(t.label).attr('title', t.desc);
+            const safeType = $('<span>').text(t.label).attr('title', t.desc).prop('outerHTML');
             let actionsHtml = `
                         <button class="btn btn-sm btn-outline-primary view-user-btn" data-id="${safeId}">
                             <i class="fas fa-eye me-1"></i>View

@@ -6,7 +6,20 @@ from flask import session
 
 # Import from the test_mocks module
 from test_mocks import app_with_mocks, mock_api
-from conftest import _enroll_and_elevate
+import time as _time
+
+
+def _enroll_and_elevate(client):
+    """Log in the fixture admin, enroll TOTP, and open an elevated session
+    (lock-access write endpoints sit behind the TOTP gate)"""
+    import web.app as app_module
+    from web import totp as totp_lib
+    client.post('/login', data={'username': 'admin', 'password': 'nukiadmin'},
+                follow_redirects=True)
+    begun = client.post('/api/totp/enroll/begin', json={}).get_json()
+    code = totp_lib._code_at(begun['secret'], int(_time.time() // 30))
+    assert client.post('/api/totp/enroll/finish', json={'code': code}).status_code == 200
+    app_module.config.user_management_enabled = True
 
 def test_admin_login(app_with_mocks):
     """Test admin login"""

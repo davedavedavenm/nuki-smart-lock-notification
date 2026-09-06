@@ -34,3 +34,27 @@ jobs:
 
     - name: Test with pytest
       run: pytest --cov=scripts --cov=web --cov-report=term
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.13"
+        cache: pip
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+
+    - name: Install Playwright browser
+      run: playwright install --with-deps chromium
+
+    - name: Browser end-to-end tests
+      env:
+        RUN_E2E: '1'
+      run: pytest tests/e2e

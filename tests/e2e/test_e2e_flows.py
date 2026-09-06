@@ -1,0 +1,146 @@
+"""Tier 2 — browser journeys that would have caught the failures we shipped:
+mobile nav dropdown collapsing, TOTP enrollment flow, table overflow, gating."""
+import json
+import re
+
+import pytest
+
+pytestmark = pytest.mark.e2e
+
+from helpers import (login, enroll_and_elevate, js_errors,  # noqa: E402
+                     _assert_no_js_errors, _assert_no_horizontal_overflow)
+
+PAGES = ['/', '/activity', '/status', '/stats', '/users',
+         '/notifications', '/temp-codes', '/admin/audit', '/config', '/profile']
+
+
+def test_health_login_dashboard_no_errors(page):
+    resp = page.request.get(page.base_url + '/health')
+    assert resp.ok
+
+    page.goto(page.base_url + '/login')
+    page.fill('input[name=username]', 'admin')
+    page.fill('input[name=password]', 'nukiadmin')
+    page.click('button[type=submit]')
+    page.wait_for_selector('text=Nuki Smart Lock Dashboard', timeout=15000)
+    assert 'Dashboard' in page.title()
+
+    _assert_no_js_errors(page)
+    _assert_no_horizontal_overflow(page)
+
+
+def test_mobile_admin_dropdown_stays_open(page):
+    """The Admin dropdown used to close the entire navbar the moment it opened"""
+    login(page)
+    page.goto(page.base_url + '/')
+    page.wait_for_load_state('networkidle')
+
+    page.click('#navbarToggler' if page.locator('#navbarToggler').count() else '.navbar-toggler')
+    page.click('#adminDropdown')
+    page.wait_for_timeout(400)  # the old bug collapsed the navbar right here
+
+    assert page.locator('#navbarNav').evaluate("el => el.classList.contains('show')"), \
+        "navbar collapsed itself when the Admin dropdown opened"
+    assert page.locator('#adminDropdown + .dropdown-menu, ul[aria-labelledby=adminDropdown]').first \
+        .evaluate("el => el.classList.contains('show')"), "Admin dropdown did not open"
+    _assert_no_js_errors(page)
+
+
+def test_totp_gate_enroll_flow(page, e2e_base_url):
+    """Temp-code creation is TOTP-gated: the modal enrolls, verify, retry works"""
+    login(page)
+    # opt in to lock-user management? not needed for temp codes; go create
+    page.goto(page.base_url + '/temp-codes')
+    page.wait_for_load_state('networkidle')
+
+    page.fill('#code', '9944')
+    page.fill('#name', 'E2E Guest')
+    page.evaluate("""() => {
+        const d = new Date(Date.now() + 24*3600*1000);
+        const pad = n => String(n).padStart(2, '0');
+        document.getElementById('expiry').value =
+            d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+            'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }""")
+
+    page.click('button:has-text("Create Temporary Code")')
+    page.wait_for_selector('#totpGateModal.show', timeout=8000)
+    assert page.locator('#totpEnrollBox').is_visible(), "enrollment box should show for first-time users"
+
+    # the modal has fetched a sticky pending secret — read the same one
+    resp = page.request.post(page.base_url + '/api/totp/enroll/begin', data='{}',
+                             headers={'Content-Type': 'application/json'})
+    secret = resp.json()['secret']
+
+    import time as _time
+    from web import totp as totp_lib
+    code = totp_lib._code_at(secret, int(_time.time() // 30))
+    page.fill('#totpGateCode', code)
+    page.click('#totpGateSubmit')
+    page.wait_for_selector('#totpGateModal:not(.show)', timeout=8000)
+    page.wait_for_selector('text=E2E Guest', timeout=8000)
+    _assert_no_js_errors(page)
+
+
+def test_users_page_types_toggle_and_create(page, e2e_base_url):
+    login(page)
+    # enroll TOTP + elevate first so gated actions can be retried cleanly
+    enroll_and_elevate(page, e2e_base_url['data_dir'])
+
+    page.goto(page.base_url + '/users')
+    page.wait_for_load_state('networkidle')
+
+    # plain-English type labels render
+    try:
+        page.wait_for_selector('text=📱 App (phone/tablet)', timeout=10000)
+    except Exception:
+        print("\nTABLE:", page.locator('#userTableBody').inner_text()[:400])
+        print("API:", page.request.get(page.base_url + '/api/users').text()[:400])
+        print("JS ERRORS:", js_errors(page))
+        raise
+    assert page.locator('text=#️⃣ Keypad code (a PIN)').count() > 0
+
+    # toggle off by default: banner visible, edit disabled
+    assert page.locator('#umDisabledBanner').is_visible()
+    assert page.locator('.edit-nuki-user-btn').first.is_disabled()
+
+    # flip the switch
+    page.click('#umEnabledSwitch')
+    page.wait_for_timeout(600)
+    assert not page.locator('#umDisabledBanner').is_visible()
+    assert page.locator('#addNukiUserBtn').is_visible()
+
+    # create a keypad-code user through the modal
+    page.click('#addNukiUserBtn')
+    page.fill('#createNukiUserName', 'E2E Cleaner')
+    page.fill('#createNukiUserCode', '556677')
+    page.click('#createNukiUserBtn')
+    try:
+        page.wait_for_selector('text=E2E Cleaner', timeout=8000)
+    except Exception:
+        print("\nURL:", page.url)
+        print("COUNT:", page.locator('#userCount').inner_text()[:200])
+        print("TABLE_HTML:", page.locator('#userTableBody').evaluate("el => el.innerHTML")[:600])
+        print("MODAL_VISIBLE:", page.locator('#createNukiUserModal').evaluate("el => el.classList.contains('show')"))
+        print("JS ERRORS:", js_errors(page))
+        raise
+    _assert_no_js_errors(page)
+
+
+def test_no_horizontal_overflow_on_any_page(page):
+    login(page)
+    for path in PAGES:
+        page.goto(page.base_url + path)
+        page.wait_for_load_state('networkidle')
+        overflow = page.evaluate(
+            "() => document.scrollingElement.scrollWidth - window.innerWidth")
+        assert overflow <= 1, f"{path} overflows horizontally by {overflow}px at 390px"
+
+
+def test_pwa_manifest_and_sw_served(page):
+    resp = page.request.get(page.base_url + '/manifest.webmanifest')
+    assert resp.ok
+    assert resp.headers.get('access-control-allow-origin') == '*'
+    resp = page.request.get(page.base_url + '/sw.js')
+    assert resp.ok
+    assert 'fetch' in resp.text()

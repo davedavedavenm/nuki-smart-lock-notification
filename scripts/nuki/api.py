@@ -479,33 +479,41 @@ class NukiAPI:
         try:
             # Convert expiry to timestamp
             if isinstance(expiry, datetime):
-                expiry_timestamp = int(expiry.timestamp())
+                expiry_dt = expiry
             elif isinstance(expiry, str):
-                expiry_timestamp = int(datetime.fromisoformat(expiry).timestamp())
+                expiry_dt = datetime.fromisoformat(expiry)
             else:
-                expiry_timestamp = int(expiry)  # Assume it's already a timestamp
-                
-            # Prepare payload for API
+                expiry_dt = datetime.fromtimestamp(int(expiry))
+
+            now = datetime.now()
+            # Nuki schema (SmartlockAuthCreate): allowedUntilDate is the
+            # calendar date and allowedUntilTime the minutes-from-midnight.
+            # Older payload sent an ignored 'allowedUntil' epoch, which made
+            # every code permanent on Nuki's side.
             payload = {
                 "name": name,
                 "code": code,
-                "allowedUntil": expiry_timestamp,
-                "allowedFromTime": int(datetime.now().timestamp()),
-                "type": 13  # Code type for temporary code
+                "type": 13,  # Code type for temporary code
+                "remoteAllowed": True,
+                "allowedFromDate": now.strftime('%Y-%m-%d'),
+                "allowedFromTime": now.hour * 60 + now.minute,
+                "allowedUntilDate": expiry_dt.strftime('%Y-%m-%d'),
+                "allowedUntilTime": expiry_dt.hour * 60 + expiry_dt.minute,
             }
             
-            # Make request to the API
+            # Make request to the API (PUT = create per Nuki swagger;
+            # POST on this path is not a documented operation)
             result = self._make_request(
-                'POST', 
+                'PUT',
                 f"{self.config.base_url}/smartlock/{smartlock_id}/auth",
                 json=payload
             )
-            
+
             if result is None:
                 return {"success": False, "message": "Failed to add temporary code"}
-            
+
             return {"success": True, "auth_id": result.get('id')}
-            
+
         except Exception as e:
             logger.error(f"Error adding temporary code: {e}")
             return {"success": False, "message": str(e)}

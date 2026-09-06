@@ -186,8 +186,14 @@ def _login_admin(client):
 
 
 def _enroll_and_elevate(app):
-    from conftest import _enroll_and_elevate as _e
-    _e(app)
+    """Enroll TOTP for the fixture admin and open an elevated session"""
+    import time as _time
+    import web.app as app_module
+    from web import totp as totp_lib
+    begun = app.post('/api/totp/enroll/begin', json={}).get_json()
+    code = totp_lib._code_at(begun['secret'], int(_time.time() // 30))
+    assert app.post('/api/totp/enroll/finish', json={'code': code}).status_code == 200
+    app_module.config.user_management_enabled = True
 
 
 def test_webhook_rejects_bad_secret(app):
