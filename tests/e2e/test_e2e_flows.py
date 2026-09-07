@@ -120,15 +120,9 @@ def test_users_page_types_toggle_and_create(page, e2e_base_url):
     page.fill('#createNukiUserName', 'E2E Cleaner')
     page.fill('#createNukiUserCode', '556677')
     page.click('#createNukiUserBtn')
-    try:
-        page.wait_for_selector('text=E2E Cleaner', timeout=8000)
-    except Exception:
-        print("\nURL:", page.url)
-        print("COUNT:", page.locator('#userCount').inner_text()[:200])
-        print("TABLE_HTML:", page.locator('#userTableBody').evaluate("el => el.innerHTML")[:600])
-        print("MODAL_VISIBLE:", page.locator('#createNukiUserModal').evaluate("el => el.classList.contains('show')"))
-        print("JS ERRORS:", js_errors(page))
-        raise
+    # modal closes on success; the table refreshes ~2.5s later (async apply)
+    page.wait_for_selector('#createNukiUserModal:not(.show)', timeout=15000)
+    page.wait_for_selector('text=E2E Cleaner', timeout=15000)
     _assert_no_js_errors(page)
 
 
