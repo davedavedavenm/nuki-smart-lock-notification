@@ -419,6 +419,30 @@ def test_nuki_user_edit_reports_api_failure(app):
 
 
 # ---------------------------------------------------------------------------
+# Passkey re-registration (descriptors must carry type; fido2 2.x regression)
+# ---------------------------------------------------------------------------
+
+def test_begin_registration_with_existing_passkeys(mock_config_dir):
+    """Re-registering while already holding passkeys must not raise
+    (PublicKeyCredentialDescriptor requires `type` in fido2 2.x)."""
+    from fido2.utils import websafe_encode
+    os.environ['CONFIG_DIR'] = os.path.join(mock_config_dir, 'config')
+    from web import passkeys as pk
+    user = {
+        'user_handle': None,
+        'passkeys': [
+            {'id': websafe_encode(b'\x01' * 32), 'id_key': websafe_encode(b'\x02' * 64),
+             'name': 'Phone', 'sign_count': 0}
+        ],
+    }
+    options, state = pk.begin_registration(user, 'dave', 'example.com')
+    assert options['publicKey']['rp']['id'] == 'example.com'
+    excluded = options['publicKey']['excludeCredentials']
+    assert excluded and excluded[0]['id']  # existing credential still excluded
+    assert state  # ceremony state stored server-side
+
+
+# ---------------------------------------------------------------------------
 # TOTP + lock-user management gating
 # ---------------------------------------------------------------------------
 

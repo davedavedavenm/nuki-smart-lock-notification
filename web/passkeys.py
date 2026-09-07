@@ -32,8 +32,10 @@ def get_passkeys(user):
 
 
 def _descriptors(user):
+    # fido2 2.x: `type` is a required keyword on the descriptor. Its absence
+    # made registration fail for anyone who already had a passkey.
     return [
-        PublicKeyCredentialDescriptor(id=websafe_decode(pk['id']))
+        PublicKeyCredentialDescriptor(id=websafe_decode(pk['id']), type='public-key')
         for pk in get_passkeys(user)
     ]
 
