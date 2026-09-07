@@ -323,6 +323,7 @@
         }
         
         // Display data
+        const esc = s => $('<span>').text(s == null ? '' : String(s)).html();
         displayData.forEach(function(activity) {
             const actionClass = nkLockColor(nkIsLockEvent(activity.action));
             const iconClass = nkLockIcon(nkIsLockEvent(activity.action));
@@ -330,18 +331,18 @@
             tbody.append(`
                 <tr>
                     <td>${formatDateTime(activity.date)}</td>
-                    <td>${activity.lock_name}</td>
+                    <td>${esc(activity.lock_name)}</td>
                     <td class="${actionClass}">
                         <i class="fas fa-${iconClass} me-1"></i>
-                        ${activity.action}
+                        ${esc(activity.action)}
                     </td>
                     <td>
                         <i class="fas fa-user me-1"></i>
-                        ${activity.user}
+                        ${esc(activity.user)}
                     </td>
                     <td>
                         <span class="badge bg-secondary">
-                            ${activity.trigger}
+                            ${esc(activity.trigger)}
                         </span>
                     </td>
                 </tr>

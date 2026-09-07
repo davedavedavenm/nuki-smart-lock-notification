@@ -305,7 +305,8 @@ def login():
             _audit_action('login.success', detail=f"role={user_data.get('role', 'user')}")
             flash('You were successfully logged in')
             next_page = request.args.get('next')
-            if next_page:
+            # open-redirect guard: only same-site relative paths are honoured
+            if next_page and next_page.startswith('/') and not next_page.startswith('//'):
                 return redirect(next_page)
             return redirect(url_for('index'))
         else:
@@ -741,6 +742,10 @@ def backup_export():
                 u_copy.pop('password_hash', None)
                 u_copy.pop('passkeys', None)
                 u_copy.pop('user_handle', None)
+                # a TOTP secret is a password-equivalent: never ship it in a
+                # masked export
+                u_copy.pop('totp_secret', None)
+                u_copy.pop('totp_enrolled_at', None)
             users_export[username] = u_copy
 
         bundle = {

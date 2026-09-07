@@ -7,9 +7,12 @@ NUKI_BASE_URL.
 import json
 import re
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 LOCK_ID = 18255246837
+
+_NOW_MS = int(time.time() * 1000)
 
 SMARTLOCKS = [{
     "smartlockId": LOCK_ID,
@@ -20,12 +23,14 @@ SMARTLOCKS = [{
 }]
 
 LOGS = [
+    {"id": 4, "name": "Mallory <img src=x onerror=window.__xss_pwned=1>", "action": 1,
+     "trigger": 4, "authId": "aaaa0001", "date": _NOW_MS - 60_000},
     {"id": 3, "name": "Lock", "action": 2, "trigger": 6, "authId": None,
-     "date": 1788000000000},
+     "date": _NOW_MS - 300_000},
     {"id": 2, "name": "", "action": 1, "trigger": 2, "authId": None,
-     "date": 1787999900000},
+     "date": _NOW_MS - 600_000},
     {"id": 1, "name": "Jennifer", "action": 1, "trigger": 4, "authId": "676a8a3fc52a77633bb8d51d",
-     "date": 1787999800000},
+     "date": _NOW_MS - 900_000},
 ]
 
 AUTHS = [

@@ -151,6 +151,25 @@ def test_pwa_manifest_and_sw_served(page):
     assert 'fetch' in resp.text()
 
 
+def test_malicious_nuki_log_name_cannot_execute_script(page):
+    """Stored-XSS regression: a hostile Nuki auth/log name must render as
+    text everywhere, never as markup. The mock plants an onerror payload."""
+    login(page)
+    for path in ('/', '/activity'):
+        page.goto(page.base_url + path)
+        page.wait_for_load_state('networkidle')
+        assert page.evaluate('() => window.__xss_pwned') is None, \
+            f'stored XSS executed on {path}'
+        # and the hostile name is actually shown (as inert text)
+        try:
+            page.wait_for_selector('text=Mallory', timeout=8000)
+        except Exception:
+            print(f"\n{path} TABLE:", page.locator('#recentActivityTable, #activityTable')
+                  .first.inner_text()[:300])
+            raise
+    _assert_no_js_errors(page)
+
+
 def test_passkey_registration_with_virtual_authenticator(page):
     """Full WebAuthn registration through the real UI, using a virtual
     authenticator — guards the passkey flow end to end."""

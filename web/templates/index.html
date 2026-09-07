@@ -241,16 +241,17 @@
                     // Update last activity
                     $('#lastActivitySpinner').hide();
                     if (lock.last_activity) {
+                        const esc = s => $('<span>').text(s == null ? '' : String(s)).html();
                         const actionClass = nkLockColor(nkIsLockEvent(lock.last_action));
                         $('#lastActivityText').html(`
                             <span class="${actionClass}">
                                 <i class="fas fa-${nkLockIcon(nkIsLockEvent(lock.last_action))} me-2"></i>
-                                ${lock.last_action}
+                                ${esc(lock.last_action)}
                             </span>
                         `);
                         $('#lastActivityUser').html(`
                             <small class="text-muted">
-                                <i class="fas fa-user me-1"></i>${lock.last_user}<br>
+                                <i class="fas fa-user me-1"></i>${esc(lock.last_user)}<br>
                                 <i class="fas fa-clock me-1"></i>${formatDateTime(lock.last_activity)}
                             </small>
                         `);
@@ -283,21 +284,22 @@
                 }
                 
                 data.forEach(function(activity) {
+                    const esc = s => $('<span>').text(s == null ? '' : String(s)).html();
                     const row = `
                         <tr>
                             <td>${formatDateTime(activity.date)}</td>
-                            <td>${activity.lock_name}</td>
+                            <td>${esc(activity.lock_name)}</td>
                             <td class="${nkLockColor(nkIsLockEvent(activity.action))}">
                                 <i class="fas fa-${nkLockIcon(nkIsLockEvent(activity.action))} me-2"></i>
-                                ${activity.action}
+                                ${esc(activity.action)}
                             </td>
                             <td>
                                 <i class="fas fa-user me-1"></i>
-                                ${activity.user}
+                                ${esc(activity.user)}
                             </td>
                             <td class="d-none d-md-table-cell">
                                 <span class="badge bg-secondary">
-                                    ${activity.trigger}
+                                    ${esc(activity.trigger)}
                                 </span>
                             </td>
                         </tr>

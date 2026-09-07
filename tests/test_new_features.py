@@ -443,6 +443,42 @@ def test_begin_registration_with_existing_passkeys(mock_config_dir):
 
 
 # ---------------------------------------------------------------------------
+# Security regressions: backup masking, open redirect
+# ---------------------------------------------------------------------------
+
+def test_masked_backup_export_never_contains_totp_secret(app):
+    import web.app as app_module
+    # give the admin a TOTP enrollment, then ensure a masked export cannot
+    # possibly leak it
+    users = app_module.user_db.users
+    users['admin']['totp_secret'] = 'E2ESECRETMASKCHECK'
+    users['admin']['passkeys'] = [{'id': 'abc', 'id_key': 'def'}]
+    app_module.user_db._save_users()
+    _login_admin(app)
+    resp = app.get('/api/admin/backup/export?include_secrets=false')
+    assert resp.status_code == 200
+    assert 'E2ESECRETMASKCHECK' not in resp.data.decode(errors='replace')
+    bundle = json.loads(resp.data)
+    for username, u in bundle['users'].items():
+        assert 'totp_secret' not in u
+        assert 'password_hash' not in u
+
+
+def test_login_next_open_redirect_blocked(app):
+    # off-site and protocol-relative targets are ignored
+    resp = app.post('/login?next=https://evil.example.com',
+                    data={'username': 'admin', 'password': 'nukiadmin'})
+    assert 'evil.example.com' not in (resp.headers.get('Location') or '')
+    resp = app.post('/login?next=//evil.example.com',
+                    data={'username': 'admin', 'password': 'nukiadmin'})
+    assert 'evil.example.com' not in (resp.headers.get('Location') or '')
+    # same-site relative targets still work
+    resp = app.post('/login?next=/activity',
+                    data={'username': 'admin', 'password': 'nukiadmin'})
+    assert (resp.headers.get('Location') or '').endswith('/activity')
+
+
+# ---------------------------------------------------------------------------
 # TOTP + lock-user management gating
 # ---------------------------------------------------------------------------
 
