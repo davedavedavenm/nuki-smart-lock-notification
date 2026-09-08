@@ -476,9 +476,23 @@ def passkey_rename(credential_id):
 
 @app.route('/api/passkeys/auth/begin', methods=['POST'])
 def passkey_auth_begin():
-    """Start a usernameless passkey login ceremony."""
+    """Start a passkey login ceremony.
+
+    Optional JSON body {username}: when given, the response targets that
+    user's stored credentials explicitly — required for browsers that cannot
+    perform usernameless discovery (Firefox on Android). Unknown usernames
+    silently get an empty list (no account enumeration).
+    """
     try:
-        options, state = pk.begin_authentication(user_db, pk.rp_from_request(request))
+        data = request.get_json(silent=True) or {}
+        username = (data.get('username') or '').strip()
+        credentials = []
+        if username:
+            user = user_db.get_user(username)
+            if user and user.get('active', True) and pk.get_passkeys(user):
+                credentials = pk._descriptors(user)
+        options, state = pk.begin_authentication(user_db, pk.rp_from_request(request),
+                                                 credentials=credentials)
         session['passkey_auth_state'] = state
         return jsonify(options)
     except Exception as e:

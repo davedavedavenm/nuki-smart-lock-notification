@@ -68,7 +68,15 @@ $(document).ready(function() {
     btn.on('click', async function() {
         btn.prop('disabled', true);
         try {
-            const begin = await fetch('/api/passkeys/auth/begin', {method: 'POST'});
+            // If a username is typed, target that user's stored credentials
+            // explicitly (needed for browsers without usernameless discovery,
+            // e.g. Firefox on Android)
+            const uname = $('input[name=username]').val() || null;
+            const begin = await fetch('/api/passkeys/auth/begin', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: uname})
+            });
             const options = await begin.json();
             if (!begin.ok) { throw new Error(options.error || 'Could not start passkey login'); }
 
@@ -92,9 +100,17 @@ $(document).ready(function() {
             window.location.href = result.redirect || '/';
         } catch (err) {
             const box = $('#passkeyError');
-            box.text(err.message === 'Unknown passkey'
-                ? 'That passkey is not registered on this dashboard.'
-                : (err.name === 'NotAllowedError' ? 'Passkey login was cancelled or timed out.' : err.message));
+            let msg;
+            if (err.message === 'Unknown passkey') {
+                msg = 'That passkey is not registered on this dashboard.';
+            } else if (err.name === 'NotAllowedError') {
+                msg = 'No passkey was offered — if your browser is Firefox, type your username above and tap this button again (Firefox needs the username to find your passkey). Otherwise the request was cancelled or timed out.';
+            } else if (err.name === 'InvalidStateError') {
+                msg = 'This device already has a passkey for your account — use it to sign in.';
+            } else {
+                msg = err.message;
+            }
+            box.text(msg);
             box.removeClass('d-none');
             btn.prop('disabled', false);
         }

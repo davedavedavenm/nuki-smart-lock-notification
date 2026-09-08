@@ -210,15 +210,17 @@ def complete_registration(server_state, response_json, rp_id):
     return auth_data.credential_data.credential_id, bytes(auth_data.credential_data)
 
 
-def begin_authentication(user_db, rp_id):
+def begin_authentication(user_db, rp_id, credentials=None):
     """Create an authentication (assertion) ceremony.
 
-    Uses discoverable credentials: allowCredentials stays empty so the
-    authenticator offers any passkey registered with this RP.
+    With ``credentials=None`` this is a usernameless/discoverable flow
+    (Chrome, Safari). Some browsers — notably Firefox on Android — cannot
+    surface discoverable credentials from an empty list, so callers may pass
+    explicit descriptors (the user's stored credentials) instead.
     """
     server = _server(rp_id)
     options, state = server.authenticate_begin(
-        credentials=[], user_verification='preferred'
+        credentials=credentials or [], user_verification='preferred'
     )
     return dict(options), state
 

@@ -748,3 +748,36 @@ def test_config_quiet_hours_defaults(mock_config_dir):
     assert cfg.quiet_end == '07:00'
     assert cfg.notify_door_open is False
     assert cfg.alert_failure_threshold == 3
+
+
+# ---------------------------------------------------------------------------
+# Passkey login with username targeting (Firefox Android compatibility)
+# ---------------------------------------------------------------------------
+
+def test_passkey_begin_targets_user_credentials(app):
+    """Typing a username makes begin() return that user's credential ids --
+    required for browsers (Firefox Android) without usernameless discovery."""
+    import web.app as app_module
+    from fido2.utils import websafe_encode
+    users = app_module.user_db.users
+    users['admin']['passkeys'] = [
+        {'id': websafe_encode(b'\x01' * 32), 'id_key': 'dGVzdA==', 'name': 'Phone', 'sign_count': 0}
+    ]
+    app_module.user_db._save_users()
+
+    # targeted: known username -> typed allowCredentials
+    resp = app.post('/api/passkeys/auth/begin', json={'username': 'admin'})
+    assert resp.status_code == 200
+    allow = resp.get_json()['publicKey'].get('allowCredentials', [])
+    assert allow and allow[0]['type'] == 'public-key'
+    assert allow[0]['id'] == websafe_encode(b'\x01' * 32)
+
+    # unknown username -> no enumeration, plain usernameless options
+    resp = app.post('/api/passkeys/auth/begin', json={'username': 'ghost'})
+    assert resp.status_code == 200
+    assert not resp.get_json()['publicKey'].get('allowCredentials')
+
+    # no username at all -> usernameless flow
+    resp = app.post('/api/passkeys/auth/begin', json={})
+    assert resp.status_code == 200
+    assert not resp.get_json()['publicKey'].get('allowCredentials')

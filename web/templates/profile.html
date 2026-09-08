@@ -89,7 +89,8 @@
                     This page is not served over HTTPS, so the browser cannot register or use passkeys here.
                     Put the dashboard behind an HTTPS reverse proxy and set <code>WEB_HTTPS=true</code> to enable them.
                 </div>
-                <ul class="list-group mb-3" id="passkeyList"></ul>
+                <div class="alert alert-warning py-2 small mt-2 d-none" id="passkeyError"></div>
+<ul class="list-group mb-3" id="passkeyList"></ul>
                 <button type="button" class="btn btn-outline-primary" id="registerPasskey">
                     <i class="fas fa-plus me-1"></i>Add a passkey
                 </button>
@@ -288,6 +289,7 @@
 
     $('#registerPasskey').on('click', async function() {
         const btn = $(this).prop('disabled', true);
+        $('#passkeyError').addClass('d-none').text('');
         try {
             const begin = await fetch('/api/passkeys/register/begin', {method: 'POST'});
             const options = await begin.json();
@@ -331,7 +333,17 @@
             if (!finish.ok) throw new Error(result.error || 'Registration failed');
             loadPasskeys();
         } catch (err) {
-            if (err.name !== 'NotAllowedError') alert(err.message);
+            const box = $('#passkeyError');
+            if (err.name === 'InvalidStateError') {
+                box.text('This device already has a passkey registered for your account — ' +
+                         'use it to sign in, or manage/rename your passkeys below. ' +
+                         'You do not need to add another one here.');
+            } else if (err.name === 'NotAllowedError') {
+                box.text('Passkey request was cancelled or timed out.');
+            } else {
+                box.text(err.message || 'Registration failed');
+            }
+            box.removeClass('d-none');
         } finally {
             btn.prop('disabled', false);
         }

@@ -155,6 +155,25 @@ def test_passkey_identify_and_rename(page):
     _assert_no_js_errors(page)
 
 
+def test_passkey_re_register_shows_friendly_message(page):
+    """Android Chrome throws InvalidStateError when a passkey for the same
+    account already exists on the device — the UI must explain it instead of
+    showing the raw browser jargon."""
+    login(page)
+    # simulate the phone: creating another passkey for this account fails
+    page.add_init_script("""
+        navigator.credentials.create = () => Promise.reject(
+            new DOMException('An attempt was made to use an object that is not, or is no longer, usable',
+                             'InvalidStateError'));
+    """)
+    page.goto(page.base_url + '/profile')
+    page.wait_for_load_state('networkidle')
+    page.click('#registerPasskey')
+    page.wait_for_selector('text=This device already has a passkey registered for your account',
+                           timeout=8000)
+    _assert_no_js_errors(page)
+
+
 def test_pwa_manifest_and_sw_served(page):
     resp = page.request.get(page.base_url + '/manifest.webmanifest')
     assert resp.ok
