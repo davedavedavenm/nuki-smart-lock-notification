@@ -21,10 +21,27 @@ class UserDatabase:
         self.data_dir = data_dir
         self.users_file = os.path.join(self.data_dir, 'users.json')
         self.load_error = None
-        self.users = self._load_users()
+        self._loaded_mtime = None
+        self.users = {}  # populated by _reload_if_changed ({} when no file yet)
+        self._reload_if_changed()
         # NOTE: no default user is created automatically. The first admin
         # account is created by the setup wizard (POST /api/setup), so a
         # fresh deployment never has known default credentials.
+
+    def _reload_if_changed(self):
+        """Re-read users.json when another process changed it.
+
+        Multiple gunicorn workers each hold a UserDatabase; without this,
+        a stale worker's save silently ERASES registrations made through its
+        sibling (passkeys, TOTP enrollments, user edits).
+        """
+        try:
+            mtime = os.path.getmtime(self.users_file)
+        except OSError:
+            mtime = None
+        if mtime != self._loaded_mtime:
+            self.users = self._load_users()
+            self._loaded_mtime = mtime
 
     def _load_users(self):
         """Load users from the users file.
@@ -58,13 +75,15 @@ class UserDatabase:
             
             # Secure the file
             os.chmod(self.users_file, 0o600)
-            
+            self._loaded_mtime = os.path.getmtime(self.users_file)
+
             return True
         except IOError as e:
             print(f"Error saving users: {e}")
             return False
     
     def add_user(self, username, password, role='agent', active=True):
+        self._reload_if_changed()
         """Add a new user or update existing user"""
         if not username or not password:
             return False
@@ -90,6 +109,7 @@ class UserDatabase:
     # ------------------------------------------------------------------
 
     def get_auth(self, username):
+        self._reload_if_changed()
         """Return the auth policy for a user, normalised."""
         user = self.get_user(username)
         if not user:
@@ -142,6 +162,7 @@ class UserDatabase:
         return False
 
     def set_password_enabled(self, username, enabled):
+        self._reload_if_changed()
         """Enable or disable (remove) password sign-in for a user."""
         user = self.get_user(username)
         if not user:
@@ -166,6 +187,7 @@ class UserDatabase:
         return True, None
 
     def set_passkey_policy(self, username, policy):
+        self._reload_if_changed()
         """Set the passkey policy: optional, required or disabled."""
         user = self.get_user(username)
         if not user:
@@ -192,10 +214,12 @@ class UserDatabase:
         return ok, err
     
     def get_user(self, username):
+        self._reload_if_changed()
         """Get a user by username"""
         return self.users.get(username)
     
     def authenticate(self, username, password):
+        self._reload_if_changed()
         """Authenticate a user"""
         user = self.get_user(username)
         if not user:
@@ -216,6 +240,7 @@ class UserDatabase:
         return False
     
     def update_password(self, username, new_password):
+        self._reload_if_changed()
         """Update a user's password"""
         if not username in self.users:
             return False
@@ -224,6 +249,7 @@ class UserDatabase:
         return self._save_users()
     
     def update_role(self, username, new_role):
+        self._reload_if_changed()
         """Update a user's role"""
         if not username in self.users:
             return False
@@ -236,6 +262,7 @@ class UserDatabase:
         return self._save_users()
     
     def update_active(self, username, active):
+        self._reload_if_changed()
         """Update a user's active status"""
         if not username in self.users:
             return False
@@ -244,6 +271,7 @@ class UserDatabase:
         return self._save_users()
     
     def update_theme(self, username, theme):
+        self._reload_if_changed()
         """Update a user's theme preference"""
         if not username in self.users:
             return False
@@ -252,6 +280,7 @@ class UserDatabase:
         return self._save_users()
     
     def delete_user(self, username):
+        self._reload_if_changed()
         """Delete a user"""
         if not username in self.users:
             return False
@@ -263,6 +292,7 @@ class UserDatabase:
         return self._save_users()
     
     def get_all_users(self):
+        self._reload_if_changed()
         """Get all users with management metadata"""
         users_list = []
         for username, data in self.users.items():
@@ -278,10 +308,12 @@ class UserDatabase:
         return users_list
     
     def user_exists(self, username):
+        self._reload_if_changed()
         """Check if a user exists"""
         return username in self.users
 
     def users_exist(self):
+        self._reload_if_changed()
         """Check if any user account exists.
 
         Returns True too when the users file is corrupt (fail closed) so the

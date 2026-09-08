@@ -11,7 +11,9 @@ class TemporaryCodeDatabase:
         """Initialize the database with a data directory"""
         self.data_dir = data_dir
         self.codes_file = os.path.join(self.data_dir, 'temp_codes.json')
-        self.codes = self._load_codes()
+        self._loaded_mtime = None
+        self.codes = {}  # populated by _reload_if_changed ({} when no file yet)
+        self._reload_if_changed()
     
     def _load_codes(self):
         """Load codes from the codes file"""
@@ -35,13 +37,26 @@ class TemporaryCodeDatabase:
             
             # Secure the file
             os.chmod(self.codes_file, 0o600)
-            
+            self._loaded_mtime = os.path.getmtime(self.codes_file)
+
             return True
         except IOError as e:
             print(f"Error saving temporary codes: {e}")
             return False
+
+    def _reload_if_changed(self):
+        """Re-read temp_codes.json when another process changed it --
+        multiple gunicorn workers must not overwrite each other's writes."""
+        try:
+            mtime = os.path.getmtime(self.codes_file)
+        except OSError:
+            mtime = None
+        if mtime != self._loaded_mtime:
+            self.codes = self._load_codes()
+            self._loaded_mtime = mtime
     
     def add_code(self, code_id, code, name, created_by, expiry):
+        self._reload_if_changed()
         """Add a new temporary code"""
         if not code or not name or not created_by or not expiry:
             return False
@@ -63,10 +78,12 @@ class TemporaryCodeDatabase:
         return self._save_codes()
     
     def get_code(self, code_id):
+        self._reload_if_changed()
         """Get a code by its ID"""
         return self.codes.get(str(code_id))
     
     def get_code_by_value(self, code_value):
+        self._reload_if_changed()
         """Get a code by its value (the actual code)"""
         for code_id, code_data in self.codes.items():
             if code_data.get('code') == code_value:
@@ -75,6 +92,7 @@ class TemporaryCodeDatabase:
         return None
     
     def update_code(self, code_id, data):
+        self._reload_if_changed()
         """Update a code with new data"""
         if str(code_id) not in self.codes:
             return False
@@ -87,6 +105,7 @@ class TemporaryCodeDatabase:
         return self._save_codes()
     
     def delete_code(self, code_id):
+        self._reload_if_changed()
         """Delete a code"""
         if str(code_id) not in self.codes:
             return False
@@ -95,6 +114,7 @@ class TemporaryCodeDatabase:
         return self._save_codes()
     
     def get_all_codes(self):
+        self._reload_if_changed()
         """Get all codes"""
         codes_list = []
         for code_id, data in self.codes.items():
@@ -105,6 +125,7 @@ class TemporaryCodeDatabase:
         return codes_list
     
     def get_codes_by_creator(self, username):
+        self._reload_if_changed()
         """Get all codes created by a specific user"""
         return [
             {**data, 'id': code_id} 
@@ -113,6 +134,7 @@ class TemporaryCodeDatabase:
         ]
     
     def clean_expired_codes(self):
+        self._reload_if_changed()
         """Remove expired codes"""
         now = datetime.now()
         expired_codes = []
@@ -133,6 +155,7 @@ class TemporaryCodeDatabase:
         return True
     
     def get_active_codes(self):
+        self._reload_if_changed()
         """Get all active (non-expired) codes"""
         now = datetime.now()
         active_codes = []

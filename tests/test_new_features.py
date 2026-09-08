@@ -443,6 +443,49 @@ def test_begin_registration_with_existing_passkeys(mock_config_dir):
 
 
 # ---------------------------------------------------------------------------
+# Multi-worker consistency (stale-worker saves must not erase data)
+# ---------------------------------------------------------------------------
+
+def test_userdb_stale_worker_does_not_erase_passkeys(tmp_path):
+    from web.models import UserDatabase
+    db1 = UserDatabase(str(tmp_path))   # "worker A"
+    assert db1.add_user('admin', 'pw', 'admin')
+
+    db2 = UserDatabase(str(tmp_path))   # "worker B" — must see worker A's write
+    assert db2.user_exists('admin')
+
+    # worker A registers a passkey (like the mobile registration)
+    u = db1.get_user('admin')
+    u['passkeys'] = [{'id': 'cred-1', 'id_key': 'k1', 'name': 'Phone'}]
+    assert db1._save_users()
+
+    # worker B logs in (stamps last_login and saves its copy)
+    assert db2.authenticate('admin', 'pw')
+
+    # the passkey must survive worker B's save
+    assert db1.get_user('admin')['passkeys'], \
+        'stale worker erased the passkey registered through its sibling'
+    assert db2.get_user('admin')['passkeys'], \
+        'stale worker does not see sibling writes'
+
+
+def test_tempcode_stale_worker_consistency(tmp_path):
+    from web.temp_codes import TemporaryCodeDatabase
+    db1 = TemporaryCodeDatabase(str(tmp_path))
+    assert db1.add_code('1', '1234', 'Guest', 'admin', '2026-12-01T00:00:00')
+
+    db2 = TemporaryCodeDatabase(str(tmp_path))
+    assert db2.get_code('1'), 'stale worker does not see sibling writes'
+
+    assert db2.add_code('2', '5678', 'Cleaner', 'admin', '2026-12-01T00:00:00')
+    assert db1.get_code('2'), 'stale worker does not see sibling writes'
+
+    # delete through db2; db1 must not resurrect or erase wrongly
+    assert db2.delete_code('1')
+    assert db1.get_code('1') is None
+
+
+# ---------------------------------------------------------------------------
 # Security regressions: backup masking, open redirect
 # ---------------------------------------------------------------------------
 

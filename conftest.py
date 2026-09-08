@@ -149,6 +149,9 @@ def app(mock_config_dir):
     app_module.audit = AuditLog(app_module.config.data_dir)
     app_module.notifier = Notifier(app_module.config)
     app_module.wake_signal = WakeSignal(app_module.config.data_dir)
+    # tests patch config/api attributes directly — disable the production
+    # cross-worker config autoreload so it cannot wipe those patches
+    app_module._config_autoreload_disabled = True
 
     flask_app = app_module.app
 

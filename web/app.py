@@ -92,6 +92,36 @@ if os.environ.get('PROXY_FIX', 'false').lower() == 'true':
 def make_session_permanent():
     session.permanent = True
 
+# Multi-worker consistency: gunicorn runs several workers, each with its own
+# ConfigManager. When config/credentials change (UI save, webhook secret
+# rotation, monitor-side edits), other workers would keep serving STALE
+# values — e.g. rejecting the new webhook secret. Re-read when files change.
+_app_config_mtimes = None
+_config_autoreload_disabled = False
+
+@app.before_request
+def reload_config_if_changed():
+    global config, api, notifier, _app_config_mtimes
+    # Tests patch config/api attributes directly; autoreload would wipe them
+    if _config_autoreload_disabled:
+        return
+    try:
+        mtimes = (os.path.getmtime(config.config_path),
+                  os.path.getmtime(config.credentials_path))
+    except OSError:
+        return
+    if _app_config_mtimes is None:
+        _app_config_mtimes = mtimes
+        return
+    if mtimes != _app_config_mtimes:
+        _app_config_mtimes = mtimes
+        try:
+            config = ConfigManager(parent_dir)
+            api = NukiAPI(config)
+            notifier = Notifier(config)
+        except Exception as e:
+            logger.error(f"Config reload on request failed: {e}")
+
 # Check if setup is needed
 @app.before_request
 def check_setup():
