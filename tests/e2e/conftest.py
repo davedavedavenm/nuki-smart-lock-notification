@@ -80,7 +80,12 @@ debug_mode = false
     from werkzeug.security import generate_password_hash
     users = {
         "admin": {"password_hash": generate_password_hash('nukiadmin', method='pbkdf2:sha256'),
-                  "role": "admin", "active": True, "theme": "dark"},
+                  "role": "admin", "active": True, "theme": "dark",
+                  "user_handle": "aGVsbG8td29ybGQ=",
+                  "passkeys": [{"id": "dGVzdGlk", "id_key": "dGVzdGtleQ==",
+                                "name": "Home Laptop", "device": "Chrome on Windows",
+                                "created_at": "2026-09-01T10:00:00",
+                                "last_used_at": "2026-09-05T10:00:00", "sign_count": 1}]},
         "sitter": {"password_hash": generate_password_hash('agentpass', method='pbkdf2:sha256'),
                    "role": "agent", "active": True, "theme": "dark"},
     }

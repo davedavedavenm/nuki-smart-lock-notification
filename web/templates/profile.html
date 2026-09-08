@@ -228,10 +228,21 @@
                 return;
             }
             data.passkeys.forEach(function(k) {
+                const deviceBadge = k.device
+                    ? ' <span class="badge bg-secondary">' + $('<span>').text(k.device).html() + '</span>'
+                    : '';
+                const created = k.created_at ? new Date(k.created_at).toLocaleString() : '—';
+                const lastUsed = k.last_used_at
+                    ? new Date(k.last_used_at).toLocaleString()
+                    : 'Never';
+                const name = $('<span>').text(k.name).html();
                 list.append(
-                    '<li class="list-group-item d-flex justify-content-between align-items-center">' +
-                    '<span><i class="fas fa-fingerprint me-2 text-muted"></i>' + $('<span>').text(k.name).html() +
-                    ' <small class="text-muted">' + (k.created_at || '') + '</small></span>' +
+                    '<li class="list-group-item d-flex justify-content-between align-items-center" data-id="' + k.id + '">' +
+                    '<div>' +
+                        '<span class="pk-name">' + name + '</span>' + deviceBadge +
+                        ' <button class="btn btn-sm btn-link p-0 ms-1 pk-rename" title="Rename"><i class="fas fa-pen"></i></button>' +
+                        '<div class="text-muted small">Registered ' + created + ' · Last used ' + lastUsed + '</div>' +
+                    '</div>' +
                     '<button class="btn btn-sm btn-outline-danger" data-id="' + k.id + '">' +
                     '<i class="fas fa-trash"></i></button></li>'
                 );
@@ -247,6 +258,32 @@
             success: loadPasskeys,
             error: function(xhr) { alert(xhr.responseJSON?.error || 'Failed to remove passkey'); }
         });
+    });
+
+    // Inline rename: pencil turns the name into an input; Enter/blur saves
+    $('#passkeyList').on('click', '.pk-rename', function() {
+        const li = $(this).closest('li');
+        const id = li.data('id');
+        const current = li.find('.pk-name').text();
+        const input = $('<input type="text" class="form-control form-control-sm d-inline-block w-auto pk-name-input" maxlength="40" value="">')
+            .val(current);
+        li.find('.pk-name').replaceWith(input);
+        input.focus();
+        input.select();
+        const done = function() {
+            const name = input.val().trim();
+            if (!name || name === current) { loadPasskeys(); return; }
+            $.ajax({
+                url: '/api/passkeys/' + encodeURIComponent(id),
+                method: 'PUT',
+                contentType: 'application/json',
+                data: JSON.stringify({name: name}),
+                success: loadPasskeys,
+                error: function(xhr) { alert(xhr.responseJSON?.error || 'Rename failed'); loadPasskeys(); }
+            });
+        };
+        input.on('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); input.trigger('blur'); } if (e.key === 'Escape') { loadPasskeys(); } });
+        input.on('blur', done);
     });
 
     $('#registerPasskey').on('click', async function() {

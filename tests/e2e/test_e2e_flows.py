@@ -136,6 +136,25 @@ def test_no_horizontal_overflow_on_any_page(page):
         assert overflow <= 1, f"{path} overflows horizontally by {overflow}px at 390px"
 
 
+def test_passkey_identify_and_rename(page):
+    """Seeded passkey shows device + dates, and can be renamed inline."""
+    login(page)
+    page.goto(page.base_url + '/profile')
+    page.wait_for_selector('text=Home Laptop', timeout=10000)
+    assert page.locator('text=Chrome on Windows').count() > 0, 'device badge missing'
+    assert page.locator('text=Last used').count() > 0, 'last-used info missing'
+
+    page.click('.pk-rename')
+    page.fill('.pk-name-input', 'My Work Phone')
+    page.press('.pk-name-input', 'Enter')
+    page.wait_for_selector('text=My Work Phone', timeout=8000)
+
+    page.goto(page.base_url + '/profile')
+    page.wait_for_load_state('networkidle')
+    assert page.locator('text=My Work Phone').count() > 0, 'rename did not persist'
+    _assert_no_js_errors(page)
+
+
 def test_pwa_manifest_and_sw_served(page):
     resp = page.request.get(page.base_url + '/manifest.webmanifest')
     assert resp.ok

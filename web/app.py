@@ -355,7 +355,13 @@ def passkey_list():
     """List the current user's registered passkeys."""
     user = user_db.get_user(session['username'])
     keys = [
-        {"id": k["id"], "name": k.get("name", "Passkey"), "created_at": k.get("created_at")}
+        {
+            "id": k["id"],
+            "name": k.get("name", "Passkey"),
+            "device": k.get("device"),
+            "created_at": k.get("created_at"),
+            "last_used_at": k.get("last_used_at"),
+        }
         for k in pk.get_passkeys(user)
     ]
     return jsonify({"passkeys": keys, "secure_context": request.is_secure or request.host.startswith(('localhost', '127.0.0.1'))})
@@ -392,8 +398,13 @@ def passkey_register_finish():
         credential_id, attested = pk.complete_registration(
             state, data, pk.rp_from_request(request)
         )
-        name = (data.get('name') or 'Passkey').strip()[:40]
-        pk.add_passkey(user, credential_id, attested, name=name)
+        ua = request.headers.get('User-Agent', '')
+        device = pk.device_label_from_ua(ua)
+        # a client-sent auto-name ('Passkey 07/09/2026') is replaced by the
+        # device label; an explicit user-chosen name is kept
+        sent = (data.get('name') or '').strip()
+        name = sent if sent and not sent.startswith('Passkey ') else device
+        pk.add_passkey(user, credential_id, attested, name=name, device=device, ua=ua)
         if not user_db._save_users():
             return jsonify({"error": "Could not save passkey"}), 500
         logger.info(f"Passkey registered for user {session['username']}")
@@ -414,6 +425,23 @@ def passkey_delete(credential_id):
         _audit_action('passkey.delete')
         return jsonify({"success": True})
     return jsonify({"error": "Passkey not found"}), 404
+
+
+@app.route('/api/passkeys/<credential_id>', methods=['PUT'])
+@login_required
+def passkey_rename(credential_id):
+    """Rename one of the current user's passkeys for easier identification."""
+    user = user_db.get_user(session['username'])
+    name = (request.json or {}).get('name', '')
+    if not name.strip():
+        return jsonify({"error": "Name cannot be empty"}), 400
+    if len(name.strip()) > 40:
+        return jsonify({"error": "Name is limited to 40 characters"}), 400
+    if not pk.rename_passkey(user, credential_id, name):
+        return jsonify({"error": "Passkey not found"}), 404
+    user_db._save_users()
+    _audit_action('passkey.rename', detail=f"name={name.strip()!r}")
+    return jsonify({"success": True})
 
 
 @app.route('/api/passkeys/auth/begin', methods=['POST'])

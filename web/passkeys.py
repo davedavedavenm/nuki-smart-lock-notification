@@ -65,17 +65,74 @@ def ensure_user_handle(user):
     return user['user_handle']
 
 
-def add_passkey(user, credential_id_bytes, attested_bytes, name=None):
+def device_label_from_ua(ua):
+    """Human label for where a passkey was registered, e.g. 'Safari on iPhone'.
+
+    WebAuthn hides the authenticator; the only reliable hint we get is the
+    browser's User-Agent at registration time.
+    """
+    ua = (ua or '')
+    if not ua.strip():
+        return 'Unknown device'
+    low = ua.lower()
+    if 'iphone' in low or 'ipad' in low or 'ipod' in low:
+        os_name = 'iPhone' if 'iphone' in low else ('iPad' if 'ipad' in low else 'iOS')
+    elif 'android' in low:
+        os_name = 'Android'
+    elif 'windows' in low:
+        os_name = 'Windows'
+    elif 'mac os' in low or 'macintosh' in low:
+        os_name = 'macOS'
+    elif 'linux' in low:
+        os_name = 'Linux'
+    else:
+        os_name = 'Unknown OS'
+
+    if 'edg/' in low:
+        browser = 'Edge'
+    elif 'chrome/' in low and 'chromium' not in low:
+        browser = 'Chrome'
+    elif 'chromium' in low:
+        browser = 'Chromium'
+    elif 'firefox/' in low:
+        browser = 'Firefox'
+    elif 'safari/' in low:
+        browser = 'Safari'
+    else:
+        browser = 'Browser'
+
+    if browser == 'Unknown' and os_name == 'Unknown OS':
+        return 'Unknown device'
+    return f"{browser} on {os_name}"
+
+
+def add_passkey(user, credential_id_bytes, attested_bytes, name=None, device=None, ua=None):
     """Store a registered passkey on the user entry."""
+    device = device or (device_label_from_ua(ua) if ua else None)
     entry = {
         'id': websafe_encode(credential_id_bytes),
         'id_key': websafe_encode(attested_bytes),
         'sign_count': 0,
-        'name': name or 'Passkey',
+        'name': (name or '').strip() or device or 'Passkey',
+        'device': device,
+        'ua': (ua or '')[:512] or None,
         'created_at': datetime.now().isoformat(),
+        'last_used_at': None,
     }
     user.setdefault('passkeys', []).append(entry)
     return entry
+
+
+def rename_passkey(user, credential_id_b64, name):
+    """Rename a passkey. Returns True if renamed."""
+    name = (name or '').strip()
+    if not name or len(name) > 40:
+        return False
+    for pk_ in get_passkeys(user):
+        if pk_['id'] == credential_id_b64:
+            pk_['name'] = name
+            return True
+    return False
 
 
 def remove_passkey(user, credential_id_b64):
@@ -204,5 +261,6 @@ def complete_authentication(server_state, response_json, user_db, rp_id):
             pk_entry['sign_count'] = int(new_count)
     except (TypeError, ValueError):
         pass
+    pk_entry['last_used_at'] = datetime.now().isoformat()
 
     return username

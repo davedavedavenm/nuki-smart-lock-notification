@@ -478,6 +478,47 @@ def test_login_next_open_redirect_blocked(app):
     assert (resp.headers.get('Location') or '').endswith('/activity')
 
 
+def test_device_label_from_ua():
+    from web import passkeys as pk
+    cases = {
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1': 'Safari on iPhone',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36': 'Chrome on Windows',
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36': 'Chrome on Android',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15': 'Safari on macOS',
+        'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:127.0) Gecko/20100101 Firefox/127.0': 'Firefox on Linux',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36 Edg/126.0': 'Edge on Windows',
+        '': 'Unknown device',
+    }
+    for ua, expected in cases.items():
+        assert pk.device_label_from_ua(ua) == expected, f"{ua!r} -> {pk.device_label_from_ua(ua)}"
+
+
+def test_passkey_rename_endpoint(app):
+    import web.app as app_module
+    from fido2.utils import websafe_encode
+    users = app_module.user_db.users
+    users['admin']['passkeys'] = [
+        {'id': websafe_encode(b'\x01' * 32), 'id_key': 'dGVzdA==', 'name': 'Home Laptop',
+         'device': 'Chrome on Windows', 'created_at': '2026-09-01T10:00:00', 'last_used_at': None, 'sign_count': 0}
+    ]
+    app_module.user_db._save_users()
+    _login_admin(app)
+    cid = users['admin']['passkeys'][0]['id']
+    resp = app.put('/api/passkeys/' + cid, json={'name': 'My Work Phone'})
+    assert resp.status_code == 200
+    keys = app.get('/api/passkeys').get_json()['passkeys']
+    assert keys[0]['name'] == 'My Work Phone'
+    assert keys[0]['device'] == 'Chrome on Windows'
+    # empty / too-long rejected
+    assert app.put('/api/passkeys/' + cid, json={'name': '   '}).status_code == 400
+    assert app.put('/api/passkeys/' + cid, json={'name': 'x' * 41}).status_code == 400
+    # unknown id
+    assert app.put('/api/passkeys/deadbeef', json={'name': 'X'}).status_code == 404
+    # audit written
+    entries = app_module.audit.recent(action_filter='passkey.rename')
+    assert entries and entries[0]['status'] == 'success'
+
+
 # ---------------------------------------------------------------------------
 # TOTP + lock-user management gating
 # ---------------------------------------------------------------------------
