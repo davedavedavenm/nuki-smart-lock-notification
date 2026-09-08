@@ -337,8 +337,14 @@ def login():
             next_page = request.args.get('next')
             # open-redirect guard: only same-site relative paths are honoured
             if next_page and next_page.startswith('/') and not next_page.startswith('//'):
-                return redirect(next_page)
-            return redirect(url_for('index'))
+                resp = redirect(next_page)
+            else:
+                resp = redirect(url_for('index'))
+            # login hint: remembers the username on this device so the login
+            # field is prefilled next time (username only, not a credential)
+            resp.set_cookie('nuki_login_hint', username, max_age=365 * 24 * 3600,
+                            samesite='Lax', httponly=False)
+            return resp
         else:
             ip = request.headers.get('X-Real-IP') or request.remote_addr or ''
             audit.record('login.failure', actor=username or 'anonymous',
@@ -530,7 +536,11 @@ def passkey_auth_finish():
     user_db._save_users()
     logger.info(f"User {username} logged in with passkey")
     _audit_action('login.success', detail='method=passkey')
-    return jsonify({"success": True, "redirect": url_for('index')})
+    resp = jsonify({"success": True, "redirect": url_for('index')})
+    # login hint cookie: prefill the username next time on this device
+    resp.set_cookie('nuki_login_hint', username, max_age=365 * 24 * 3600,
+                    samesite='Lax', httponly=False)
+    return resp
 
 
 @app.route('/profile', methods=['GET', 'POST'])

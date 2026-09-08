@@ -19,7 +19,8 @@
                     <label for="username" class="form-label">Username</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-user"></i></span>
-                        <input type="text" class="form-control" id="username" name="username" required autofocus autocomplete="username">
+                        <input type="text" class="form-control" id="username" name="username" required autofocus
+       autocomplete="username webauthn" value="{{ request.cookies.get('nuki_login_hint', '') }}">
                     </div>
                 </div>
                 <div class="mb-4">
@@ -65,6 +66,41 @@ $(document).ready(function() {
         hint.removeClass('d-none');
     }
 
+    // Passkey autofill (conditional mediation): when supported, passkeys for
+    // this site appear in the username field's autofill dropdown — tap and
+    // sign in with zero typing. Silently skipped when unsupported or when
+    // the user has no passkey yet.
+    if (window.PublicKeyCredential?.isConditionalMediationAvailable?.()) {
+        (async function () {
+            try {
+                const begin = await fetch('/api/passkeys/auth/begin', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: null})
+                });
+                const options = await begin.json();
+                if (!begin.ok) return;
+                const publicKey = {
+                    challenge: base64urlToBytes(options.publicKey.challenge),
+                    rpId: options.publicKey.rpId,
+                    userVerification: options.publicKey.userVerification || 'preferred',
+                    timeout: options.publicKey.timeout || 60000
+                };
+                const credential = await navigator.credentials.get({
+                    publicKey, mediation: 'conditional'
+                });
+                const assertion = serializeAssertion(credential);
+                const finish = await fetch('/api/passkeys/auth/finish', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(assertion)
+                });
+                const result = await finish.json();
+                if (finish.ok && result.redirect) window.location.href = result.redirect;
+            } catch (e) { /* autofill is optional; the button flow remains */ }
+        })();
+    }
+
     btn.on('click', async function() {
         btn.prop('disabled', true);
         try {
@@ -84,7 +120,10 @@ $(document).ready(function() {
                 challenge: base64urlToBytes(options.publicKey.challenge),
                 rpId: options.publicKey.rpId,
                 userVerification: options.publicKey.userVerification || 'preferred',
-                timeout: options.publicKey.timeout || 60000
+                timeout: options.publicKey.timeout || 60000,
+                allowCredentials: (options.publicKey.allowCredentials || []).map(c => ({
+                    id: base64urlToBytes(c.id), type: c.type
+                }))
             };
 
             const credential = await navigator.credentials.get({publicKey});
