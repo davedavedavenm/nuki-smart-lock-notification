@@ -138,7 +138,7 @@ def check_setup():
 init_app(app)
 
 # Static asset cache-busting: bump when CSS/JS change so browsers fetch fresh
-ASSET_VERSION = '20260905.2'
+ASSET_VERSION = '20260911.1'
 
 @app.context_processor
 def inject_asset_version():

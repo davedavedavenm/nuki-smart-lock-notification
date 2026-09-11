@@ -64,3 +64,14 @@ body.dark-theme ::-webkit-scrollbar-thumb {
     border: 2px solid var(--nk-bg);
 }
 body.dark-theme ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.4); }
+
+/* Themed Toasts in Dark Mode */
+body.dark-theme .nk-toast {
+    background-color: rgba(17, 22, 29, 0.96) !important;
+    border-color: var(--nk-border-strong) !important;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55);
+}
+body.dark-theme .nk-toast-header {
+    background-color: rgba(21, 28, 36, 0.94) !important;
+    border-bottom-color: var(--nk-border);
+}

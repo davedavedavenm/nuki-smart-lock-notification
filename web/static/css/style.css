@@ -508,3 +508,96 @@ thead th {
 .nk-filter-active {
     border-left: 3px solid var(--nk-accent) !important;
 }
+
+/* ---------- Themed Console Toasts & Dialogs ---------- */
+.nk-toast-container {
+    z-index: 100000;
+    max-width: 90vw;
+    pointer-events: none;
+}
+
+.nk-toast {
+    background-color: var(--nk-panel) !important;
+    border: 1px solid var(--nk-border-strong) !important;
+    border-radius: var(--nk-radius);
+    box-shadow: var(--nk-shadow);
+    color: var(--nk-text) !important;
+    min-width: 320px;
+    max-width: 440px;
+    pointer-events: auto;
+    margin-bottom: 0.75rem;
+    backdrop-filter: blur(12px);
+    overflow: hidden;
+    animation: nk-toast-slide-in 0.25s ease-out;
+}
+
+@keyframes nk-toast-slide-in {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.nk-toast-header {
+    display: flex;
+    align-items: center;
+    padding: 0.55rem 0.85rem;
+    background-color: var(--nk-panel-2) !important;
+    border-bottom: 1px solid var(--nk-border);
+    font-family: var(--nk-font-display);
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--nk-text);
+}
+
+.nk-toast-body {
+    padding: 0.75rem 0.85rem;
+    font-family: var(--nk-font-body);
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: var(--nk-text);
+}
+
+.nk-toast-icon {
+    font-size: 1rem;
+    margin-right: 0.55rem;
+}
+
+.nk-toast-success {
+    border-left: 4px solid var(--nk-ok) !important;
+}
+.nk-toast-success .nk-toast-icon {
+    color: var(--nk-ok);
+}
+
+.nk-toast-danger,
+.nk-toast-error {
+    border-left: 4px solid var(--nk-danger) !important;
+}
+.nk-toast-danger .nk-toast-icon,
+.nk-toast-error .nk-toast-icon {
+    color: var(--nk-danger);
+}
+
+.nk-toast-warning {
+    border-left: 4px solid var(--nk-warn) !important;
+}
+.nk-toast-warning .nk-toast-icon {
+    color: var(--nk-warn);
+}
+
+.nk-toast-info {
+    border-left: 4px solid var(--nk-accent) !important;
+}
+.nk-toast-info .nk-toast-icon {
+    color: var(--nk-accent);
+}
+
+body.dark-theme .nk-toast .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}

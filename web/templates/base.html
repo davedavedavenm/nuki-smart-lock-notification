@@ -265,6 +265,26 @@
 
     {% block scripts %}{% endblock %}
 
+    <!-- Floating Toast Container for themed console notifications -->
+    <div id="nkToastContainer" class="nk-toast-container position-fixed top-0 end-0 p-3" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Themed Confirm Modal -->
+    <div class="modal fade" id="nkConfirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="nkConfirmTitle"><i class="fas fa-circle-question me-2 text-warning"></i>Confirmation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="nkConfirmMessage"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="nkConfirmCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="nkConfirmOkBtn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- TOTP gate modal: enrollment + verification for lock-access actions -->
     <div class="modal fade" id="totpGateModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">

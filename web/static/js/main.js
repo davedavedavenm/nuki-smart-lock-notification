@@ -325,3 +325,137 @@ $(document).ready(function() {
     // Then every 30 seconds
     setInterval(checkHealth, 30000);
 });
+
+// ---------------------------------------------------------------------------
+// Themed Console Toast & Dialog System (Hardware Console aesthetic)
+// ---------------------------------------------------------------------------
+
+function nkToast(message, type, duration) {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            nkToast(message, type, duration);
+        });
+        return;
+    }
+
+    type = type || 'info';
+    duration = duration !== undefined ? duration : 4000;
+    if (type === 'error') type = 'danger';
+
+    const titles = {
+        success: 'SUCCESS',
+        danger: 'ERROR',
+        warning: 'WARNING',
+        info: 'NOTICE'
+    };
+
+    const icons = {
+        success: 'fas fa-circle-check',
+        danger: 'fas fa-triangle-exclamation',
+        warning: 'fas fa-circle-exclamation',
+        info: 'fas fa-circle-info'
+    };
+
+    const title = titles[type] || 'NOTICE';
+    const icon = icons[type] || 'fas fa-circle-info';
+
+    let container = document.getElementById('nkToastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'nkToastContainer';
+        container.className = 'nk-toast-container position-fixed top-0 end-0 p-3';
+        container.setAttribute('aria-live', 'polite');
+        document.body.appendChild(container);
+    }
+
+    const toastEl = document.createElement('div');
+    toastEl.className = 'toast nk-toast nk-toast-' + type;
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+
+    // Escape message to prevent XSS if string
+    const msgDiv = document.createElement('div');
+    msgDiv.textContent = String(message || '');
+    const safeMsg = msgDiv.innerHTML;
+
+    toastEl.innerHTML = 
+        '<div class="nk-toast-header">' +
+            '<i class="' + icon + ' nk-toast-icon"></i>' +
+            '<strong class="me-auto nk-toast-title">' + title + '</strong>' +
+            '<button type="button" class="btn-close ms-2" data-bs-dismiss="toast" aria-label="Close"></button>' +
+        '</div>' +
+        '<div class="toast-body nk-toast-body">' + safeMsg + '</div>';
+
+    container.appendChild(toastEl);
+
+    if (window.bootstrap && bootstrap.Toast) {
+        const bsToast = new bootstrap.Toast(toastEl, { autohide: true, delay: duration });
+        toastEl.addEventListener('hidden.bs.toast', function() {
+            toastEl.remove();
+        });
+        bsToast.show();
+    } else {
+        toastEl.classList.add('show');
+        setTimeout(function() {
+            toastEl.remove();
+        }, duration);
+    }
+    return toastEl;
+}
+
+// Override native window.alert with themed console toasts
+window.alert = function(msg) {
+    if (msg === undefined || msg === null) return;
+    const text = String(msg);
+    const s = text.toLowerCase();
+    let type = 'info';
+    if (s.includes('success') || s.includes('saved') || s.includes('updated') || s.includes('copied') || s.includes('registered') || s.includes('verified') || s.includes('unlocked')) {
+        type = 'success';
+    } else if (s.includes('error') || s.includes('fail') || s.includes('denied') || s.includes('cannot') || s.includes('could not') || s.includes('unauthorized') || s.includes('invalid') || s.includes('rejected')) {
+        type = 'danger';
+    } else if (s.includes('warning') || s.includes('warn') || s.includes('stale') || s.includes('caution')) {
+        type = 'warning';
+    }
+    nkToast(text, type);
+};
+
+// Themed confirmation modal helper
+function nkConfirm(message, onConfirm, options) {
+    options = options || {};
+    const title = options.title || 'Please Confirm';
+    const confirmText = options.confirmText || 'Confirm';
+    const isDanger = options.danger !== false;
+
+    const modalEl = document.getElementById('nkConfirmModal');
+    if (!modalEl || !window.bootstrap) {
+        if (window.confirm(message)) {
+            if (typeof onConfirm === 'function') onConfirm();
+        }
+        return;
+    }
+
+    const titleEl = document.getElementById('nkConfirmTitle');
+    const msgEl = document.getElementById('nkConfirmMessage');
+    const okBtn = document.getElementById('nkConfirmOkBtn');
+
+    if (titleEl) {
+        titleEl.innerHTML = '<i class="fas ' + (isDanger ? 'fa-triangle-exclamation text-danger' : 'fa-circle-question text-warning') + ' me-2"></i>' + $('<span>').text(title).html();
+    }
+    if (msgEl) {
+        msgEl.textContent = message;
+    }
+    if (okBtn) {
+        okBtn.textContent = confirmText;
+        okBtn.className = isDanger ? 'btn btn-danger' : 'btn btn-primary';
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+    $(okBtn).off('click').on('click', function() {
+        modal.hide();
+        if (typeof onConfirm === 'function') onConfirm();
+    });
+
+    modal.show();
+}
