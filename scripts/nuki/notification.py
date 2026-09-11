@@ -133,7 +133,7 @@ class Notifier:
           'exclude' — a non-empty select acts as a BLOCK-list (legacy).
         """
         # Auto-lock filtering (trigger 6) — applies in every mode
-        if event['user_name'] == "Auto Lock" and not self.config.notify_auto_lock:
+        if (event.get('user_name') == "Auto Lock" or event.get('trigger') == 6) and not self.config.notify_auto_lock:
             return True
 
         # System events (trigger 0 = System, e.g. "Nuki Bridge") — applies
@@ -151,25 +151,50 @@ class Notifier:
         selected_actions = self.config.excluded_actions
         selected_triggers = self.config.excluded_triggers
 
-        def dimension_allows(selected, value):
+        action_names = {
+            1: "Unlock", 2: "Lock", 3: "Unlatch",
+            4: "Lock 'n' Go", 5: "Lock 'n' Go with unlatch", 6: "Full Lock"
+        }
+        trigger_names = {
+            0: "System", 1: "Manual", 2: "Button", 3: "Automatic",
+            4: "App", 5: "Website", 6: "Auto Lock", 7: "Time Control"
+        }
+
+        def item_matches(selected_list, value, name_map=None):
+            if not selected_list:
+                return False
+            normalized_selected = {str(s).strip().lower() for s in selected_list if str(s).strip()}
+            if not normalized_selected:
+                return False
+            candidates = {str(value).strip().lower()}
+            if name_map:
+                try:
+                    int_val = int(value)
+                    if int_val in name_map:
+                        candidates.add(name_map[int_val].lower())
+                except (ValueError, TypeError):
+                    pass
+            return bool(candidates & normalized_selected)
+
+        def dimension_allows(selected, value, name_map=None):
             """Empty selection = no restriction; otherwise value must match"""
-            return not selected or str(value) in selected
+            return not selected or item_matches(selected, value, name_map)
 
         if mode == 'include':
-            if not dimension_allows(selected_users, event['user_name']):
+            if not dimension_allows(selected_users, event.get('user_name')):
                 return True
-            if 'action' in event and not dimension_allows(selected_actions, event.get('action')):
+            if 'action' in event and not dimension_allows(selected_actions, event.get('action'), action_names):
                 return True
-            if 'trigger' in event and not dimension_allows(selected_triggers, event.get('trigger')):
+            if 'trigger' in event and not dimension_allows(selected_triggers, event.get('trigger'), trigger_names):
                 return True
             return False
 
         # Legacy exclude mode: any match mutes the event
-        if event['user_name'] in selected_users:
+        if item_matches(selected_users, event.get('user_name')):
             return True
-        if 'action' in event and str(event['action']) in selected_actions:
+        if 'action' in event and item_matches(selected_actions, event.get('action'), action_names):
             return True
-        if 'trigger' in event and str(event['trigger']) in selected_triggers:
+        if 'trigger' in event and item_matches(selected_triggers, event.get('trigger'), trigger_names):
             return True
         return False
     

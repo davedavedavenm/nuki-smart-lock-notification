@@ -481,7 +481,25 @@
         $('#notifySystemEvents').prop('checked', data.notification.notify_system_events);
         
         // Filter settings
-        $('#excludedUsers').val(data.filter.excluded_users.join(','));
+        $('#excludedUsers').val((data.filter.excluded_users || []).join(','));
+        
+        // Populate excluded actions checkboxes
+        $('.excluded-action').prop('checked', false);
+        if (data.filter.excluded_actions && Array.isArray(data.filter.excluded_actions)) {
+            data.filter.excluded_actions.forEach(function(action) {
+                $('.excluded-action[value="' + action + '"]').prop('checked', true);
+            });
+        }
+        updateExcludedActions();
+
+        // Populate excluded triggers checkboxes
+        $('.excluded-trigger').prop('checked', false);
+        if (data.filter.excluded_triggers && Array.isArray(data.filter.excluded_triggers)) {
+            data.filter.excluded_triggers.forEach(function(trigger) {
+                $('.excluded-trigger[value="' + trigger + '"]').prop('checked', true);
+            });
+        }
+        updateExcludedTriggers();
         
         // Advanced settings
         $('#maxEventsPerCheck').val(data.advanced.max_events_per_check);

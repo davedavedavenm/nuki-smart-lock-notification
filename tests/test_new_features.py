@@ -321,6 +321,25 @@ def test_filter_mode_exclude_legacy():
     assert not n._should_filter_event(make_event(action=2))     # rest notify
 
 
+def test_filter_mode_exclude_by_action_name():
+    n = Notifier(FakeConfig(filter_mode='exclude', excluded_actions=['Unlock']))
+    assert n._should_filter_event(make_event(action=1))         # Unlock (1) is muted
+    assert not n._should_filter_event(make_event(action=2))     # Lock (2) notifies
+
+
+def test_filter_mode_exclude_by_trigger_name():
+    n = Notifier(FakeConfig(filter_mode='exclude', excluded_triggers=['Auto Lock']))
+    assert n._should_filter_event(make_event(trigger=6))        # Auto Lock (6) is muted
+    assert not n._should_filter_event(make_event(trigger=2))    # Button (2) notifies
+
+
+def test_auto_lock_filtering_by_trigger_six():
+    n = Notifier(FakeConfig(notify_auto_lock=False))
+    assert n._should_filter_event(make_event(trigger=6, user_name='System'))
+    n_allowed = Notifier(FakeConfig(notify_auto_lock=True))
+    assert not n_allowed._should_filter_event(make_event(trigger=6, user_name='System'))
+
+
 def test_system_events_toggle_applies_in_all_modes():
     ev = make_event(event_type='Nuki Bridge', trigger=0, action=None)
     n = Notifier(FakeConfig(filter_mode='all', notify_system_events=True))

@@ -6,9 +6,11 @@
 <div class="row">
     <div class="col-lg-12">
         <div class="card mb-4">
-            <div class="card-header">
-                <i class="fas fa-bell me-1"></i>
-                Notification Settings
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-bell me-1"></i> Notification Settings</span>
+                <button type="button" class="btn btn-sm btn-primary save-notifications-trigger">
+                    <i class="fas fa-save me-1"></i> Save Notification Settings
+                </button>
             </div>
             <div class="card-body">
                 <form id="notificationSettingsForm">
@@ -217,61 +219,65 @@
                         </div>
                     </div>
                     
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <h5><i class="fas fa-bolt me-1"></i>Instant Push (Webhook)</h5>
-                            <p class="text-muted small mb-3">
-                                Instead of waiting for the next poll, the Nuki Web API can push each event to this
-                                server the moment it happens. Requires a public HTTPS URL that reaches this dashboard
-                                (e.g. via a Pangolin tunnel). Polling continues as a fallback either way.
-                            </p>
-                            <div class="mb-3 form-check form-switch">
-                                <input class="form-check-input" type="checkbox" role="switch" id="webhookEnabled">
-                                <label class="form-check-label" for="webhookEnabled">Enable webhook endpoint</label>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label" for="webhookPublicUrl">Public base URL of this dashboard</label>
-                                <input type="url" class="form-control" id="webhookPublicUrl" placeholder="https://hook.nuki.example.com">
-                                <div class="form-text">https:// only. The full webhook URL adds <code>/webhook/nuki/&lt;secret&gt;</code>.</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Webhook URL (register this with Nuki)</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="webhookFullUrl" readonly>
-                                    <button class="btn btn-outline-secondary" type="button" id="copyWebhookUrl">
-                                        <i class="fas fa-copy me-1"></i>Copy
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <button type="button" class="btn btn-primary" id="saveWebhookSettings">
-                                    <i class="fas fa-save me-1"></i>Save Webhook Settings
-                                </button>
-                                <button type="button" class="btn btn-success" id="registerWebhookBtn">
-                                    <i class="fas fa-plug me-1"></i>Register with Nuki
-                                </button>
-                                <button type="button" class="btn btn-outline-danger" id="unregisterWebhookBtn">
-                                    <i class="fas fa-times me-1"></i>Unregister
-                                </button>
-                                <button type="button" class="btn btn-outline-warning" id="rotateWebhookSecretBtn">
-                                    <i class="fas fa-key me-1"></i>Rotate Secret
-                                </button>
-                            </div>
-                            <div id="webhookHooksContainer">
-                                <h6>Hooks registered at Nuki</h6>
-                                <ul class="list-group" id="webhookHooksList">
-                                    <li class="list-group-item text-muted">Loading...</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
+                    <div class="row mt-2">
                         <div class="col-12">
                             <button type="button" id="saveNotificationSettings" class="btn btn-primary">
                                 <i class="fas fa-save me-1"></i> Save Notification Settings
                             </button>
                         </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-bolt me-1"></i> Instant Push (Webhook)
+            </div>
+            <div class="card-body">
+                <form id="webhookSettingsForm">
+                    <p class="text-muted small mb-3">
+                        Instead of waiting for the next poll, the Nuki Web API can push each event to this
+                        server the moment it happens. Requires a public HTTPS URL that reaches this dashboard
+                        (e.g. via a Pangolin tunnel). Polling continues as a fallback either way.
+                    </p>
+                    <div class="mb-3 form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="webhookEnabled">
+                        <label class="form-check-label" for="webhookEnabled">Enable webhook endpoint</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="webhookPublicUrl">Public base URL of this dashboard</label>
+                        <input type="url" class="form-control" id="webhookPublicUrl" placeholder="https://hook.nuki.example.com">
+                        <div class="form-text">https:// only. The full webhook URL adds <code>/webhook/nuki/&lt;secret&gt;</code>.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Webhook URL (register this with Nuki)</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="webhookFullUrl" readonly>
+                            <button class="btn btn-outline-secondary" type="button" id="copyWebhookUrl">
+                                <i class="fas fa-copy me-1"></i>Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-primary" id="saveWebhookSettings">
+                            <i class="fas fa-save me-1"></i>Save Webhook Settings
+                        </button>
+                        <button type="button" class="btn btn-success" id="registerWebhookBtn">
+                            <i class="fas fa-plug me-1"></i>Register with Nuki
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" id="unregisterWebhookBtn">
+                            <i class="fas fa-times me-1"></i>Unregister
+                        </button>
+                        <button type="button" class="btn btn-outline-warning" id="rotateWebhookSecretBtn">
+                            <i class="fas fa-key me-1"></i>Rotate Secret
+                        </button>
+                    </div>
+                    <div id="webhookHooksContainer">
+                        <h6>Hooks registered at Nuki</h6>
+                        <ul class="list-group" id="webhookHooksList">
+                            <li class="list-group-item text-muted">Loading...</li>
+                        </ul>
                     </div>
                 </form>
             </div>
@@ -293,7 +299,7 @@
         loadWebhookStatus();
         
         // Handle form submission
-        $('#saveNotificationSettings').click(saveNotificationSettings);
+        $('#saveNotificationSettings, .save-notifications-trigger').click(saveNotificationSettings);
         $('#saveWebhookSettings').click(saveWebhookSettings);
         $('input[name="filterMode"]').on('change', function() { updateColumnSemantics(); updatePreview(); });
         $(document).on('change', '.filter-check', updatePreview);

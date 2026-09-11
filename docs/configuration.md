@@ -60,8 +60,8 @@ filter_mode = all                ; all = notify everything; include = only the
                                  ; exclude = the selected ones are muted.
                                  ; Empty lists never restrict a dimension.
 excluded_users =                 ; Selected users (meaning depends on mode)
-excluded_actions =               ; Selected actions (1=Unlock, 2=Lock, ...)
-excluded_triggers =              ; Selected triggers (0=System, 4=App, ...)
+excluded_actions =               ; Selected actions by ID (1=Unlock, 2=Lock, ...) or name (Unlock, Lock, ...)
+excluded_triggers =              ; Selected triggers by ID (0=System, 4=App, 6=Auto Lock, ...) or name (Auto Lock, Button, ...)
 
 [Email]
 smtp_server = smtp.example.com   ; SMTP server address
